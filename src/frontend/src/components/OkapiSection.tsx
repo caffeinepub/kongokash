@@ -15,13 +15,22 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Principal } from "@icp-sdk/core/principal";
 import {
+  ArrowRight,
   BarChart3,
+  BookOpen,
+  CheckCircle,
+  ChevronDown,
+  ChevronUp,
+  Coins,
+  Flame,
   Gift,
   Loader2,
   Lock,
   Send,
   ShoppingBag,
+  TrendingUp,
   Unlock,
+  Users,
   Zap,
 } from "lucide-react";
 import { motion } from "motion/react";
@@ -121,6 +130,570 @@ function rewardRateLabel(days: number): string {
   if (days >= 180) return "20%";
   if (days >= 90) return "15%";
   return "10%";
+}
+
+function WhitepaperTab() {
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
+
+  const toggleFaq = (i: number) => setOpenFaq(openFaq === i ? null : i);
+
+  const faqs = [
+    {
+      q: "Qu'est-ce que le token OKP ?",
+      a: "OKP (Okapi) est le token utilitaire natif de KongoKash, déployé sur Internet Computer Protocol (ICP). Il permet de réduire les frais, de recevoir des récompenses, de staker et de réaliser des paiements P2P ou marchands.",
+    },
+    {
+      q: "Comment gagner des OKP ?",
+      a: "Vous gagnez des OKP en utilisant la plateforme : +25 OKP à chaque achat de crypto, +10 OKP pour les ventes et dépôts, +5 OKP pour les transferts P2P, +50 OKP via la récompense quotidienne, et via le parrainage d'autres utilisateurs.",
+    },
+    {
+      q: "Les OKP ont-ils une valeur réelle ?",
+      a: "Oui. Le prix OKP/CDF est dynamique et évolue avec l'usage de la plateforme. Un mécanisme de burn (1,5% par transaction) réduit l'offre en circulation, limitant l'inflation et soutenant la valeur du token sur le long terme.",
+    },
+    {
+      q: "Qu'est-ce que le staking ?",
+      a: "Le staking consiste à bloquer vos OKP pendant une période définie pour recevoir des récompenses : 10% APY sur 30 jours, 15% APY sur 90 jours, et 20% APY sur 180 jours. Vos tokens sont libérés automatiquement à maturité.",
+    },
+    {
+      q: "Comment KongoKash sécurise mes données ?",
+      a: "KongoKash utilise Internet Identity, un système d'authentification décentralisé sur ICP. Aucun mot de passe n'est stocké. Le KYC est minimal (nom + téléphone) et les données sensibles (coordonnées bancaires) ne sont accessibles qu'aux utilisateurs vérifiés.",
+    },
+    {
+      q: "Quand sera disponible le paiement mobile ?",
+      a: "M-Pesa et Airtel Money seront activés après la stabilisation complète des virements bancaires Equity BCDC. Ces intégrations sont en phase de test et seront annoncées dès qu'elles sont prêtes.",
+    },
+  ];
+
+  const userFlowSteps = [
+    {
+      icon: <Users size={20} />,
+      label: "Inscription",
+      sub: "Internet Identity",
+    },
+    {
+      icon: <CheckCircle size={20} />,
+      label: "KYC léger",
+      sub: "Nom + Téléphone",
+    },
+    {
+      icon: <Coins size={20} />,
+      label: "Dépôt fiat",
+      sub: "CDF/USD via Equity BCDC",
+    },
+    {
+      icon: <TrendingUp size={20} />,
+      label: "Achat crypto",
+      sub: "BTC/ETH/USDT + gain OKP",
+    },
+    { icon: <Lock size={20} />, label: "Staking OKP", sub: "10–20% APY" },
+    {
+      icon: <Gift size={20} />,
+      label: "Récompenses",
+      sub: "& Paiements marchands",
+    },
+  ];
+
+  const vestingData = [
+    { month: 0, unlocked: 0, label: "Démarrage" },
+    { month: 6, unlocked: 0, label: "Cliff — aucun déblocage" },
+    { month: 12, unlocked: 0, label: "Fin du cliff" },
+    { month: 18, unlocked: 50, label: "Déblocage partiel" },
+    { month: 24, unlocked: 100, label: "Déblocage total" },
+  ];
+
+  const mechanismes = [
+    {
+      icon: <Flame size={18} />,
+      title: "Burn",
+      value: "1,5%",
+      desc: "Destruction automatique sur chaque transaction OKP pour réduire l'offre",
+      color: "oklch(0.60 0.20 25)",
+    },
+    {
+      icon: <TrendingUp size={18} />,
+      title: "Halvening",
+      value: "÷2 / 50M",
+      desc: "Les récompenses sont divisées par 2 tous les 50M OKP émis",
+      color: "oklch(0.55 0.18 200)",
+    },
+    {
+      icon: <Lock size={18} />,
+      title: "Staking APY",
+      value: "10–20%",
+      desc: "Rendements progressifs : 30j=10%, 90j=15%, 180j=20%",
+      color: "oklch(0.55 0.18 290)",
+    },
+    {
+      icon: <Gift size={18} />,
+      title: "Récompenses",
+      value: "+5 à +50 OKP",
+      desc: "Achat crypto, dépôt, P2P, parrainage, récompense quotidienne",
+      color: "oklch(0.60 0.18 45)",
+    },
+    {
+      icon: <Zap size={18} />,
+      title: "Prix dynamique",
+      value: "Variable",
+      desc: "Base configurable par admin, évolue automatiquement avec l'usage",
+      color: "oklch(0.55 0.18 160)",
+    },
+  ];
+
+  const roadmap = [
+    {
+      phase: "Q1 2025",
+      title: "Pré-lancement",
+      items: [
+        "KYC léger (nom + téléphone)",
+        "Intégration Equity BCDC",
+        "Token OKP + staking",
+        "Récompenses automatiques",
+      ],
+      done: true,
+    },
+    {
+      phase: "Q2 2025",
+      title: "Lancement",
+      items: [
+        "Paiements mobiles (M-Pesa, Airtel Money)",
+        "Réseau de marchands partenaires",
+        "Application mobile",
+      ],
+      done: false,
+    },
+    {
+      phase: "Q3 2025",
+      title: "Expansion",
+      items: [
+        "Intégration DEX",
+        "Gouvernance OKP (vote)",
+        "Nouvelles banques partenaires",
+      ],
+      done: false,
+    },
+    {
+      phase: "Q4 2025+",
+      title: "Croissance régionale",
+      items: [
+        "Multi-pays : Congo-Brazzaville, Cameroun",
+        "Échange fiat-to-OKP direct",
+        "Listing sur exchanges",
+      ],
+      done: false,
+    },
+  ];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className="space-y-10 max-w-4xl mx-auto pb-16"
+    >
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-bold" style={{ color: OKP_COLOR }}>
+            🦏 Livre Blanc Okapi (OKP)
+          </h2>
+          <p className="text-muted-foreground mt-1">Version 1.0 — Mars 2025</p>
+        </div>
+        <Button
+          variant="outline"
+          onClick={() => window.print()}
+          data-ocid="whitepaper.primary_button"
+          className="flex items-center gap-2"
+          style={{ borderColor: OKP_COLOR, color: OKP_COLOR }}
+        >
+          <BookOpen size={16} />
+          Télécharger / Imprimer
+        </Button>
+      </div>
+
+      {/* Section 1 — Résumé Exécutif */}
+      <Card>
+        <CardHeader>
+          <CardTitle style={{ color: OKP_COLOR }}>1. Résumé Exécutif</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm leading-relaxed">
+          <p>
+            <strong>KongoKash</strong> est une plateforme DeFi conçue pour les
+            utilisateurs congolais, permettant l'achat et la vente de
+            cryptomonnaies (BTC, ETH, USDT) avec des francs congolais (CDF) ou
+            des dollars américains (USD), via des virements bancaires sécurisés.
+            La plateforme s'appuie sur l'infrastructure décentralisée d'
+            <strong>Internet Computer Protocol (ICP)</strong>.
+          </p>
+          <p>
+            <strong>Okapi (OKP)</strong> est le token utilitaire natif de
+            KongoKash. Il constitue l'épine dorsale économique de l'écosystème :
+            réduction des frais de transaction, système de récompenses basé sur
+            l'activité, staking avec rendements progressifs, paiements P2P et
+            marchands, et conversion automatique en CDF côté commerçant.
+          </p>
+          <p>
+            L'objectif de KongoKash est de démocratiser l'accès à la finance
+            décentralisée pour les populations congolaises et africaines en
+            général, en proposant une interface entièrement en français,
+            culturellement adaptée, sécurisée et à faibles coûts. Le lancement
+            est prévu en 2025, avec une expansion régionale vers le
+            Congo-Brazzaville et le Cameroun dès 2026.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Section 2 — Vision & Problème */}
+      <Card>
+        <CardHeader>
+          <CardTitle style={{ color: OKP_COLOR }}>
+            2. Vision & Problème
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm">
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/20">
+              <h4 className="font-semibold text-destructive mb-2">
+                ❌ Problèmes actuels
+              </h4>
+              <ul className="space-y-1 text-muted-foreground list-disc list-inside">
+                <li>Accès limité aux cryptomonnaies en RDC</li>
+                <li>Frais bancaires élevés et virements lents</li>
+                <li>Absence d'infrastructure P2P fiable en CDF</li>
+                <li>Interfaces non localisées, complexes à utiliser</li>
+                <li>Aucun token d'incitation à l'usage</li>
+              </ul>
+            </div>
+            <div
+              className="p-4 rounded-lg border"
+              style={{ background: OKP_BG, borderColor: `${OKP_COLOR}44` }}
+            >
+              <h4 className="font-semibold mb-2" style={{ color: OKP_COLOR }}>
+                ✅ Solution KongoKash
+              </h4>
+              <ul className="space-y-1 text-muted-foreground list-disc list-inside">
+                <li>Intégration directe Equity BCDC (virement sécurisé)</li>
+                <li>Frais réduits via le token OKP</li>
+                <li>Interface 100% en français, culturellement adaptée</li>
+                <li>Récompenses OKP pour chaque action sur la plateforme</li>
+                <li>Paiements marchands avec conversion automatique CDF</li>
+              </ul>
+            </div>
+          </div>
+          <p className="text-muted-foreground">
+            <strong>Cibles :</strong> Particuliers congolais, commerçants
+            locaux, diaspora congolaise et utilisateurs souhaitant accéder à la
+            crypto depuis l'Afrique centrale.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Section 3 — Tokenomics */}
+      <Card>
+        <CardHeader>
+          <CardTitle style={{ color: OKP_COLOR }}>
+            3. Tokenomics — Distribution des OKP
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="text-center">
+            <span className="text-4xl font-bold" style={{ color: OKP_COLOR }}>
+              1 000 000 000
+            </span>
+            <p className="text-muted-foreground text-sm mt-1">
+              Supply totale — OKP (fixe, non modifiable)
+            </p>
+          </div>
+          {/* Visual bar */}
+          <div className="flex h-8 rounded-full overflow-hidden w-full">
+            {OKAPI_ALLOCATIONS.map((a) => (
+              <div
+                key={a.name}
+                title={`${a.name} — ${a.percentage}%`}
+                style={{ width: `${a.percentage}%`, background: a.color }}
+                className="transition-all duration-300"
+              />
+            ))}
+          </div>
+          {/* Legend */}
+          <div className="grid sm:grid-cols-2 gap-3">
+            {OKAPI_ALLOCATIONS.map((a) => (
+              <div
+                key={a.name}
+                className="flex items-start gap-3 p-3 rounded-lg border bg-card"
+              >
+                <div
+                  className="w-3 h-3 rounded-full mt-1 flex-shrink-0"
+                  style={{ background: a.color }}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-sm">{a.name}</span>
+                    <Badge
+                      variant="outline"
+                      style={{ borderColor: a.color, color: a.color }}
+                      className="text-xs"
+                    >
+                      {a.percentage}%
+                    </Badge>
+                    {a.locked && (
+                      <Badge className="text-xs bg-amber-100 text-amber-800 border-amber-300">
+                        <Lock size={10} className="mr-1" /> Bloqué 2 ans
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {a.description}
+                  </p>
+                  <p
+                    className="text-xs font-mono mt-0.5"
+                    style={{ color: a.color }}
+                  >
+                    {new Intl.NumberFormat("fr-FR").format(a.amount)} OKP
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Section 4 — Mécanismes Clés */}
+      <Card>
+        <CardHeader>
+          <CardTitle style={{ color: OKP_COLOR }}>4. Mécanismes Clés</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {mechanismes.map((m) => (
+              <div
+                key={m.title}
+                className="p-4 rounded-xl border bg-card hover:shadow-md transition-shadow"
+                style={{ borderColor: `${m.color}44` }}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <div
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-white"
+                    style={{ background: m.color }}
+                  >
+                    {m.icon}
+                  </div>
+                  <div>
+                    <div className="font-semibold text-sm">{m.title}</div>
+                    <div
+                      className="text-xs font-mono font-bold"
+                      style={{ color: m.color }}
+                    >
+                      {m.value}
+                    </div>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {m.desc}
+                </p>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Section 5 — Vesting Équipe */}
+      <Card>
+        <CardHeader>
+          <CardTitle style={{ color: OKP_COLOR }}>
+            5. Calendrier de Vesting — Équipe
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
+            <Lock size={16} />
+            <div className="text-sm">
+              <strong>200 000 000 OKP</strong> (20% de la supply totale) bloqués
+              pour les fondateurs et contributeurs principaux. Cliff de 12 mois,
+              puis déblocage linéaire sur 12 mois supplémentaires.
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2 font-semibold">Mois</th>
+                  <th className="text-left py-2 font-semibold">Statut</th>
+                  <th className="text-left py-2 font-semibold">% Débloqué</th>
+                  <th className="text-left py-2 font-semibold">
+                    OKP disponibles
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {vestingData.map((row) => (
+                  <tr key={row.month} className="border-b last:border-0">
+                    <td className="py-2 font-mono">M{row.month}</td>
+                    <td className="py-2 text-muted-foreground text-xs">
+                      {row.label}
+                    </td>
+                    <td className="py-2">
+                      <div className="flex items-center gap-2">
+                        <Progress value={row.unlocked} className="w-20 h-2" />
+                        <span
+                          className={
+                            row.unlocked === 0
+                              ? "text-muted-foreground"
+                              : "font-semibold"
+                          }
+                          style={row.unlocked > 0 ? { color: OKP_COLOR } : {}}
+                        >
+                          {row.unlocked}%
+                        </span>
+                      </div>
+                    </td>
+                    <td className="py-2 font-mono text-xs">
+                      {new Intl.NumberFormat("fr-FR").format(
+                        (row.unlocked / 100) * 200_000_000,
+                      )}{" "}
+                      OKP
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            * Entre M12 et M24, le déblocage est linéaire : ~8,33% par mois,
+            soit ~16 666 667 OKP/mois.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Section 6 — Flux Utilisateur */}
+      <Card>
+        <CardHeader>
+          <CardTitle style={{ color: OKP_COLOR }}>
+            6. Flux Utilisateur
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4 flex-wrap">
+            {userFlowSteps.map((step, i) => (
+              <div key={step.label} className="flex items-center gap-2">
+                <div className="flex flex-col items-center text-center">
+                  <div
+                    className="w-12 h-12 rounded-full flex items-center justify-center text-white mb-2"
+                    style={{ background: OKP_COLOR }}
+                  >
+                    {step.icon}
+                  </div>
+                  <div className="font-semibold text-xs">{step.label}</div>
+                  <div className="text-xs text-muted-foreground max-w-[80px]">
+                    {step.sub}
+                  </div>
+                </div>
+                {i < userFlowSteps.length - 1 && (
+                  <ArrowRight
+                    size={16}
+                    className="text-muted-foreground mx-1 hidden md:block flex-shrink-0"
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Section 7 — Roadmap */}
+      <Card>
+        <CardHeader>
+          <CardTitle style={{ color: OKP_COLOR }}>7. Roadmap</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid sm:grid-cols-2 gap-4">
+            {roadmap.map((phase) => (
+              <div
+                key={phase.phase}
+                className="p-4 rounded-xl border"
+                style={
+                  phase.done
+                    ? { borderColor: OKP_COLOR, background: OKP_BG }
+                    : {}
+                }
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <Badge
+                    className="text-xs"
+                    style={
+                      phase.done
+                        ? { background: OKP_COLOR, color: "white" }
+                        : {}
+                    }
+                    variant={phase.done ? "default" : "outline"}
+                  >
+                    {phase.phase}
+                  </Badge>
+                  {phase.done && (
+                    <CheckCircle size={14} style={{ color: OKP_COLOR }} />
+                  )}
+                </div>
+                <h4 className="font-semibold text-sm mb-2">{phase.title}</h4>
+                <ul className="space-y-1">
+                  {phase.items.map((item) => (
+                    <li
+                      key={item}
+                      className="text-xs text-muted-foreground flex items-start gap-1.5"
+                    >
+                      <span
+                        className="mt-0.5 flex-shrink-0"
+                        style={{ color: OKP_COLOR }}
+                      >
+                        •
+                      </span>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Section 8 — FAQ */}
+      <Card>
+        <CardHeader>
+          <CardTitle style={{ color: OKP_COLOR }}>8. FAQ</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {faqs.map((faq, faqIndex) => (
+            <div key={faq.q} className="border rounded-lg overflow-hidden">
+              <button
+                type="button"
+                className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/50 transition-colors"
+                onClick={() => toggleFaq(faqIndex)}
+                data-ocid="whitepaper.toggle"
+              >
+                <span className="font-medium text-sm">{faq.q}</span>
+                {openFaq === faqIndex ? (
+                  <ChevronUp
+                    size={16}
+                    className="flex-shrink-0 ml-2"
+                    style={{ color: OKP_COLOR }}
+                  />
+                ) : (
+                  <ChevronDown
+                    size={16}
+                    className="flex-shrink-0 ml-2 text-muted-foreground"
+                  />
+                )}
+              </button>
+              {openFaq === faqIndex && (
+                <div className="px-4 pb-4 text-sm text-muted-foreground border-t bg-muted/20">
+                  <p className="pt-3">{faq.a}</p>
+                </div>
+              )}
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
 }
 
 export default function OkapiSection() {
@@ -325,7 +898,7 @@ export default function OkapiSection() {
         {/* Tabs */}
         <Tabs defaultValue="overview" className="w-full">
           <TabsList
-            className="grid grid-cols-5 w-full max-w-2xl mx-auto mb-8"
+            className="grid grid-cols-6 w-full max-w-3xl mx-auto mb-8"
             data-ocid="okapi.tab"
           >
             <TabsTrigger value="overview" data-ocid="okapi.tab">
@@ -342,6 +915,9 @@ export default function OkapiSection() {
             </TabsTrigger>
             <TabsTrigger value="admin" data-ocid="okapi.tab">
               <BarChart3 size={14} className="mr-1" /> Statistiques
+            </TabsTrigger>
+            <TabsTrigger value="whitepaper" data-ocid="okapi.tab">
+              <BookOpen size={14} className="mr-1" /> Livre Blanc
             </TabsTrigger>
           </TabsList>
 
@@ -1474,6 +2050,10 @@ export default function OkapiSection() {
                 </div>
               )}
             </motion.div>
+          </TabsContent>
+
+          <TabsContent value="whitepaper">
+            <WhitepaperTab />
           </TabsContent>
         </Tabs>
       </div>

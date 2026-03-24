@@ -1,0 +1,182 @@
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Bricolage+Grotesque:wght@400;500;600;700;800&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Dark teal primary */
+    --background: 96 0.01 220;
+    --foreground: 20 0.01 250;
+    --card: 100 0.005 220;
+    --card-foreground: 20 0.01 250;
+    --popover: 100 0.005 220;
+    --popover-foreground: 20 0.01 250;
+
+    /* Gold primary CTA */
+    --primary: 0.77 0.13 85;
+    --primary-foreground: 20 0.01 250;
+
+    /* Teal secondary */
+    --secondary: 0.27 0.07 195;
+    --secondary-foreground: 98 0.01 195;
+
+    --muted: 94 0.01 220;
+    --muted-foreground: 52 0.02 250;
+    --accent: 0.52 0.12 160;
+    --accent-foreground: 98 0.005 160;
+    --destructive: 0.55 0.22 25;
+    --destructive-foreground: 98 0.01 25;
+    --border: 90 0.02 220;
+    --input: 90 0.02 220;
+    --ring: 0.77 0.13 85;
+    --radius: 0.5rem;
+
+    /* Custom tokens */
+    --teal-dark: 0.27 0.07 195;
+    --teal-medium: 0.35 0.09 195;
+    --hero-green: 0.52 0.12 160;
+    --gold: 0.77 0.13 85;
+    --orange-accent: 0.67 0.15 55;
+    --cream: 0.92 0.04 80;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-body;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-display;
+  }
+}
+
+/* African motif border pattern */
+.african-border-left {
+  position: relative;
+}
+.african-border-left::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  background: repeating-linear-gradient(
+    45deg,
+    oklch(0.67 0.15 55),
+    oklch(0.67 0.15 55) 4px,
+    oklch(0.77 0.13 85) 4px,
+    oklch(0.77 0.13 85) 8px,
+    oklch(0.27 0.07 195) 8px,
+    oklch(0.27 0.07 195) 12px
+  );
+}
+
+.african-border-right {
+  position: relative;
+}
+.african-border-right::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  background: repeating-linear-gradient(
+    -45deg,
+    oklch(0.67 0.15 55),
+    oklch(0.67 0.15 55) 4px,
+    oklch(0.77 0.13 85) 4px,
+    oklch(0.77 0.13 85) 8px,
+    oklch(0.27 0.07 195) 8px,
+    oklch(0.27 0.07 195) 12px
+  );
+}
+
+/* Geometric pattern background */
+.geo-pattern {
+  background-image: radial-gradient(
+      circle at 25% 25%,
+      oklch(0.35 0.09 195 / 0.15) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      circle at 75% 75%,
+      oklch(0.52 0.12 160 / 0.1) 0%,
+      transparent 50%
+    ),
+    url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+
+/* Ticker animation */
+@keyframes ticker {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.ticker-track {
+  animation: ticker 30s linear infinite;
+}
+
+.ticker-track:hover {
+  animation-play-state: paused;
+}
+
+/* Floating coin animation */
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  33% {
+    transform: translateY(-8px) rotate(2deg);
+  }
+  66% {
+    transform: translateY(-4px) rotate(-1deg);
+  }
+}
+
+.float-anim {
+  animation: float 4s ease-in-out infinite;
+}
+.float-anim-delay-1 {
+  animation-delay: 0.5s;
+}
+.float-anim-delay-2 {
+  animation-delay: 1s;
+}
+.float-anim-delay-3 {
+  animation-delay: 1.5s;
+}
+
+/* Card hover */
+.card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px oklch(0 0 0 / 0.12);
+}
+
+/* Green sparkline */
+.sparkline-up {
+  color: oklch(0.52 0.12 160);
+}
+.sparkline-down {
+  color: oklch(0.55 0.22 25);
+}

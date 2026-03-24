@@ -43,6 +43,57 @@ import {
 const OKP_COLOR = "oklch(0.65 0.18 35)";
 const OKP_BG = "oklch(0.65 0.18 35 / 0.1)";
 
+const OKAPI_ALLOCATIONS = [
+  {
+    name: "Communauté",
+    percentage: 40,
+    amount: 400_000_000,
+    description: "Récompenses, staking et engagement de la communauté",
+    locked: false,
+    color: "oklch(0.55 0.18 200)",
+  },
+  {
+    name: "Équipe",
+    percentage: 20,
+    amount: 200_000_000,
+    description: "Fondateurs et contributeurs principaux — vesting 2 ans",
+    locked: true,
+    color: "oklch(0.55 0.18 290)",
+  },
+  {
+    name: "Liquidité",
+    percentage: 15,
+    amount: 150_000_000,
+    description: "Pools de liquidité et partenariats stratégiques",
+    locked: false,
+    color: "oklch(0.55 0.18 160)",
+  },
+  {
+    name: "Investisseurs",
+    percentage: 10,
+    amount: 100_000_000,
+    description: "Tour de financement initial et investisseurs seed",
+    locked: false,
+    color: "oklch(0.60 0.18 45)",
+  },
+  {
+    name: "Marketing",
+    percentage: 10,
+    amount: 100_000_000,
+    description: "Croissance, adoption et campagnes de notoriété",
+    locked: false,
+    color: "oklch(0.55 0.18 25)",
+  },
+  {
+    name: "Réserve",
+    percentage: 5,
+    amount: 50_000_000,
+    description: "Développement futur, audits et fonds d'urgence",
+    locked: false,
+    color: "oklch(0.55 0.10 240)",
+  },
+];
+
 function formatOkp(n: number) {
   return `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 4 }).format(n)} OKP`;
 }
@@ -1270,6 +1321,155 @@ export default function OkapiSection() {
                         </div>
                       </CardContent>
                     </Card>
+                    {/* ── Distribution initiale ── */}
+                    <div className="mt-8">
+                      <div className="mb-4 flex items-center gap-3">
+                        <div
+                          className="h-1 flex-1 rounded-full"
+                          style={{
+                            background: OKP_BG,
+                            border: `1px solid ${OKP_COLOR}`,
+                          }}
+                        />
+                        <h3
+                          className="text-lg font-bold whitespace-nowrap"
+                          style={{ color: OKP_COLOR }}
+                        >
+                          Distribution initiale — 1 000 000 000 OKP
+                        </h3>
+                        <div
+                          className="h-1 flex-1 rounded-full"
+                          style={{
+                            background: OKP_BG,
+                            border: `1px solid ${OKP_COLOR}`,
+                          }}
+                        />
+                      </div>
+
+                      {/* Stacked bar visual */}
+                      <div
+                        className="flex rounded-xl overflow-hidden h-5 mb-6 w-full shadow-inner"
+                        style={{ border: `1px solid ${OKP_COLOR}30` }}
+                      >
+                        {OKAPI_ALLOCATIONS.map((a) => (
+                          <div
+                            key={a.name}
+                            title={`${a.name} — ${a.percentage}%`}
+                            style={{
+                              width: `${a.percentage}%`,
+                              background: a.color,
+                              opacity: 0.85,
+                            }}
+                          />
+                        ))}
+                      </div>
+
+                      {/* Color legend */}
+                      <div className="flex flex-wrap gap-3 mb-6">
+                        {OKAPI_ALLOCATIONS.map((a) => (
+                          <div
+                            key={a.name}
+                            className="flex items-center gap-1.5 text-xs"
+                          >
+                            <span
+                              className="inline-block w-3 h-3 rounded-full"
+                              style={{ background: a.color }}
+                            />
+                            <span className="text-muted-foreground">
+                              {a.name} ({a.percentage}%)
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Allocation rows */}
+                      <div className="space-y-3">
+                        {(adminStats.allocations &&
+                        adminStats.allocations.length > 0
+                          ? adminStats.allocations
+                          : OKAPI_ALLOCATIONS
+                        ).map((alloc, idx) => {
+                          const colorEntry = OKAPI_ALLOCATIONS.find(
+                            (a) => a.name === alloc.name,
+                          );
+                          const color = colorEntry
+                            ? colorEntry.color
+                            : OKP_COLOR;
+                          return (
+                            <div
+                              key={alloc.name}
+                              className="rounded-xl p-4"
+                              style={{
+                                background: OKP_BG,
+                                border: `1px solid ${OKP_COLOR}22`,
+                              }}
+                              data-ocid={`okapi.allocation.item.${idx + 1}`}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <span
+                                    className="inline-block w-3 h-3 rounded-full flex-shrink-0 mt-0.5"
+                                    style={{ background: color }}
+                                  />
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span
+                                        className="font-semibold text-sm"
+                                        style={{ color }}
+                                      >
+                                        {alloc.name}
+                                      </span>
+                                      {alloc.locked && (
+                                        <span
+                                          className="text-xs px-2 py-0.5 rounded-full font-medium"
+                                          style={{
+                                            background: `${color}22`,
+                                            color,
+                                            border: `1px solid ${color}44`,
+                                          }}
+                                        >
+                                          🔒 Bloqué 2 ans
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                      {alloc.description}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="text-right flex-shrink-0">
+                                  <div
+                                    className="text-lg font-bold"
+                                    style={{ color }}
+                                  >
+                                    {alloc.percentage}%
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {Number(alloc.amount).toLocaleString(
+                                      "fr-FR",
+                                    )}{" "}
+                                    OKP
+                                  </div>
+                                </div>
+                              </div>
+                              {/* Progress bar */}
+                              <div
+                                className="mt-3 h-2 rounded-full overflow-hidden"
+                                style={{ background: `${color}20` }}
+                              >
+                                <div
+                                  className="h-full rounded-full transition-all duration-700"
+                                  style={{
+                                    width: `${alloc.percentage}%`,
+                                    background: color,
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}

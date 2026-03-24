@@ -76,6 +76,13 @@ export interface Transaction {
     fiatCurrency: string;
     cryptoAmount: number;
 }
+export interface OkpAllocation {
+    name: string;
+    percentage: number;
+    amount: number;
+    description: string;
+    locked: boolean;
+}
 export interface OkpAdminStats {
     totalSupply: number;
     totalIssued: number;
@@ -84,6 +91,7 @@ export interface OkpAdminStats {
     totalBurned: number;
     currentRate: number;
     rewardMultiplier: number;
+    allocations: OkpAllocation[];
 }
 export enum UserRole {
     admin = "admin",

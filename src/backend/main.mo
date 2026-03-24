@@ -94,14 +94,23 @@ actor {
     claimed : Bool;
   };
 
+  type OkpAllocation = {
+    name : Text;
+    percentage : Float;
+    amount : Float;
+    description : Text;
+    locked : Bool;
+  };
+
   type OkpAdminStats = {
-    totalSupply : Float;       // Cap total (21M)
+    totalSupply : Float;       // Cap total (1 milliard OKP)
     totalIssued : Float;       // OKP mintés jusqu'ici
     circulatingSupply : Float; // totalIssued - totalStaked - totalBurned
     totalStaked : Float;       // OKP actuellement verrouillés
     totalBurned : Float;       // OKP détruits
     currentRate : Float;       // Taux OKP/CDF effectif
     rewardMultiplier : Float;  // Multiplicateur de récompense actuel
+    allocations : [OkpAllocation]; // Distribution initiale
   };
 
   module FiatCurrency {
@@ -194,9 +203,9 @@ actor {
   var okpPriceAdjustment : Float = 0.0; // Ajustement accumulé selon l'usage
 
   // Statistiques globales de la supply
-  let OKP_TOTAL_SUPPLY : Float = 21_000_000.0; // Cap max
+  let OKP_TOTAL_SUPPLY : Float = 1_000_000_000.0; // Cap max 1 milliard
   let OKP_BURN_RATE : Float = 0.015;            // 1.5% burn par transaction
-  let OKP_HALVING_INTERVAL : Float = 500_000.0; // Halvening tous les 500k OKP mintés
+  let OKP_HALVING_INTERVAL : Float = 50_000_000.0; // Halvening tous les 50M OKP mintés
 
   var totalOkpIssued : Float = 0.0;  // Total OKP mintés (rewards + initialisation)
   var totalOkpBurned : Float = 0.0;  // Total OKP détruits
@@ -652,6 +661,18 @@ actor {
     okpPriceAdjustment := 0.0;
   };
 
+  // Allocations de la distribution initiale
+  func getInitialAllocations() : [OkpAllocation] {
+    [
+      { name = "Communauté"; percentage = 40.0; amount = OKP_TOTAL_SUPPLY * 0.40; description = "Récompenses et incentives communautaires"; locked = false },
+      { name = "Équipe";     percentage = 20.0; amount = OKP_TOTAL_SUPPLY * 0.20; description = "Blocage 2 ans (vesting)"; locked = true },
+      { name = "Liquidité";  percentage = 15.0; amount = OKP_TOTAL_SUPPLY * 0.15; description = "Liquidité & partenaires stratégiques"; locked = false },
+      { name = "Investisseurs"; percentage = 10.0; amount = OKP_TOTAL_SUPPLY * 0.10; description = "Tour de financement initial"; locked = false },
+      { name = "Marketing";  percentage = 10.0; amount = OKP_TOTAL_SUPPLY * 0.10; description = "Adoption & croissance"; locked = false },
+      { name = "Réserve";    percentage = 5.0;  amount = OKP_TOTAL_SUPPLY * 0.05; description = "Réserve & développement"; locked = false },
+    ]
+  };
+
   // Stats admin OKP (publiques pour transparence)
   public query func getOkpAdminStats() : async OkpAdminStats {
     let totalStaked = computeTotalStaked();
@@ -664,6 +685,7 @@ actor {
       totalBurned = totalOkpBurned;
       currentRate = getEffectiveOkpRate();
       rewardMultiplier = getRewardMultiplier();
+      allocations = getInitialAllocations();
     };
   };
 

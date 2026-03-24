@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -14,6 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Principal } from "@icp-sdk/core/principal";
 import {
+  BarChart3,
   Gift,
   Loader2,
   Lock,
@@ -28,6 +30,7 @@ import { toast } from "sonner";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   useClaimDailyReward,
+  useOkpAdminStats,
   useOkpBalance,
   useOkpToCdfRate,
   usePayMerchantOkp,
@@ -42,6 +45,10 @@ const OKP_BG = "oklch(0.65 0.18 35 / 0.1)";
 
 function formatOkp(n: number) {
   return `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 4 }).format(n)} OKP`;
+}
+
+function formatOkpLarge(n: number) {
+  return new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(n);
 }
 
 function formatCDF(n: number) {
@@ -71,6 +78,7 @@ export default function OkapiSection() {
   const { data: okpBalance = 0, isLoading: balanceLoading } = useOkpBalance();
   const { data: okpRate = 0 } = useOkpToCdfRate();
   const { data: stakes = [], isLoading: stakesLoading } = useStakes();
+  const { data: adminStats, isLoading: statsLoading } = useOkpAdminStats();
 
   const claimReward = useClaimDailyReward();
   const stakeOkp = useStakeOkp();
@@ -266,7 +274,7 @@ export default function OkapiSection() {
         {/* Tabs */}
         <Tabs defaultValue="overview" className="w-full">
           <TabsList
-            className="grid grid-cols-4 w-full max-w-xl mx-auto mb-8"
+            className="grid grid-cols-5 w-full max-w-2xl mx-auto mb-8"
             data-ocid="okapi.tab"
           >
             <TabsTrigger value="overview" data-ocid="okapi.tab">
@@ -280,6 +288,9 @@ export default function OkapiSection() {
             </TabsTrigger>
             <TabsTrigger value="merchant" data-ocid="okapi.tab">
               <ShoppingBag size={14} className="mr-1" /> Marchand
+            </TabsTrigger>
+            <TabsTrigger value="admin" data-ocid="okapi.tab">
+              <BarChart3 size={14} className="mr-1" /> Statistiques
             </TabsTrigger>
           </TabsList>
 
@@ -384,6 +395,16 @@ export default function OkapiSection() {
                       💡 Les récompenses OKP seront créditées automatiquement
                       lors de chaque activité sur la plateforme.
                     </p>
+                    <p
+                      className="text-xs mt-3 px-3 py-2 rounded-lg font-medium"
+                      style={{
+                        background: "oklch(0.65 0.18 35 / 0.08)",
+                        color: OKP_COLOR,
+                      }}
+                    >
+                      ⚡ Les récompenses diminuent progressivement (halvening)
+                      pour protéger la valeur de l'OKP.
+                    </p>
                   </CardContent>
                 </Card>
               </motion.div>
@@ -420,7 +441,7 @@ export default function OkapiSection() {
                         <p className="text-sm text-muted-foreground">
                           En utilisant OKP pour régler vos frais de transaction,
                           vous bénéficiez d'une réduction automatique. Plus vous
-                          détene d'OKP, plus les frais diminuent.
+                          détenez d'OKP, plus les frais diminuent.
                         </p>
                       </div>
                       <div className="flex gap-3">
@@ -770,7 +791,7 @@ export default function OkapiSection() {
                     </div>
                     {transferAmount && transferTo && (
                       <div
-                        className="p-3 rounded-xl text-sm"
+                        className="p-3 rounded-xl text-sm space-y-1"
                         style={{ background: OKP_BG }}
                       >
                         <div className="flex justify-between">
@@ -781,7 +802,29 @@ export default function OkapiSection() {
                             {transferAmount} OKP
                           </span>
                         </div>
-                        <div className="flex justify-between mt-1">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">
+                            Burn (1.5%)
+                          </span>
+                          <span className="font-semibold text-orange-500">
+                            {(Number(transferAmount) * 0.015).toFixed(4)} OKP 🔥
+                          </span>
+                        </div>
+                        <div
+                          className="flex justify-between pt-1 border-t"
+                          style={{ borderColor: OKP_COLOR }}
+                        >
+                          <span className="text-muted-foreground font-medium">
+                            Total déduit
+                          </span>
+                          <span
+                            className="font-bold"
+                            style={{ color: OKP_COLOR }}
+                          >
+                            {(Number(transferAmount) * 1.015).toFixed(4)} OKP
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
                           <span className="text-muted-foreground">
                             Frais réseau
                           </span>
@@ -897,7 +940,7 @@ export default function OkapiSection() {
                     </div>
                     {merchantAmount && merchantPrincipal && (
                       <div
-                        className="p-3 rounded-xl text-sm"
+                        className="p-3 rounded-xl text-sm space-y-1"
                         style={{ background: OKP_BG }}
                       >
                         <div className="flex justify-between">
@@ -908,8 +951,30 @@ export default function OkapiSection() {
                             {merchantAmount} OKP
                           </span>
                         </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">
+                            Burn (1.5%)
+                          </span>
+                          <span className="font-semibold text-orange-500">
+                            {(Number(merchantAmount) * 0.015).toFixed(4)} OKP 🔥
+                          </span>
+                        </div>
+                        <div
+                          className="flex justify-between pt-1 border-t"
+                          style={{ borderColor: OKP_COLOR }}
+                        >
+                          <span className="text-muted-foreground font-medium">
+                            Total déduit
+                          </span>
+                          <span
+                            className="font-bold"
+                            style={{ color: OKP_COLOR }}
+                          >
+                            {(Number(merchantAmount) * 1.015).toFixed(4)} OKP
+                          </span>
+                        </div>
                         {convertToCdf && okpRate > 0 && (
-                          <div className="flex justify-between mt-1">
+                          <div className="flex justify-between">
                             <span className="text-muted-foreground">
                               Marchand reçoit
                             </span>
@@ -944,6 +1009,271 @@ export default function OkapiSection() {
                 </Card>
               </motion.div>
             </div>
+          </TabsContent>
+
+          {/* ── Onglet 5 : Statistiques Admin ── */}
+          <TabsContent value="admin">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 }}
+            >
+              <div className="mb-6 text-center">
+                <h3
+                  className="font-display font-bold text-xl flex items-center justify-center gap-2"
+                  style={{ color: OKP_COLOR }}
+                >
+                  <BarChart3 size={20} />
+                  Tableau de bord OKP
+                </h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Statistiques publiques en temps réel du token Okapi
+                </p>
+              </div>
+
+              {statsLoading || !adminStats ? (
+                <div
+                  className="flex justify-center py-12"
+                  data-ocid="okapi.loading_state"
+                >
+                  <Loader2
+                    className="animate-spin"
+                    style={{ color: OKP_COLOR }}
+                    size={32}
+                  />
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* 2×2 metric grid */}
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Supply totale */}
+                    <Card
+                      className="shadow-card"
+                      style={{ borderColor: OKP_COLOR }}
+                      data-ocid="okapi.card"
+                    >
+                      <CardContent className="pt-5 pb-4">
+                        <div className="text-xs text-muted-foreground uppercase tracking-widest mb-1">
+                          Supply totale
+                        </div>
+                        <div
+                          className="font-display font-bold text-2xl"
+                          style={{ color: OKP_COLOR }}
+                        >
+                          {formatOkpLarge(adminStats.totalSupply)}
+                        </div>
+                        <div
+                          className="text-xs font-medium mt-0.5"
+                          style={{ color: OKP_COLOR }}
+                        >
+                          OKP
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Cap maximum
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* OKP émis */}
+                    <Card className="shadow-card" data-ocid="okapi.card">
+                      <CardContent className="pt-5 pb-4">
+                        <div className="text-xs text-muted-foreground uppercase tracking-widest mb-1">
+                          OKP émis
+                        </div>
+                        <div
+                          className="font-display font-bold text-2xl"
+                          style={{ color: OKP_COLOR }}
+                        >
+                          {formatOkpLarge(adminStats.totalIssued)}
+                        </div>
+                        <div
+                          className="text-xs font-medium mt-0.5"
+                          style={{ color: OKP_COLOR }}
+                        >
+                          OKP
+                        </div>
+                        <div className="mt-3 space-y-1">
+                          <div className="flex justify-between text-xs text-muted-foreground">
+                            <span>Progression</span>
+                            <span>
+                              {adminStats.totalSupply > 0
+                                ? (
+                                    (adminStats.totalIssued /
+                                      adminStats.totalSupply) *
+                                    100
+                                  ).toFixed(2)
+                                : "0"}
+                              %
+                            </span>
+                          </div>
+                          <Progress
+                            value={
+                              adminStats.totalSupply > 0
+                                ? (adminStats.totalIssued /
+                                    adminStats.totalSupply) *
+                                  100
+                                : 0
+                            }
+                            className="h-1.5"
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* OKP en circulation */}
+                    <Card className="shadow-card" data-ocid="okapi.card">
+                      <CardContent className="pt-5 pb-4">
+                        <div className="text-xs text-muted-foreground uppercase tracking-widest mb-1">
+                          En circulation
+                        </div>
+                        <div
+                          className="font-display font-bold text-2xl"
+                          style={{ color: OKP_COLOR }}
+                        >
+                          {formatOkpLarge(adminStats.circulatingSupply)}
+                        </div>
+                        <div
+                          className="text-xs font-medium mt-0.5"
+                          style={{ color: OKP_COLOR }}
+                        >
+                          OKP
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Tokens actifs non stakés
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* OKP stakés */}
+                    <Card className="shadow-card" data-ocid="okapi.card">
+                      <CardContent className="pt-5 pb-4">
+                        <div className="text-xs text-muted-foreground uppercase tracking-widest mb-1">
+                          OKP stakés
+                        </div>
+                        <div
+                          className="font-display font-bold text-2xl"
+                          style={{ color: "oklch(0.52 0.12 160)" }}
+                        >
+                          {formatOkpLarge(adminStats.totalStaked)}
+                        </div>
+                        <div
+                          className="text-xs font-medium mt-0.5"
+                          style={{ color: "oklch(0.52 0.12 160)" }}
+                        >
+                          OKP
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Verrouillés en staking
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Burn highlight card */}
+                  <Card
+                    className="shadow-card"
+                    style={{
+                      background:
+                        "linear-gradient(135deg, oklch(0.15 0.05 35 / 0.04), oklch(0.65 0.18 35 / 0.08))",
+                      borderColor: "oklch(0.65 0.15 45)",
+                    }}
+                    data-ocid="okapi.card"
+                  >
+                    <CardContent className="pt-6 pb-5">
+                      <div className="flex flex-wrap items-center gap-6">
+                        <div
+                          className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0"
+                          style={{ background: "oklch(0.65 0.18 35 / 0.12)" }}
+                        >
+                          🔥
+                        </div>
+                        <div className="flex-1">
+                          <div className="text-xs text-muted-foreground uppercase tracking-widest mb-1">
+                            OKP brûlés (burn total)
+                          </div>
+                          <div
+                            className="font-display font-bold text-4xl"
+                            style={{ color: "oklch(0.6 0.2 40)" }}
+                          >
+                            {formatOkpLarge(adminStats.totalBurned)}
+                            <span className="text-xl ml-2">OKP</span>
+                          </div>
+                          <div className="text-sm text-muted-foreground mt-1">
+                            1.5% de chaque transaction brûlé définitivement —
+                            réduit la supply et renforce la valeur de l'OKP
+                          </div>
+                        </div>
+                        <div
+                          className="text-center px-5 py-3 rounded-xl flex-shrink-0"
+                          style={{ background: "oklch(0.65 0.18 35 / 0.1)" }}
+                        >
+                          <div
+                            className="font-bold text-2xl"
+                            style={{ color: OKP_COLOR }}
+                          >
+                            1.5%
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            taux de burn
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Rate & multiplier info card */}
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <Card className="shadow-card" data-ocid="okapi.card">
+                      <CardContent className="pt-5 pb-4">
+                        <div className="text-xs text-muted-foreground uppercase tracking-widest mb-2">
+                          Taux effectif OKP/CDF
+                        </div>
+                        <div className="flex items-baseline gap-2">
+                          <span
+                            className="font-display font-bold text-3xl"
+                            style={{ color: OKP_COLOR }}
+                          >
+                            {Number(adminStats.currentRate).toFixed(2)}
+                          </span>
+                          <span className="text-sm text-muted-foreground">
+                            FC / OKP
+                          </span>
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-2">
+                          Taux dynamique ajusté selon l'usage du réseau
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="shadow-card" data-ocid="okapi.card">
+                      <CardContent className="pt-5 pb-4">
+                        <div className="text-xs text-muted-foreground uppercase tracking-widest mb-2">
+                          Multiplicateur de récompense
+                        </div>
+                        <div className="flex items-baseline gap-2">
+                          <span
+                            className="font-display font-bold text-3xl"
+                            style={{
+                              color:
+                                adminStats.rewardMultiplier >= 0.5
+                                  ? "oklch(0.52 0.12 160)"
+                                  : OKP_COLOR,
+                            }}
+                          >
+                            {(adminStats.rewardMultiplier * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-2">
+                          ⚡ Le halvening réduit progressivement les récompenses
+                          pour limiter l'inflation et protéger la valeur de
+                          l'OKP
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
+              )}
+            </motion.div>
           </TabsContent>
         </Tabs>
       </div>

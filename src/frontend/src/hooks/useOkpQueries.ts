@@ -70,6 +70,7 @@ export function useUnstakeOkp() {
       qc.invalidateQueries({ queryKey: ["okpBalance"] });
       qc.invalidateQueries({ queryKey: ["stakes"] });
       qc.invalidateQueries({ queryKey: ["wallet"] });
+      qc.invalidateQueries({ queryKey: ["okpAdminStats"] });
     },
   });
 }
@@ -86,6 +87,7 @@ export function useTransferOkp() {
       qc.invalidateQueries({ queryKey: ["okpBalance"] });
       qc.invalidateQueries({ queryKey: ["wallet"] });
       qc.invalidateQueries({ queryKey: ["transactions"] });
+      qc.invalidateQueries({ queryKey: ["okpAdminStats"] });
     },
   });
 }
@@ -110,6 +112,7 @@ export function usePayMerchantOkp() {
       qc.invalidateQueries({ queryKey: ["okpBalance"] });
       qc.invalidateQueries({ queryKey: ["wallet"] });
       qc.invalidateQueries({ queryKey: ["transactions"] });
+      qc.invalidateQueries({ queryKey: ["okpAdminStats"] });
     },
   });
 }
@@ -125,6 +128,20 @@ export function useClaimDailyReward() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["okpBalance"] });
       qc.invalidateQueries({ queryKey: ["wallet"] });
+      qc.invalidateQueries({ queryKey: ["okpAdminStats"] });
     },
+  });
+}
+
+export function useOkpAdminStats() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["okpAdminStats"],
+    queryFn: async () => {
+      if (!actor) return null;
+      return (actor as any).getOkpAdminStats();
+    },
+    enabled: !!actor && !isFetching,
+    refetchInterval: 15000,
   });
 }

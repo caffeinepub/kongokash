@@ -76,6 +76,15 @@ export interface Transaction {
     fiatCurrency: string;
     cryptoAmount: number;
 }
+export interface OkpAdminStats {
+    totalSupply: number;
+    totalIssued: number;
+    circulatingSupply: number;
+    totalStaked: number;
+    totalBurned: number;
+    currentRate: number;
+    rewardMultiplier: number;
+}
 export enum UserRole {
     admin = "admin",
     user = "user",
@@ -101,6 +110,7 @@ export interface backendInterface {
     getExchangeRates(): Promise<Array<ExchangeRate>>;
     getOkpBalance(): Promise<number>;
     getOkpToCdfRate(): Promise<number>;
+    getOkpAdminStats(): Promise<OkpAdminStats>;
     getPortfolioValue(): Promise<PortfolioValue>;
     getProfile(): Promise<UserProfile | null>;
     getStakes(): Promise<Array<StakeRecord>>;
@@ -115,6 +125,7 @@ export interface backendInterface {
     getWallet(): Promise<WalletBalance>;
     isCallerAdmin(): Promise<boolean>;
     payMerchantOkp(merchant: Principal, okpAmount: number, convertToCdf: boolean): Promise<TransactionResult>;
+    resetPriceAdjustment(): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     sellCrypto(request: SellCryptoRequest): Promise<TransactionResult>;
     setExchangeRate(request: SetExchangeRateRequest): Promise<void>;

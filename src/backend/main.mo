@@ -9,11 +9,11 @@ import Float "mo:core/Float";
 import Principal "mo:core/Principal";
 import Runtime "mo:core/Runtime";
 import Iter "mo:core/Iter";
-import Migration "migration";
+
 import MixinAuthorization "authorization/MixinAuthorization";
 import AccessControl "authorization/access-control";
 
-(with migration = Migration.run)
+
 actor {
   module Transaction {
     public func compare(transaction1 : Transaction, transaction2 : Transaction) : Order.Order {
@@ -64,13 +64,13 @@ actor {
     btc : Float;
     eth : Float;
     usdt : Float;
-    okp : Float; // New OKP balance field
+    okp : Float;
   };
 
   type UserProfile = {
     displayName : Text;
     country : Text;
-    preferredCurrency : Text; // "CDF" or "USD"
+    preferredCurrency : Text;
   };
 
   type TransactionResult = {
@@ -92,6 +92,16 @@ actor {
     durationDays : Nat;
     rewardRate : Float;
     claimed : Bool;
+  };
+
+  type OkpAdminStats = {
+    totalSupply : Float;       // Cap total (21M)
+    totalIssued : Float;       // OKP mintés jusqu'ici
+    circulatingSupply : Float; // totalIssued - totalStaked - totalBurned
+    totalStaked : Float;       // OKP actuellement verrouillés
+    totalBurned : Float;       // OKP détruits
+    currentRate : Float;       // Taux OKP/CDF effectif
+    rewardMultiplier : Float;  // Multiplicateur de récompense actuel
   };
 
   module FiatCurrency {
@@ -174,19 +184,68 @@ actor {
   let exchangeRates = Map.empty<Text, ExchangeRate>();
   let transactions = List.empty<Transaction>();
   let stakes = Map.empty<Nat, StakeRecord>();
-  let lastDailyReward = Map.empty<Principal, Int>(); // Track last daily reward claim
+  let lastDailyReward = Map.empty<Principal, Int>();
 
   var transactionId = 0;
   var stakeCounter = 0;
-  var okpToCdfRate : Float = 500.0; // 1 OKP = 500 CDF
+
+  // Prix OKP/CDF : taux de base configurable + ajustement dynamique basé sur l'usage
+  var okpToCdfRate : Float = 500.0;    // Taux de base admin-configurable
+  var okpPriceAdjustment : Float = 0.0; // Ajustement accumulé selon l'usage
+
+  // Statistiques globales de la supply
+  let OKP_TOTAL_SUPPLY : Float = 21_000_000.0; // Cap max
+  let OKP_BURN_RATE : Float = 0.015;            // 1.5% burn par transaction
+  let OKP_HALVING_INTERVAL : Float = 500_000.0; // Halvening tous les 500k OKP mintés
+
+  var totalOkpIssued : Float = 0.0;  // Total OKP mintés (rewards + initialisation)
+  var totalOkpBurned : Float = 0.0;  // Total OKP détruits
+  var okpTxVolume : Float = 0.0;     // Volume cumulé de transactions OKP
 
   func nextTransactionId() : Nat {
     transactionId += 1;
     transactionId;
   };
 
+  /// Taux effectif = taux de base + ajustement dynamique
+  func getEffectiveOkpRate() : Float {
+    okpToCdfRate + okpPriceAdjustment;
+  };
+
+  /// Multiplicateur de récompense : halvening tous les 500k OKP mintés
+  func getRewardMultiplier() : Float {
+    let halvings = totalOkpIssued / OKP_HALVING_INTERVAL;
+    if (halvings < 1.0) { 1.0 }
+    else if (halvings < 2.0) { 0.5 }
+    else if (halvings < 4.0) { 0.25 }
+    else if (halvings < 8.0) { 0.125 }
+    else { 0.0625 };
+  };
+
+  /// Calcul du total OKP actuellement verrouillés dans des stakes actifs
+  func computeTotalStaked() : Float {
+    var total : Float = 0.0;
+    for (stake in stakes.values()) {
+      if (not stake.claimed) {
+        total += stake.amount;
+      };
+    };
+    total;
+  };
+
   /// Helper Functions
-  func awardOkp(user : Principal, amount : Float) {
+  func awardOkp(user : Principal, baseAmount : Float) {
+    // Vérifier la limite de supply
+    if (totalOkpIssued >= OKP_TOTAL_SUPPLY) { return };
+
+    // Appliquer le multiplicateur déclinant
+    let multiplier = getRewardMultiplier();
+    let amount = baseAmount * multiplier;
+    if (amount <= 0.0) { return };
+
+    // Ne pas dépasser le cap total
+    let actualAmount = Float.min(amount, OKP_TOTAL_SUPPLY - totalOkpIssued);
+
     let wallet = switch (wallets.get(user)) {
       case (null) {
         let newWallet = {
@@ -195,7 +254,7 @@ actor {
           btc = 0.0;
           eth = 0.0;
           usdt = 0.0;
-          okp = 100.0; // Initialize with 100 OKP
+          okp = 0.0;
         };
         wallets.add(user, newWallet);
         newWallet;
@@ -203,28 +262,16 @@ actor {
       case (?w) { w };
     };
 
-    if (amount <= 0.0) { return };
-
     let updatedWallet = {
-      wallet with okp = wallet.okp + amount;
+      wallet with okp = wallet.okp + actualAmount;
     };
     wallets.add(user, updatedWallet);
+    totalOkpIssued += actualAmount;
   };
 
   func spendOkp(user : Principal, amount : Float) : Bool {
     let wallet = switch (wallets.get(user)) {
-      case (null) {
-        let newWallet = {
-          cdf = 0.0;
-          usd = 0.0;
-          btc = 0.0;
-          eth = 0.0;
-          usdt = 0.0;
-          okp = 100.0; // Initialize with 100 OKP
-        };
-        wallets.add(user, newWallet);
-        newWallet;
-      };
+      case (null) { return false };
       case (?w) { w };
     };
 
@@ -247,7 +294,7 @@ actor {
           btc = 0.0;
           eth = 0.0;
           usdt = 0.0;
-          okp = 100.0; // Initialize with 100 OKP
+          okp = 0.0;
         };
         wallets.add(caller, newWallet);
         newWallet;
@@ -282,9 +329,11 @@ actor {
         btc = 0.0;
         eth = 0.0;
         usdt = 0.0;
-        okp = 100.0; // Initialize with 100 OKP
+        okp = 0.0;
       };
       wallets.add(caller, wallet);
+      // Récompense d'inscription : 100 OKP (soumis au multiplicateur)
+      awardOkp(caller, 100.0);
     };
   };
 
@@ -306,9 +355,10 @@ actor {
         btc = 0.0;
         eth = 0.0;
         usdt = 0.0;
-        okp = 100.0; // Initialize with 100 OKP
+        okp = 0.0;
       };
       wallets.add(caller, wallet);
+      awardOkp(caller, 100.0);
     };
   };
 
@@ -352,7 +402,7 @@ actor {
     wallets.add(caller, updatedWallet);
     transactions.add(depositTransaction);
 
-    // Award 10 OKP
+    // Récompense dépôt : 10 OKP (soumis au multiplicateur)
     awardOkp(caller, 10.0);
   };
 
@@ -435,13 +485,9 @@ actor {
     let updatedWallet = {
       cdf = if (request.fiatCurrency == "CDF") { wallet.cdf - request.fiatAmount } else { wallet.cdf };
       usd = if (request.fiatCurrency == "USD") { wallet.usd - request.fiatAmount } else { wallet.usd };
-      btc = if (request.asset == "BTC") { wallet.btc + cryptoAmount } else {
-        wallet.btc;
-      };
+      btc = if (request.asset == "BTC") { wallet.btc + cryptoAmount } else { wallet.btc };
       eth = if (request.asset == "ETH") { wallet.eth + cryptoAmount } else { wallet.eth };
-      usdt = if (request.asset == "USDT") { wallet.usdt + cryptoAmount } else {
-        wallet.usdt;
-      };
+      usdt = if (request.asset == "USDT") { wallet.usdt + cryptoAmount } else { wallet.usdt };
       okp = wallet.okp;
     };
 
@@ -460,7 +506,7 @@ actor {
     wallets.add(caller, updatedWallet);
     transactions.add(transaction);
 
-    // Award 25 OKP
+    // Récompense achat : 25 OKP (soumis au multiplicateur déclinant)
     awardOkp(caller, 25.0);
 
     {
@@ -505,13 +551,9 @@ actor {
     let updatedWallet = {
       cdf = if (request.fiatCurrency == "CDF") { wallet.cdf + fiatAmount } else { wallet.cdf };
       usd = if (request.fiatCurrency == "USD") { wallet.usd + fiatAmount } else { wallet.usd };
-      btc = if (request.asset == "BTC") { wallet.btc - request.cryptoAmount } else {
-        wallet.btc;
-      };
+      btc = if (request.asset == "BTC") { wallet.btc - request.cryptoAmount } else { wallet.btc };
       eth = if (request.asset == "ETH") { wallet.eth - request.cryptoAmount } else { wallet.eth };
-      usdt = if (request.asset == "USDT") { wallet.usdt - request.cryptoAmount } else {
-        wallet.usdt;
-      };
+      usdt = if (request.asset == "USDT") { wallet.usdt - request.cryptoAmount } else { wallet.usdt };
       okp = wallet.okp;
     };
 
@@ -530,7 +572,7 @@ actor {
     wallets.add(caller, updatedWallet);
     transactions.add(transaction);
 
-    // Award 10 OKP
+    // Récompense vente : 10 OKP (soumis au multiplicateur)
     awardOkp(caller, 10.0);
 
     {
@@ -570,8 +612,9 @@ actor {
       case (null) { 2500.0 };
     };
 
-    let totalCDF = wallet.cdf + (wallet.btc * btcToCdf) + (wallet.eth * ethToCdf) + (wallet.usdt * usdtToCdf) + (wallet.usd * 2480.0) + (wallet.okp * okpToCdfRate);
-    let totalUSD = wallet.usd + (wallet.btc * btcToUsd) + (wallet.eth * ethToUsd) + wallet.usdt + (wallet.cdf / 2480.0) + (wallet.okp * okpToCdfRate / 2480.0);
+    let effectiveRate = getEffectiveOkpRate();
+    let totalCDF = wallet.cdf + (wallet.btc * btcToCdf) + (wallet.eth * ethToCdf) + (wallet.usdt * usdtToCdf) + (wallet.usd * 2480.0) + (wallet.okp * effectiveRate);
+    let totalUSD = wallet.usd + (wallet.btc * btcToUsd) + (wallet.eth * ethToUsd) + wallet.usdt + (wallet.cdf / 2480.0) + (wallet.okp * effectiveRate / 2480.0);
 
     {
       totalCDF;
@@ -585,12 +628,12 @@ actor {
     wallet.okp;
   };
 
-  // Get OKP to CDF rate
+  // Get OKP to CDF rate (taux effectif = base + ajustement usage)
   public query ({ caller }) func getOkpToCdfRate() : async Float {
-    okpToCdfRate;
+    getEffectiveOkpRate();
   };
 
-  // Set OKP to CDF rate (admin only)
+  // Set OKP to CDF rate de base (admin only)
   public shared ({ caller }) func setOkpToCdfRate(rate : Float) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Only admins can set OKP to CDF rate");
@@ -601,7 +644,30 @@ actor {
     okpToCdfRate := rate;
   };
 
-  // Transfer OKP to another user
+  // Réinitialiser l'ajustement dynamique du prix (admin only)
+  public shared ({ caller }) func resetPriceAdjustment() : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can reset price adjustment");
+    };
+    okpPriceAdjustment := 0.0;
+  };
+
+  // Stats admin OKP (publiques pour transparence)
+  public query func getOkpAdminStats() : async OkpAdminStats {
+    let totalStaked = computeTotalStaked();
+    let circulatingSupply = totalOkpIssued - totalStaked - totalOkpBurned;
+    {
+      totalSupply = OKP_TOTAL_SUPPLY;
+      totalIssued = totalOkpIssued;
+      circulatingSupply = Float.max(0.0, circulatingSupply);
+      totalStaked;
+      totalBurned = totalOkpBurned;
+      currentRate = getEffectiveOkpRate();
+      rewardMultiplier = getRewardMultiplier();
+    };
+  };
+
+  // Transfer OKP to another user (avec burn 1.5%)
   public shared ({ caller }) func transferOkp(to : Principal, amount : Float) : async TransactionResult {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can transfer OKP");
@@ -621,18 +687,19 @@ actor {
       };
     };
     let fromWallet = getCallerWallet(caller);
-    if (fromWallet.okp < amount) {
+    let burnAmount = amount * OKP_BURN_RATE;
+    let totalDeducted = amount + burnAmount;
+    if (fromWallet.okp < totalDeducted) {
       return {
         success = false;
-        message = "Insufficient balance";
+        message = "Insufficient balance (including 1.5% burn)";
         newBalance = null;
       };
     };
     let toWallet = getCallerWallet(to);
 
-    // Award 5 OKP to sender as bonus
     let updatedFromWallet = {
-      fromWallet with okp = fromWallet.okp - amount + 5.0;
+      fromWallet with okp = fromWallet.okp - totalDeducted;
     };
     let updatedToWallet = {
       toWallet with okp = toWallet.okp + amount;
@@ -653,14 +720,19 @@ actor {
     wallets.add(to, updatedToWallet);
     transactions.add(transaction);
 
+    // Mise à jour statistiques burn et volume
+    totalOkpBurned += burnAmount;
+    okpTxVolume += amount;
+    okpPriceAdjustment += okpTxVolume * 0.00001;
+
     {
       success = true;
-      message = "Transfer successful, you also received 5 OKP as bonus for using OKP token!";
+      message = "Transfer successful. " # burnAmount.toText() # " OKP burned.";
       newBalance = ?updatedFromWallet;
     };
   };
 
-  // Swap OKP for CDF for merchant payments
+  // Swap OKP for CDF for merchant payments (avec burn 1.5%)
   public shared ({ caller }) func payMerchantOkp(merchant : Principal, okpAmount : Float, convertToCdf : Bool) : async TransactionResult {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can pay merchants");
@@ -672,22 +744,29 @@ actor {
         newBalance = null;
       };
     };
-    // reload wallet with persistent state changes
     let callerWallet = getCallerWallet(caller);
-    if (callerWallet.okp < okpAmount) {
+    let burnAmount = okpAmount * OKP_BURN_RATE;
+    let totalDeducted = okpAmount + burnAmount;
+
+    if (callerWallet.okp < totalDeducted) {
       return {
         success = false;
-        message = "Insufficient balance";
+        message = "Insufficient balance (including 1.5% burn)";
         newBalance = null;
       };
     };
 
     let merchantWallet = getCallerWallet(merchant);
 
+    // Mise à jour burn + volume
+    totalOkpBurned += burnAmount;
+    okpTxVolume += okpAmount;
+    okpPriceAdjustment += okpTxVolume * 0.00001;
+
     if (convertToCdf) {
-      let cdfAmount = okpAmount * okpToCdfRate;
+      let cdfAmount = okpAmount * getEffectiveOkpRate();
       let updatedCallerWallet = {
-        callerWallet with okp = callerWallet.okp - okpAmount;
+        callerWallet with okp = callerWallet.okp - totalDeducted;
       };
       let updatedMerchantWallet = {
         merchantWallet with cdf = merchantWallet.cdf + cdfAmount;
@@ -710,13 +789,12 @@ actor {
 
       return {
         success = true;
-        message = "Payment successful, merchant received " # cdfAmount.toText() # " CDF";
+        message = "Payment successful, merchant received " # cdfAmount.toText() # " CDF. " # burnAmount.toText() # " OKP burned.";
         newBalance = ?updatedCallerWallet;
       };
     } else {
-      // Award 5 OKP loyalty points
       let updatedCallerWallet = {
-        callerWallet with okp = callerWallet.okp - okpAmount + 5.0;
+        callerWallet with okp = callerWallet.okp - totalDeducted;
       };
       let updatedMerchantWallet = {
         merchantWallet with okp = merchantWallet.okp + okpAmount;
@@ -739,7 +817,7 @@ actor {
 
       return {
         success = true;
-        message = "Payment successful, merchant received " # okpAmount.toText() # " OKP and you also received 5 OKP as loyalty reward";
+        message = "Payment successful, merchant received " # okpAmount.toText() # " OKP. " # burnAmount.toText() # " OKP burned.";
         newBalance = ?updatedCallerWallet;
       };
     };
@@ -826,7 +904,6 @@ actor {
     let rewardAmount = stake.amount * stake.rewardRate;
     let totalAmount = stake.amount + rewardAmount;
 
-    // Update stake as claimed before updating the wallet
     let updatedStake = { stake with claimed = true };
     stakes.add(stakeId, updatedStake);
 
@@ -836,6 +913,9 @@ actor {
       okp = wallet.okp + totalAmount;
     };
     wallets.add(caller, updatedWallet);
+
+    // Les récompenses de staking comptent aussi comme OKP émis
+    totalOkpIssued += rewardAmount;
 
     { success = true; message = "Unstaking successful! You received " # totalAmount.toText() # " OKP"; newBalance = ?updatedWallet };
   };
@@ -865,9 +945,12 @@ actor {
       return { success = false; message = "Already claimed daily reward"; amount = 0.0 };
     };
 
+    // Base 50 OKP, soumis au multiplicateur déclinant
+    let multiplier = getRewardMultiplier();
+    let actualAmount = 50.0 * multiplier;
     awardOkp(caller, 50.0);
     lastDailyReward.add(caller, now);
 
-    { success = true; message = "Daily reward claimed successfully! 50 OKP added to your wallet."; amount = 50.0 };
+    { success = true; message = "Daily reward claimed! " # actualAmount.toText() # " OKP added to your wallet."; amount = actualAmount };
   };
 };

@@ -23,6 +23,7 @@ export const WalletBalance = IDL.Record({
   'btc' : IDL.Float64,
   'cdf' : IDL.Float64,
   'eth' : IDL.Float64,
+  'okp' : IDL.Float64,
   'usd' : IDL.Float64,
   'usdt' : IDL.Float64,
 });
@@ -44,6 +45,15 @@ export const ExchangeRate = IDL.Record({
 export const PortfolioValue = IDL.Record({
   'totalCDF' : IDL.Float64,
   'totalUSD' : IDL.Float64,
+});
+export const StakeRecord = IDL.Record({
+  'id' : IDL.Nat,
+  'durationDays' : IDL.Nat,
+  'startTime' : IDL.Int,
+  'userId' : IDL.Principal,
+  'claimed' : IDL.Bool,
+  'rewardRate' : IDL.Float64,
+  'amount' : IDL.Float64,
 });
 export const Transaction = IDL.Record({
   'id' : IDL.Nat,
@@ -77,12 +87,26 @@ export const idlService = IDL.Service({
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
   'buyCrypto' : IDL.Func([BuyCryptoRequest], [TransactionResult], []),
+  'claimDailyReward' : IDL.Func(
+      [],
+      [
+        IDL.Record({
+          'message' : IDL.Text,
+          'success' : IDL.Bool,
+          'amount' : IDL.Float64,
+        }),
+      ],
+      [],
+    ),
   'depositFiat' : IDL.Func([IDL.Text, IDL.Float64], [], []),
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
   'getExchangeRates' : IDL.Func([], [IDL.Vec(ExchangeRate)], ['query']),
+  'getOkpBalance' : IDL.Func([], [IDL.Float64], ['query']),
+  'getOkpToCdfRate' : IDL.Func([], [IDL.Float64], ['query']),
   'getPortfolioValue' : IDL.Func([], [PortfolioValue], ['query']),
   'getProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
+  'getStakes' : IDL.Func([], [IDL.Vec(StakeRecord)], ['query']),
   'getTransactions' : IDL.Func([], [IDL.Vec(Transaction)], ['query']),
   'getUserProfile' : IDL.Func(
       [IDL.Principal],
@@ -91,9 +115,32 @@ export const idlService = IDL.Service({
     ),
   'getWallet' : IDL.Func([], [WalletBalance], ['query']),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+  'payMerchantOkp' : IDL.Func(
+      [IDL.Principal, IDL.Float64, IDL.Bool],
+      [TransactionResult],
+      [],
+    ),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
   'sellCrypto' : IDL.Func([SellCryptoRequest], [TransactionResult], []),
   'setExchangeRate' : IDL.Func([SetExchangeRateRequest], [], []),
+  'setOkpToCdfRate' : IDL.Func([IDL.Float64], [], []),
+  'stakeOkp' : IDL.Func(
+      [IDL.Float64, IDL.Nat],
+      [
+        IDL.Record({
+          'stakeId' : IDL.Opt(IDL.Nat),
+          'message' : IDL.Text,
+          'success' : IDL.Bool,
+        }),
+      ],
+      [],
+    ),
+  'transferOkp' : IDL.Func(
+      [IDL.Principal, IDL.Float64],
+      [TransactionResult],
+      [],
+    ),
+  'unstakeOkp' : IDL.Func([IDL.Nat], [TransactionResult], []),
   'updateProfile' : IDL.Func([UpdateProfileRequest], [], []),
 });
 
@@ -115,6 +162,7 @@ export const idlFactory = ({ IDL }) => {
     'btc' : IDL.Float64,
     'cdf' : IDL.Float64,
     'eth' : IDL.Float64,
+    'okp' : IDL.Float64,
     'usd' : IDL.Float64,
     'usdt' : IDL.Float64,
   });
@@ -136,6 +184,15 @@ export const idlFactory = ({ IDL }) => {
   const PortfolioValue = IDL.Record({
     'totalCDF' : IDL.Float64,
     'totalUSD' : IDL.Float64,
+  });
+  const StakeRecord = IDL.Record({
+    'id' : IDL.Nat,
+    'durationDays' : IDL.Nat,
+    'startTime' : IDL.Int,
+    'userId' : IDL.Principal,
+    'claimed' : IDL.Bool,
+    'rewardRate' : IDL.Float64,
+    'amount' : IDL.Float64,
   });
   const Transaction = IDL.Record({
     'id' : IDL.Nat,
@@ -169,12 +226,26 @@ export const idlFactory = ({ IDL }) => {
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
     'buyCrypto' : IDL.Func([BuyCryptoRequest], [TransactionResult], []),
+    'claimDailyReward' : IDL.Func(
+        [],
+        [
+          IDL.Record({
+            'message' : IDL.Text,
+            'success' : IDL.Bool,
+            'amount' : IDL.Float64,
+          }),
+        ],
+        [],
+      ),
     'depositFiat' : IDL.Func([IDL.Text, IDL.Float64], [], []),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
     'getExchangeRates' : IDL.Func([], [IDL.Vec(ExchangeRate)], ['query']),
+    'getOkpBalance' : IDL.Func([], [IDL.Float64], ['query']),
+    'getOkpToCdfRate' : IDL.Func([], [IDL.Float64], ['query']),
     'getPortfolioValue' : IDL.Func([], [PortfolioValue], ['query']),
     'getProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
+    'getStakes' : IDL.Func([], [IDL.Vec(StakeRecord)], ['query']),
     'getTransactions' : IDL.Func([], [IDL.Vec(Transaction)], ['query']),
     'getUserProfile' : IDL.Func(
         [IDL.Principal],
@@ -183,9 +254,32 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getWallet' : IDL.Func([], [WalletBalance], ['query']),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+    'payMerchantOkp' : IDL.Func(
+        [IDL.Principal, IDL.Float64, IDL.Bool],
+        [TransactionResult],
+        [],
+      ),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
     'sellCrypto' : IDL.Func([SellCryptoRequest], [TransactionResult], []),
     'setExchangeRate' : IDL.Func([SetExchangeRateRequest], [], []),
+    'setOkpToCdfRate' : IDL.Func([IDL.Float64], [], []),
+    'stakeOkp' : IDL.Func(
+        [IDL.Float64, IDL.Nat],
+        [
+          IDL.Record({
+            'stakeId' : IDL.Opt(IDL.Nat),
+            'message' : IDL.Text,
+            'success' : IDL.Bool,
+          }),
+        ],
+        [],
+      ),
+    'transferOkp' : IDL.Func(
+        [IDL.Principal, IDL.Float64],
+        [TransactionResult],
+        [],
+      ),
+    'unstakeOkp' : IDL.Func([IDL.Nat], [TransactionResult], []),
     'updateProfile' : IDL.Func([UpdateProfileRequest], [], []),
   });
 };

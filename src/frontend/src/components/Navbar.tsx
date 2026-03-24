@@ -29,7 +29,7 @@ export default function Navbar({ onSectionClick }: NavbarProps) {
     { label: "Accueil", id: "hero" },
     { label: "Échange", id: "buysell" },
     { label: "Portefeuille", id: "dashboard" },
-    { label: "Portfolio", id: "portfolio" },
+    { label: "Banques", id: "banques" },
     { label: "Support", id: "footer" },
   ];
 

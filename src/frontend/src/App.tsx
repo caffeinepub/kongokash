@@ -1,11 +1,12 @@
 import { Toaster } from "@/components/ui/sonner";
+import BanquesSection from "./components/BanquesSection";
 import BuySellSection from "./components/BuySellSection";
 import Dashboard from "./components/Dashboard";
 import Footer from "./components/Footer";
 import HeroSection from "./components/HeroSection";
 import MarketOverview from "./components/MarketOverview";
 import Navbar from "./components/Navbar";
-import PortfolioSection from "./components/PortfolioSection";
+import OkapiSection from "./components/OkapiSection";
 
 export default function App() {
   const scrollToSection = (id: string) => {
@@ -26,8 +27,9 @@ export default function App() {
         />
         <MarketOverview />
         <Dashboard />
+        <OkapiSection />
         <BuySellSection />
-        <PortfolioSection />
+        <BanquesSection />
       </main>
 
       <Footer />

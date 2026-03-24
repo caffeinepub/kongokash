@@ -30,6 +30,7 @@ export interface WalletBalance {
     btc: number;
     cdf: number;
     eth: number;
+    okp: number;
     usd: number;
     usdt: number;
 }
@@ -48,6 +49,15 @@ export interface BuyCryptoRequest {
     asset: string;
     fiatAmount: number;
     fiatCurrency: string;
+}
+export interface StakeRecord {
+    id: bigint;
+    durationDays: bigint;
+    startTime: bigint;
+    userId: Principal;
+    claimed: boolean;
+    rewardRate: number;
+    amount: number;
 }
 export interface UserProfile {
     country: string;
@@ -74,18 +84,50 @@ export enum UserRole {
 export interface backendInterface {
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     buyCrypto(request: BuyCryptoRequest): Promise<TransactionResult>;
+    claimDailyReward(): Promise<{
+        message: string;
+        success: boolean;
+        amount: number;
+    }>;
     depositFiat(currency: string, amount: number): Promise<void>;
+    /**
+     * / Get the current user's profile
+     */
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
+    /**
+     * / Exchange Rate Management
+     */
     getExchangeRates(): Promise<Array<ExchangeRate>>;
+    getOkpBalance(): Promise<number>;
+    getOkpToCdfRate(): Promise<number>;
     getPortfolioValue(): Promise<PortfolioValue>;
     getProfile(): Promise<UserProfile | null>;
+    getStakes(): Promise<Array<StakeRecord>>;
     getTransactions(): Promise<Array<Transaction>>;
+    /**
+     * / Get a specific user's profile (must be owner or admin)
+     */
     getUserProfile(user: Principal): Promise<UserProfile | null>;
+    /**
+     * / Wallet Management
+     */
     getWallet(): Promise<WalletBalance>;
     isCallerAdmin(): Promise<boolean>;
+    payMerchantOkp(merchant: Principal, okpAmount: number, convertToCdf: boolean): Promise<TransactionResult>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     sellCrypto(request: SellCryptoRequest): Promise<TransactionResult>;
     setExchangeRate(request: SetExchangeRateRequest): Promise<void>;
+    setOkpToCdfRate(rate: number): Promise<void>;
+    stakeOkp(amount: number, durationDays: bigint): Promise<{
+        stakeId?: bigint;
+        message: string;
+        success: boolean;
+    }>;
+    transferOkp(to: Principal, amount: number): Promise<TransactionResult>;
+    unstakeOkp(stakeId: bigint): Promise<TransactionResult>;
+    /**
+     * / Profile Management
+     */
     updateProfile(request: UpdateProfileRequest): Promise<void>;
 }

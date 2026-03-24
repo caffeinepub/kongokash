@@ -32,6 +32,15 @@ export interface SetExchangeRateRequest {
   'buyRate' : number,
   'sellRate' : number,
 }
+export interface StakeRecord {
+  'id' : bigint,
+  'durationDays' : bigint,
+  'startTime' : bigint,
+  'userId' : Principal,
+  'claimed' : boolean,
+  'rewardRate' : number,
+  'amount' : number,
+}
 export interface Transaction {
   'id' : bigint,
   'status' : string,
@@ -66,6 +75,7 @@ export interface WalletBalance {
   'btc' : number,
   'cdf' : number,
   'eth' : number,
+  'okp' : number,
   'usd' : number,
   'usdt' : number,
 }
@@ -73,19 +83,52 @@ export interface _SERVICE {
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'buyCrypto' : ActorMethod<[BuyCryptoRequest], TransactionResult>,
+  'claimDailyReward' : ActorMethod<
+    [],
+    { 'message' : string, 'success' : boolean, 'amount' : number }
+  >,
   'depositFiat' : ActorMethod<[string, number], undefined>,
+  /**
+   * / Get the current user's profile
+   */
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
+  /**
+   * / Exchange Rate Management
+   */
   'getExchangeRates' : ActorMethod<[], Array<ExchangeRate>>,
+  'getOkpBalance' : ActorMethod<[], number>,
+  'getOkpToCdfRate' : ActorMethod<[], number>,
   'getPortfolioValue' : ActorMethod<[], PortfolioValue>,
   'getProfile' : ActorMethod<[], [] | [UserProfile]>,
+  'getStakes' : ActorMethod<[], Array<StakeRecord>>,
   'getTransactions' : ActorMethod<[], Array<Transaction>>,
+  /**
+   * / Get a specific user's profile (must be owner or admin)
+   */
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
+  /**
+   * / Wallet Management
+   */
   'getWallet' : ActorMethod<[], WalletBalance>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
+  'payMerchantOkp' : ActorMethod<
+    [Principal, number, boolean],
+    TransactionResult
+  >,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
   'sellCrypto' : ActorMethod<[SellCryptoRequest], TransactionResult>,
   'setExchangeRate' : ActorMethod<[SetExchangeRateRequest], undefined>,
+  'setOkpToCdfRate' : ActorMethod<[number], undefined>,
+  'stakeOkp' : ActorMethod<
+    [number, bigint],
+    { 'stakeId' : [] | [bigint], 'message' : string, 'success' : boolean }
+  >,
+  'transferOkp' : ActorMethod<[Principal, number], TransactionResult>,
+  'unstakeOkp' : ActorMethod<[bigint], TransactionResult>,
+  /**
+   * / Profile Management
+   */
   'updateProfile' : ActorMethod<[UpdateProfileRequest], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;

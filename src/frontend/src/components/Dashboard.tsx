@@ -15,6 +15,7 @@ import {
   ArrowUpRight,
   History,
   Loader2,
+  PieChart,
   RefreshCw,
   TrendingUp,
   Wallet,
@@ -23,9 +24,11 @@ import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
+import { useOkpBalance } from "../hooks/useOkpQueries";
 import {
   useDepositFiat,
   useExchangeRates,
+  usePortfolioValue,
   useTransactions,
   useWallet,
 } from "../hooks/useQueries";
@@ -39,6 +42,9 @@ function formatUSD(n: number) {
 function formatCrypto(n: number, asset: string) {
   return `${n.toFixed(8)} ${asset.toUpperCase()}`;
 }
+function addOpacity(color: string, opacity: string) {
+  return color.endsWith(")") ? `${color.slice(0, -1)} / ${opacity})` : color;
+}
 
 export default function Dashboard() {
   const { identity } = useInternetIdentity();
@@ -49,6 +55,8 @@ export default function Dashboard() {
   } = useWallet();
   const { data: rates } = useExchangeRates();
   const { data: transactions, isLoading: txLoading } = useTransactions();
+  const { data: portfolio, isLoading: portfolioLoading } = usePortfolioValue();
+  const { data: okpBalance = 0 } = useOkpBalance();
   const depositFiat = useDepositFiat();
 
   const [converterFiat, setConverterFiat] = useState("");
@@ -87,6 +95,54 @@ export default function Dashboard() {
     return (fiatVal / rate.buyRate).toFixed(8);
   };
 
+  const getRate = (pair: string) =>
+    rates?.find((r) => r.pair === pair)?.buyRate ?? 0;
+
+  const assets = [
+    {
+      symbol: "BTC",
+      icon: "₿",
+      amount: wallet?.btc ?? 0,
+      valueCDF: (wallet?.btc ?? 0) * getRate("BTC/CDF"),
+      color: "oklch(0.77 0.13 85)",
+    },
+    {
+      symbol: "ETH",
+      icon: "⟠",
+      amount: wallet?.eth ?? 0,
+      valueCDF: (wallet?.eth ?? 0) * getRate("ETH/CDF"),
+      color: "oklch(0.52 0.12 160)",
+    },
+    {
+      symbol: "USDT",
+      icon: "₮",
+      amount: wallet?.usdt ?? 0,
+      valueCDF: (wallet?.usdt ?? 0) * getRate("USDT/CDF"),
+      color: "oklch(0.67 0.15 55)",
+    },
+    {
+      symbol: "CDF",
+      icon: "FC",
+      amount: wallet?.cdf ?? 0,
+      valueCDF: wallet?.cdf ?? 0,
+      color: "oklch(0.27 0.07 195)",
+    },
+    {
+      symbol: "USD",
+      icon: "$",
+      amount: wallet?.usd ?? 0,
+      valueCDF: (wallet?.usd ?? 0) * getRate("USDT/CDF"),
+      color: "oklch(0.35 0.09 195)",
+    },
+    {
+      symbol: "OKP",
+      icon: "🦏",
+      amount: wallet?.okp ?? okpBalance,
+      valueCDF: 0,
+      color: "oklch(0.65 0.18 35)",
+    },
+  ];
+
   if (!identity) {
     return (
       <section id="dashboard" className="py-16 bg-background">
@@ -116,6 +172,9 @@ export default function Dashboard() {
       </section>
     );
   }
+
+  const totalCDF = portfolio?.totalCDF ?? 0;
+  const totalUSD = portfolio?.totalUSD ?? 0;
 
   return (
     <section
@@ -354,26 +413,37 @@ export default function Dashboard() {
                           label: "CDF",
                           icon: "FC",
                           value: formatCDF(wallet?.cdf ?? 500000),
+                          color: "oklch(0.27 0.07 195)",
                         },
                         {
                           label: "USD",
                           icon: "$",
                           value: formatUSD(wallet?.usd ?? 175),
+                          color: "oklch(0.35 0.09 195)",
                         },
                         {
                           label: "BTC",
                           icon: "₿",
                           value: formatCrypto(wallet?.btc ?? 0.0021, "BTC"),
+                          color: "oklch(0.77 0.13 85)",
                         },
                         {
                           label: "ETH",
                           icon: "⟠",
                           value: formatCrypto(wallet?.eth ?? 0.045, "ETH"),
+                          color: "oklch(0.52 0.12 160)",
                         },
                         {
                           label: "USDT",
                           icon: "₮",
                           value: formatCrypto(wallet?.usdt ?? 50, "USDT"),
+                          color: "oklch(0.67 0.15 55)",
+                        },
+                        {
+                          label: "OKP",
+                          icon: "🦏",
+                          value: `${(wallet?.okp ?? okpBalance).toFixed(4)} OKP`,
+                          color: "oklch(0.65 0.18 35)",
                         },
                       ].map((item) => (
                         <div
@@ -384,8 +454,8 @@ export default function Dashboard() {
                             <span
                               className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
                               style={{
-                                background: "oklch(0.27 0.07 195 / 0.1)",
-                                color: "oklch(0.27 0.07 195)",
+                                background: `${item.color} / 0.1`,
+                                color: item.color,
                               }}
                             >
                               {item.icon}
@@ -531,6 +601,141 @@ export default function Dashboard() {
             </Card>
           </motion.div>
         </div>
+
+        {/* Portfolio Summary — visible uniquement si connecté */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ delay: 0.15, duration: 0.5 }}
+          className="mt-8"
+        >
+          <div className="mb-6">
+            <h3 className="font-display font-bold text-xl">Mon Portfolio</h3>
+            <p className="text-muted-foreground text-sm mt-1">
+              Valeur totale de vos actifs en temps réel
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-6">
+            {/* Total en CDF */}
+            <Card
+              className="shadow-card"
+              style={{ background: "oklch(0.27 0.07 195)", color: "white" }}
+              data-ocid="portfolio.card"
+            >
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-white/70">
+                  Valeur totale en CDF
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {portfolioLoading ? (
+                  <div data-ocid="portfolio.loading_state">
+                    <Loader2 className="animate-spin" />
+                  </div>
+                ) : (
+                  <div className="font-display font-bold text-2xl">
+                    {`${new Intl.NumberFormat("fr-FR").format(totalCDF)} FC`}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Total en USD */}
+            <Card
+              className="shadow-card"
+              style={{ background: "oklch(0.52 0.12 160)", color: "white" }}
+              data-ocid="portfolio.card"
+            >
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-white/70">
+                  Valeur totale en USD
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {portfolioLoading ? (
+                  <div data-ocid="portfolio.loading_state">
+                    <Loader2 className="animate-spin" />
+                  </div>
+                ) : (
+                  <div className="font-display font-bold text-2xl">
+                    {`$${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(totalUSD)}`}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Actifs */}
+            <Card
+              className="shadow-card"
+              style={{
+                background: "oklch(0.77 0.13 85)",
+                color: "oklch(0.20 0.01 250)",
+              }}
+              data-ocid="portfolio.card"
+            >
+              <CardHeader className="pb-2">
+                <CardTitle
+                  className="text-sm font-medium"
+                  style={{ color: "oklch(0.20 0.01 250 / 0.7)" }}
+                >
+                  Actifs
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="font-display font-bold text-2xl">6 actifs</div>
+                <div
+                  className="text-sm"
+                  style={{ color: "oklch(0.20 0.01 250 / 0.7)" }}
+                >
+                  CDF, USD, BTC, ETH, USDT, OKP
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Répartition */}
+            <div className="md:col-span-3">
+              <Card className="shadow-card" data-ocid="portfolio.card">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <PieChart size={18} />
+                    Répartition des actifs
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid sm:grid-cols-6 gap-4">
+                    {assets.map((asset, i) => (
+                      <div
+                        key={asset.symbol}
+                        className="text-center p-4 rounded-xl"
+                        style={{ background: addOpacity(asset.color, "0.08") }}
+                        data-ocid={`portfolio.item.${i + 1}`}
+                      >
+                        <div
+                          className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold mx-auto mb-2"
+                          style={{ background: asset.color, color: "white" }}
+                        >
+                          {asset.icon}
+                        </div>
+                        <div className="font-semibold text-sm">
+                          {asset.symbol}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1 font-mono">
+                          {asset.amount < 1
+                            ? asset.amount.toFixed(6)
+                            : new Intl.NumberFormat("fr-FR", {
+                                maximumFractionDigits: 2,
+                              }).format(asset.amount)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </motion.div>
       </div>
     </section>
   );

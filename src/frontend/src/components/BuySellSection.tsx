@@ -25,7 +25,7 @@ export default function BuySellSection() {
   const [buyAsset, setBuyAsset] = useState("BTC");
   const [buyFiatAmount, setBuyFiatAmount] = useState("");
   const [buyFiatCurrency, setBuyFiatCurrency] = useState("CDF");
-  const [buyPaymentMethod, setBuyPaymentMethod] = useState("mpesa");
+  const buyPaymentMethod = "bank";
 
   const [sellAsset, setSellAsset] = useState("BTC");
   const [sellCryptoAmount, setSellCryptoAmount] = useState("");
@@ -105,7 +105,8 @@ export default function BuySellSection() {
             <p className="text-muted-foreground leading-relaxed">
               Notre plateforme décentralisée vous permet d'échanger directement
               avec vos Francs Congolais ou vos Dollars sans intermédiaire
-              coûteux. Paiement via M-Pesa, Airtel Money ou virement bancaire.
+              coûteux. Paiement via virement bancaire Equity BCDC. Les paiements
+              mobiles (M-Pesa, Airtel Money) seront disponibles prochainement.
             </p>
 
             <div className="grid grid-cols-2 gap-4">
@@ -222,25 +223,33 @@ export default function BuySellSection() {
                       </div>
                     </div>
 
+                    {/* Static payment method — only Equity BCDC for now */}
                     <div className="space-y-2">
                       <Label>Méthode de paiement</Label>
-                      <Select
-                        value={buyPaymentMethod}
-                        onValueChange={setBuyPaymentMethod}
+                      <div
+                        className="flex items-center gap-2 px-3 py-2 rounded-md border text-sm font-medium"
+                        style={{
+                          background: "oklch(0.97 0.005 220)",
+                          borderColor: "oklch(0.85 0.02 220)",
+                        }}
+                        data-ocid="buysell.panel"
                       >
-                        <SelectTrigger data-ocid="buysell.select">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="mpesa">📱 M-Pesa</SelectItem>
-                          <SelectItem value="airtel">
-                            📱 Airtel Money
-                          </SelectItem>
-                          <SelectItem value="bank">
-                            🏦 Virement Bancaire
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
+                        <span>🏦</span>
+                        <span>Virement Bancaire — Equity BCDC</span>
+                        <span
+                          className="ml-auto text-xs px-2 py-0.5 rounded-full font-semibold"
+                          style={{
+                            background: "oklch(0.52 0.12 160 / 0.12)",
+                            color: "oklch(0.38 0.1 160)",
+                          }}
+                        >
+                          Actif
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Les paiements mobiles (M-Pesa, Airtel Money) seront
+                        disponibles prochainement.
+                      </p>
                     </div>
 
                     {!identity && (

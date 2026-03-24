@@ -112,6 +112,7 @@ export interface WalletBalance {
     btc: number;
     cdf: number;
     eth: number;
+    okp: number;
     usd: number;
     usdt: number;
 }
@@ -130,6 +131,15 @@ export interface BuyCryptoRequest {
     asset: string;
     fiatAmount: number;
     fiatCurrency: string;
+}
+export interface StakeRecord {
+    id: bigint;
+    durationDays: bigint;
+    startTime: bigint;
+    userId: Principal;
+    claimed: boolean;
+    rewardRate: number;
+    amount: number;
 }
 export interface UserProfile {
     country: string;
@@ -157,19 +167,51 @@ export interface backendInterface {
     _initializeAccessControlWithSecret(userSecret: string): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     buyCrypto(request: BuyCryptoRequest): Promise<TransactionResult>;
+    claimDailyReward(): Promise<{
+        message: string;
+        success: boolean;
+        amount: number;
+    }>;
     depositFiat(currency: string, amount: number): Promise<void>;
+    /**
+     * / Get the current user's profile
+     */
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
+    /**
+     * / Exchange Rate Management
+     */
     getExchangeRates(): Promise<Array<ExchangeRate>>;
+    getOkpBalance(): Promise<number>;
+    getOkpToCdfRate(): Promise<number>;
     getPortfolioValue(): Promise<PortfolioValue>;
     getProfile(): Promise<UserProfile | null>;
+    getStakes(): Promise<Array<StakeRecord>>;
     getTransactions(): Promise<Array<Transaction>>;
+    /**
+     * / Get a specific user's profile (must be owner or admin)
+     */
     getUserProfile(user: Principal): Promise<UserProfile | null>;
+    /**
+     * / Wallet Management
+     */
     getWallet(): Promise<WalletBalance>;
     isCallerAdmin(): Promise<boolean>;
+    payMerchantOkp(merchant: Principal, okpAmount: number, convertToCdf: boolean): Promise<TransactionResult>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     sellCrypto(request: SellCryptoRequest): Promise<TransactionResult>;
     setExchangeRate(request: SetExchangeRateRequest): Promise<void>;
+    setOkpToCdfRate(rate: number): Promise<void>;
+    stakeOkp(amount: number, durationDays: bigint): Promise<{
+        stakeId?: bigint;
+        message: string;
+        success: boolean;
+    }>;
+    transferOkp(to: Principal, amount: number): Promise<TransactionResult>;
+    unstakeOkp(stakeId: bigint): Promise<TransactionResult>;
+    /**
+     * / Profile Management
+     */
     updateProfile(request: UpdateProfileRequest): Promise<void>;
 }
 import type { TransactionResult as _TransactionResult, UserProfile as _UserProfile, UserRole as _UserRole, WalletBalance as _WalletBalance } from "./declarations/backend.did.d.ts";
@@ -215,6 +257,24 @@ export class Backend implements backendInterface {
         } else {
             const result = await this.actor.buyCrypto(arg0);
             return from_candid_TransactionResult_n3(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async claimDailyReward(): Promise<{
+        message: string;
+        success: boolean;
+        amount: number;
+    }> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.claimDailyReward();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.claimDailyReward();
+            return result;
         }
     }
     async depositFiat(arg0: string, arg1: number): Promise<void> {
@@ -273,6 +333,34 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async getOkpBalance(): Promise<number> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getOkpBalance();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getOkpBalance();
+            return result;
+        }
+    }
+    async getOkpToCdfRate(): Promise<number> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getOkpToCdfRate();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getOkpToCdfRate();
+            return result;
+        }
+    }
     async getPortfolioValue(): Promise<PortfolioValue> {
         if (this.processError) {
             try {
@@ -299,6 +387,20 @@ export class Backend implements backendInterface {
         } else {
             const result = await this.actor.getProfile();
             return from_candid_opt_n6(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getStakes(): Promise<Array<StakeRecord>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getStakes();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getStakes();
+            return result;
         }
     }
     async getTransactions(): Promise<Array<Transaction>> {
@@ -357,6 +459,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async payMerchantOkp(arg0: Principal, arg1: number, arg2: boolean): Promise<TransactionResult> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.payMerchantOkp(arg0, arg1, arg2);
+                return from_candid_TransactionResult_n3(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.payMerchantOkp(arg0, arg1, arg2);
+            return from_candid_TransactionResult_n3(this._uploadFile, this._downloadFile, result);
+        }
+    }
     async saveCallerUserProfile(arg0: UserProfile): Promise<void> {
         if (this.processError) {
             try {
@@ -399,6 +515,66 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async setOkpToCdfRate(arg0: number): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.setOkpToCdfRate(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.setOkpToCdfRate(arg0);
+            return result;
+        }
+    }
+    async stakeOkp(arg0: number, arg1: bigint): Promise<{
+        stakeId?: bigint;
+        message: string;
+        success: boolean;
+    }> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.stakeOkp(arg0, arg1);
+                return from_candid_record_n9(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.stakeOkp(arg0, arg1);
+            return from_candid_record_n9(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async transferOkp(arg0: Principal, arg1: number): Promise<TransactionResult> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.transferOkp(arg0, arg1);
+                return from_candid_TransactionResult_n3(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.transferOkp(arg0, arg1);
+            return from_candid_TransactionResult_n3(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async unstakeOkp(arg0: bigint): Promise<TransactionResult> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.unstakeOkp(arg0);
+                return from_candid_TransactionResult_n3(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.unstakeOkp(arg0);
+            return from_candid_TransactionResult_n3(this._uploadFile, this._downloadFile, result);
+        }
+    }
     async updateProfile(arg0: UpdateProfileRequest): Promise<void> {
         if (this.processError) {
             try {
@@ -420,6 +596,9 @@ function from_candid_TransactionResult_n3(_uploadFile: (file: ExternalBlob) => P
 function from_candid_UserRole_n7(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserRole): UserRole {
     return from_candid_variant_n8(_uploadFile, _downloadFile, value);
 }
+function from_candid_opt_n10(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [bigint]): bigint | null {
+    return value.length === 0 ? null : value[0];
+}
 function from_candid_opt_n5(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_WalletBalance]): WalletBalance | null {
     return value.length === 0 ? null : value[0];
 }
@@ -437,6 +616,21 @@ function from_candid_record_n4(_uploadFile: (file: ExternalBlob) => Promise<Uint
 } {
     return {
         newBalance: record_opt_to_undefined(from_candid_opt_n5(_uploadFile, _downloadFile, value.newBalance)),
+        message: value.message,
+        success: value.success
+    };
+}
+function from_candid_record_n9(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    stakeId: [] | [bigint];
+    message: string;
+    success: boolean;
+}): {
+    stakeId?: bigint;
+    message: string;
+    success: boolean;
+} {
+    return {
+        stakeId: record_opt_to_undefined(from_candid_opt_n10(_uploadFile, _downloadFile, value.stakeId)),
         message: value.message,
         success: value.success
     };

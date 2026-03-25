@@ -1,22 +1,35 @@
-import Array "mo:core/Array";
+// KongoKash defintely Not feature complete
+// Keep everything in this modular, succinct style,
+// Go from functions that do not even mention actors nor var nor anything persistent.
+
 import List "mo:core/List";
-import Time "mo:core/Time";
+import Array "mo:core/Array";
 import Map "mo:core/Map";
-import Order "mo:core/Order";
 import Text "mo:core/Text";
-import Int "mo:core/Int";
 import Float "mo:core/Float";
-import Principal "mo:core/Principal";
+import Time "mo:core/Time";
+import Int "mo:core/Int";
+import Nat "mo:core/Nat";
 import Runtime "mo:core/Runtime";
-import Iter "mo:core/Iter";
-
-
+import Principal "mo:core/Principal";
+import Char "mo:core/Char";
+import Order "mo:core/Order";
+import Migration "migration";
 import MixinAuthorization "authorization/MixinAuthorization";
 import AccessControl "authorization/access-control";
 
 // Make every change relative to the old state, using migration
 
+(with migration = Migration.run)
 actor {
+  var transactionId = 0;
+  var stakeCounter = 0;
+  var mobileMoneyRequests = Map.empty<Nat, MobileMoneyRequest>();
+  var mobileMoneyRequestId = 0;
+
+  let accessControlState = AccessControl.initState();
+  include MixinAuthorization(accessControlState);
+
   module Transaction {
     public func compare(transaction1 : Transaction, transaction2 : Transaction) : Order.Order {
       Int.compare(transaction1.timestamp, transaction2.timestamp);
@@ -32,6 +45,53 @@ actor {
   module MobileMoneyRequest {
     public func compare(mobileMoneyRequest1 : MobileMoneyRequest, mobileMoneyRequest2 : MobileMoneyRequest) : Order.Order {
       Int.compare(mobileMoneyRequest1.timestamp, mobileMoneyRequest2.timestamp);
+    };
+  };
+
+  module FiatCurrency {
+    public type FiatCurrency = {
+      #cdf;
+      #usd;
+    };
+
+    public func fromText(text : Text) : ?FiatCurrency {
+      switch (text) {
+        case ("CDF") { ?#cdf };
+        case ("USD") { ?#usd };
+        case (_) { null };
+      };
+    };
+
+    public func toText(currency : FiatCurrency) : Text {
+      switch (currency) {
+        case (#cdf) { "CDF" };
+        case (#usd) { "USD" };
+      };
+    };
+  };
+
+  module CryptoAsset {
+    public type CryptoAsset = {
+      #btc;
+      #eth;
+      #usdt;
+    };
+
+    public func fromText(text : Text) : ?CryptoAsset {
+      switch (text) {
+        case ("BTC") { ?#btc };
+        case ("ETH") { ?#eth };
+        case ("USDT") { ?#usdt };
+        case (_) { null };
+      };
+    };
+
+    public func toText(asset : CryptoAsset) : Text {
+      switch (asset) {
+        case (#btc) { "BTC" };
+        case (#eth) { "ETH" };
+        case (#usdt) { "USDT" };
+      };
     };
   };
 
@@ -121,63 +181,10 @@ actor {
     allocations : [OkpAllocation]; // Distribution initiale
   };
 
-  module FiatCurrency {
-    public type FiatCurrency = {
-      #cdf;
-      #usd;
-    };
-
-    public func fromText(text : Text) : ?FiatCurrency {
-      switch (text) {
-        case ("CDF") { ?#cdf };
-        case ("USD") { ?#usd };
-        case (_) { null };
-      };
-    };
-
-    public func toText(currency : FiatCurrency) : Text {
-      switch (currency) {
-        case (#cdf) { "CDF" };
-        case (#usd) { "USD" };
-      };
-    };
-  };
-
-  module CryptoAsset {
-    public type CryptoAsset = {
-      #btc;
-      #eth;
-      #usdt;
-    };
-
-    public func fromText(text : Text) : ?CryptoAsset {
-      switch (text) {
-        case ("BTC") { ?#btc };
-        case ("ETH") { ?#eth };
-        case ("USDT") { ?#usdt };
-        case (_) { null };
-      };
-    };
-
-    public func toText(asset : CryptoAsset) : Text {
-      switch (asset) {
-        case (#btc) { "BTC" };
-        case (#eth) { "ETH" };
-        case (#usdt) { "USDT" };
-      };
-    };
-  };
-
   type UpdateProfileRequest = {
     displayName : Text;
     country : Text;
     preferredCurrency : Text;
-  };
-
-  type SetExchangeRateRequest = {
-    pair : Text;
-    buyRate : Float;
-    sellRate : Float;
   };
 
   type BuyCryptoRequest = {
@@ -193,26 +200,13 @@ actor {
     fiatCurrency : Text;
   };
 
+  type SetExchangeRateRequest = {
+    pair : Text;
+    buyRate : Float;
+    sellRate : Float;
+  };
+
   //Admin dashboard types
-
-  type AdminStats = {
-    totalUsers : Nat;
-    totalTransactions : Nat;
-    totalVolumeCdf : Float;
-    totalVolumeUsd : Float;
-    pendingKycCount : Nat;
-    suspendedUsersCount : Nat;
-    okpStats : OkpAdminStats;
-  };
-
-  type UserAdminView = {
-    principal : Principal;
-    profile : ?UserProfile;
-    kycStatus : Text;
-    accountStatus : Text; // "active" or "suspended"
-    role : Text;          // "guest", "user", "admin"
-    walletBalance : ?WalletBalance;
-  };
 
   type KycRecord = {
     userId : Principal;
@@ -235,15 +229,9 @@ actor {
     rejectionReason : Text;
   };
 
-  type MobileMoneyRequestInput = {
-    userId : Principal;
-    operator : Text; // "airtel" or "mpesa"
-    phone : Text;
-    amountCdf : Float;
-    txType : Text;
-    status : Text;
-    timestamp : Int;
-    rejectionReason : Text;
+  type ExchangeDirection = {
+    #buy;
+    #sell;
   };
 
   type PaymentConfig = {
@@ -256,22 +244,34 @@ actor {
     tmbAccount : Text;
   };
 
-  let accessControlState = AccessControl.initState();
-  include MixinAuthorization(accessControlState);
+  type OkpConversionRequest = {
+    #fiatToOkp : {
+      fiatAmount : Float;
+      direction : ExchangeDirection;
+      rate : Float;
+      timestamp : Int;
+      user : Principal;
+    };
+    #cryptoToOkp : {
+      cryptoAmount : Float;
+      fiatEquivalent : Float;
+      rate : Float;
+      timestamp : Int;
+      user : Principal;
+    };
+  };
 
-  let profiles = Map.empty<Principal, UserProfile>();
-  let wallets = Map.empty<Principal, WalletBalance>();
-  let exchangeRates = Map.empty<Text, ExchangeRate>();
-  let transactions = List.empty<Transaction>();
-  let stakes = Map.empty<Nat, StakeRecord>();
-  let lastDailyReward = Map.empty<Principal, Int>();
+  type MobileMoneyRequestInput = {
+    userId : Principal;
+    operator : Text; // "airtel" or "mpesa"
+    phone : Text;
+    amountCdf : Float;
+    txType : Text;
+    status : Text;
+    timestamp : Int;
+    rejectionReason : Text;
+  };
 
-  var transactionId = 0;
-  var stakeCounter = 0;
-  var mobileMoneyRequests = Map.empty<Nat, MobileMoneyRequest>();
-  var mobileMoneyRequestId = 0;
-
-  // Prix OKP/CDF : taux de base configurable + ajustement dynamique basé sur l'usage
   var okpToCdfRate : Float = 50.0;    // Taux de base admin-configurable
   var okpPriceAdjustment : Float = 0.0; // Ajustement accumulé selon l'usage
 
@@ -294,8 +294,96 @@ actor {
     tmbAccount = "";
   };
 
+  type ReferralStats = {
+    totalReferred : Nat;
+    activated : Nat;
+    totalOkpEarned : Float;
+    referrals : [Referral];
+  };
+
+  type Referral = {
+    referredUser : Principal;
+    activated : Bool;
+    rewardAmount : Float;
+    referredAt : Int;
+    activatedAt : Int;
+  };
+
+  type UserProfileWithReferral = {
+    displayName : Text;
+    country : Text;
+    preferredCurrency : Text;
+    referralCode : Text;
+    referredBy : ?Principal;
+    referredAt : ?Int; // Timestamp when referred
+    rewardClaimed : Bool;
+  };
+
+  type ReferredUser = {
+    principal : Principal;
+    displayName : Text;
+    createdAt : Int;
+    activated : Bool;
+    bonusClaimed : Bool;
+  };
+
+  type ReferralStatsResponse = {
+    totalReferred : Nat;
+    totalActivated : Nat;
+    totalOkpEarned : Float;
+    referredUsers : [ReferredUser];
+    remainingReferrals : Nat;
+  };
+
+  // Persistent referral signups
+  var referrals = Map.empty<Principal, [Principal]>(); // Referrer -> [ReferredUsers]
+  var referralSignups = Map.empty<Text, Principal>(); // Referral code -> Referrer
+  var referralRewards = Map.empty<Principal, Nat>(); // Referrer -> # of rewards
+  var referralsActivated = Map.empty<Principal, [Principal]>(); // Referrer -> [ActivatedUsers]
+  var currentUserId : ?Principal = null;
+  var userCreationTimestamps = Map.empty<Principal, Int>();
+  var userFirstTransactionDone = Map.empty<Principal, Bool>(); // Track first transaction
+
+  type UserAdminView = {
+    principal : Principal;
+    profile : ?UserProfile;
+    kycStatus : Text;
+    accountStatus : Text; // "active" or "suspended"
+    role : Text;          // "guest", "user", "admin"
+    walletBalance : ?WalletBalance;
+    referral : ?UserProfileWithReferral;
+  };
+
+  type AdminStats = {
+    totalUsers : Nat;
+    totalTransactions : Nat;
+    totalVolumeCdf : Float;
+    totalVolumeUsd : Float;
+    pendingKycCount : Nat;
+    suspendedUsersCount : Nat;
+    okpStats : OkpAdminStats;
+  };
+
+  // TODO: rest of persistent state
+  let profiles = Map.empty<Principal, UserProfileWithReferral>();
+  let wallets = Map.empty<Principal, WalletBalance>();
+  let exchangeRates = Map.empty<Text, ExchangeRate>();
+  let transactions = List.empty<Transaction>();
+  let stakes = Map.empty<Nat, StakeRecord>();
+  let lastDailyReward = Map.empty<Principal, Int>();
   let kycRecords = Map.empty<Principal, KycRecord>();
   let userStatus = Map.empty<Principal, Text>();
+
+  let referrer = Principal.fromText("2vxsx-fae");
+  let refferalCodeOkpBonus = 50.0;
+  let referralActivationBonus = 100.0;
+
+  type ReferralWithCode = {
+    code : Text;
+    referrals : [Principal];
+    currentReferralCount : Nat;
+    rewardMultiplier : Float;
+  };
 
   func nextTransactionId() : Nat {
     transactionId += 1;
@@ -307,7 +395,6 @@ actor {
     mobileMoneyRequestId;
   };
 
-  /// Check if user is suspended
   func isUserSuspended(user : Principal) : Bool {
     switch (userStatus.get(user)) {
       case (?status) { status == "suspended" };
@@ -315,19 +402,29 @@ actor {
     };
   };
 
-  /// Enforce that user is not suspended
   func requireNotSuspended(caller : Principal) {
     if (isUserSuspended(caller)) {
       Runtime.trap("Account suspended: Contact administrator");
     };
   };
 
-  /// Taux effectif = taux de base + ajustement dynamique
+  func generateReferralCode(user : Principal) : Text {
+    let base = user.toText();
+    let chars = base.toArray().map(
+      func(c) {
+        if (c == '-' or c == ':') { 'X' } else { c };
+      }
+    );
+    let code = Text.fromArray(chars);
+    if (code.size() < 8) { "2VXSXFAE" } else {
+      Text.fromArray(code.toArray().sliceToArray(0, 8));
+    };
+  };
+
   func getEffectiveOkpRate() : Float {
     okpToCdfRate + okpPriceAdjustment;
   };
 
-  /// Multiplicateur de récompense : halvening tous les 500k OKP mintés
   func internalGetRewardMultiplier() : Float {
     if (rewardMultiplierOverride != null) {
       return switch (rewardMultiplierOverride) {
@@ -344,7 +441,6 @@ actor {
     else { 0.0625 };
   };
 
-  /// Calcul du total OKP actuellement verrouillés dans des stakes actifs
   func computeTotalStaked() : Float {
     var total : Float = 0.0;
     for (stake in stakes.values()) {
@@ -356,15 +452,12 @@ actor {
   };
 
   func awardOkp(user : Principal, baseAmount : Float) {
-    // Vérifier la limite de supply
     if (totalOkpIssued >= OKP_TOTAL_SUPPLY) { return };
 
-    // Appliquer le multiplicateur déclinant
     let multiplier = internalGetRewardMultiplier();
     let amount = baseAmount * multiplier;
     if (amount <= 0.0) { return };
 
-    // Ne pas dépasser le cap total
     let actualAmount = Float.min(amount, OKP_TOTAL_SUPPLY - totalOkpIssued);
 
     let wallet = switch (wallets.get(user)) {
@@ -424,10 +517,397 @@ actor {
     };
   };
 
+  // Helper functions
+  func arrayContains(array : [Principal], value : Principal) : Bool {
+    array.find(func(x) { x == value }) != null;
+  };
+
   // Mobile Money
   func createMobileMoneyRequest(input : MobileMoneyRequestInput) : MobileMoneyRequest {
     {
       input with id = nextMobileMoneyRequestId();
+    };
+  };
+
+  // Transaction Helper Functions
+  func createTransaction(input : TransactionInput) : Transaction {
+    {
+      input with id = nextTransactionId();
+    };
+  };
+
+  func getExchangeRate(pair : Text) : ExchangeRate {
+    switch (exchangeRates.get(pair)) {
+      case (null) {
+        Runtime.trap("Exchange rate not found for pair: " # pair);
+      };
+      case (?rate) { rate };
+    };
+  };
+
+  func validateBuyRequest(request : BuyCryptoRequest) : Bool {
+    request.fiatAmount > 0.0;
+  };
+
+  func validateSellRequest(request : SellCryptoRequest) : Bool {
+    request.cryptoAmount > 0.0;
+  };
+
+  func getReferredList(user : Principal) : [Principal] {
+    switch (referrals.get(user)) {
+      case (null) {
+        let emptyList : [Principal] = [];
+        referrals.add(user, emptyList);
+        emptyList;
+      };
+      case (?list) { list };
+    };
+  };
+
+  /// Returns the array of activated referrals for a given user.
+  /// If the user has no activated referrals, an empty array is returned.
+  func getActivatedList(user : Principal) : [Principal] {
+    switch (referralsActivated.get(user)) {
+      case (null) { [] };
+      case (?list) { list };
+    };
+  };
+
+  /// Updates the activated referrals for a given user based on the activation status.
+  /// If the referral is not already in the list and is activated, it is added.
+  func updateReferralActivation(user : Principal, referredUser : Principal, activated : Bool) {
+    if (activated) {
+      let currentList = getActivatedList(user);
+      if (not arrayContains(currentList, referredUser)) {
+        // Add to activated list
+        let updatedList = Array.tabulate(currentList.size() + 1, func(i) { if (i < currentList.size()) { currentList[i] } else { referredUser } });
+        referralsActivated.add(user, updatedList);
+      };
+      // Ensure referred user is not removed from the list if deactivated
+    };
+  };
+
+  func getReferralCode(caller : Principal) : Text {
+    let profile = switch (profiles.get(caller)) {
+      case (null) {
+        let newProfile = {
+          displayName = "New User";
+          country = "CD";
+          preferredCurrency = "CDF";
+          referralCode = generateReferralCode(caller);
+          referredBy = null;
+          referredAt = null;
+          rewardClaimed = false;
+        };
+        profiles.add(caller, newProfile);
+        newProfile;
+      };
+      case (?p) { p };
+    };
+
+    if (profile.referralCode.size() < 6) {
+      let updatedProfile = {
+        profile with referralCode = generateReferralCode(caller);
+      };
+      profiles.add(caller, updatedProfile);
+      updatedProfile.referralCode;
+    } else {
+      profile.referralCode;
+    };
+  };
+
+  func getOrCreateReferral(caller : Principal) : ReferralWithCode {
+    let code = getReferralCode(caller);
+    let referralsList = getReferredList(caller);
+
+    {
+      code;
+      referrals = referralsList;
+      currentReferralCount = referralsList.size();
+      rewardMultiplier = internalGetRewardMultiplier();
+    };
+  };
+
+  /// Returns the full referral stats for a given user.
+  /// Fetches total referred users, activated referrals, total OKP earned, and complete list of referrals.
+  func getFullReferralStats(user : Principal) : ReferralStats {
+    let totalReferred = getReferredList(user).size();
+    let activated = getActivatedList(user).size();
+    let totalOkpEarned = getReferralRewards(user).toFloat() * referralActivationBonus;
+    let referredList = getReferredList(user);
+    let activatedList = getActivatedList(user);
+
+    let referralsWithDetails = referredList.map(func(refUser : Principal) : Referral {
+      let isActivated = arrayContains(activatedList, refUser);
+      let profile = profiles.get(refUser);
+      {
+        referredUser = refUser;
+        activated = isActivated;
+        rewardAmount = if (isActivated) { referralActivationBonus } else { 0.0 };
+        referredAt = switch (profile) {
+          case (?p) { switch (p.referredAt) { case (?t) { t }; case (null) { 0 } } };
+          case (null) { 0 };
+        };
+        activatedAt = if (isActivated) {
+          switch (userCreationTimestamps.get(refUser)) {
+            case (?t) { t };
+            case (null) { 0 };
+          };
+        } else { 0 };
+      };
+    });
+
+    {
+      totalReferred;
+      activated;
+      totalOkpEarned;
+      referrals = referralsWithDetails;
+    };
+  };
+
+  func getReferralRewards(user : Principal) : Nat {
+    switch (referralRewards.get(user)) {
+      case (null) { 0 };
+      case (?rewards) { rewards };
+    };
+  };
+
+  // Check and reward referrer on first transaction
+  func checkAndRewardReferrer(user : Principal) {
+    // Check if this is the first transaction
+    let alreadyDone = switch (userFirstTransactionDone.get(user)) {
+      case (?done) { done };
+      case (null) { false };
+    };
+
+    if (alreadyDone) { return };
+
+    // Mark as done
+    userFirstTransactionDone.add(user, true);
+
+    // Check if user was referred
+    let profile = switch (profiles.get(user)) {
+      case (?p) { p };
+      case (null) { return };
+    };
+
+    let referrerPrincipal = switch (profile.referredBy) {
+      case (?r) { r };
+      case (null) { return };
+    };
+
+    // Award referrer
+    awardOkp(referrerPrincipal, referralActivationBonus);
+
+    // Update referral activation
+    updateReferralActivation(referrerPrincipal, user, true);
+
+    // Increment referral rewards counter
+    let currentRewards = getReferralRewards(referrerPrincipal);
+    referralRewards.add(referrerPrincipal, currentRewards + 1);
+  };
+
+  //Required frontend functions
+
+  public query ({ caller }) func getReferredListQuery() : async [Principal] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can view their referral list");
+    };
+    getReferredList(caller);
+  };
+
+  public query ({ caller }) func getActivatedListQuery() : async [Principal] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can view their activated list");
+    };
+    getActivatedList(caller);
+  };
+
+  public query ({ caller }) func getCallerUserProfile() : async ?UserProfileWithReferral {
+    profiles.get(caller);
+  };
+
+  public query ({ caller }) func getUserProfile(user : Principal) : async ?UserProfileWithReferral {
+    if (caller != user and not AccessControl.isAdmin(accessControlState, caller)) {
+      Runtime.trap("Unauthorized: Can only view your own profile");
+    };
+    profiles.get(user);
+  };
+
+  public query ({ caller }) func getReferralRewardsQuery() : async Nat {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can view their referral rewards");
+    };
+    getReferralRewards(caller);
+  };
+
+  public query ({ caller }) func getReferralCodeQuery() : async Text {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can view their referral code");
+    };
+    getReferralCode(caller);
+  };
+
+  public query ({ caller }) func getReferralStatsQuery() : async ReferralStats {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can view their referral stats");
+    };
+    getFullReferralStats(caller);
+  };
+
+  public shared ({ caller }) func applyReferralCode(code : Text) : async {
+    success : Bool;
+    message : Text;
+  } {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can apply referral codes");
+    };
+    requireNotSuspended(caller);
+
+    // Check if user already has a referrer
+    let existingProfile = profiles.get(caller);
+    switch (existingProfile) {
+      case (?profile) {
+        if (profile.referredBy != null) {
+          return {
+            success = false;
+            message = "You have already applied a referral code";
+          };
+        };
+      };
+      case (null) {};
+    };
+
+    // Find referrer by code
+    let referrerPrincipal = switch (referralSignups.get(code)) {
+      case (?r) { r };
+      case (null) {
+        return {
+          success = false;
+          message = "Invalid referral code";
+        };
+      };
+    };
+
+    // Cannot refer yourself
+    if (referrerPrincipal == caller) {
+      return {
+        success = false;
+        message = "Cannot use your own referral code";
+      };
+    };
+
+    // Update user profile with referrer
+    let currentProfile = switch (existingProfile) {
+      case (?p) { p };
+      case (null) {
+        {
+          displayName = "New User";
+          country = "CD";
+          preferredCurrency = "CDF";
+          referralCode = getReferralCode(caller);
+          referredBy = null;
+          referredAt = null;
+          rewardClaimed = false;
+        };
+      };
+    };
+
+    let updatedProfile = {
+      currentProfile with
+      referredBy = ?referrerPrincipal;
+      referredAt = ?Time.now();
+    };
+    profiles.add(caller, updatedProfile);
+
+    // Add to referrer's list
+    let currentReferrals = getReferredList(referrerPrincipal);
+    let updatedReferrals = Array.tabulate(currentReferrals.size() + 1, func(i) {
+      if (i < currentReferrals.size()) { currentReferrals[i] } else { caller }
+    });
+    referrals.add(referrerPrincipal, updatedReferrals);
+
+    // Award signup bonus to new user
+    awardOkp(caller, refferalCodeOkpBonus);
+
+    {
+      success = true;
+      message = "Referral code applied successfully! You received " # refferalCodeOkpBonus.toText() # " OKP bonus.";
+    };
+  };
+
+  public shared ({ caller }) func saveCallerUserProfile(profile : UserProfileWithReferral) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can save profiles");
+    };
+    requireNotSuspended(caller);
+    let updatedProfile = {
+      profile with referralCode = getReferralCode(caller);
+    };
+    profiles.add(caller, updatedProfile);
+    if (not wallets.containsKey(caller)) {
+      let wallet = {
+        cdf = 0.0;
+        usd = 0.0;
+        btc = 0.0;
+        eth = 0.0;
+        usdt = 0.0;
+        okp = 0.0;
+      };
+      wallets.add(caller, wallet);
+      // Récompense d'inscription : 100 OKP (soumis au multiplicateur)
+      awardOkp(caller, 100.0);
+
+      // Register referral code
+      let code = getReferralCode(caller);
+      referralSignups.add(code, caller);
+      userCreationTimestamps.add(caller, Time.now());
+    };
+  };
+
+  /// Profile Management
+  public shared ({ caller }) func updateProfile(request : UpdateProfileRequest) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can update profiles");
+    };
+    requireNotSuspended(caller);
+
+    let existingProfile = profiles.get(caller);
+    let profile = {
+      displayName = request.displayName;
+      country = request.country;
+      preferredCurrency = request.preferredCurrency;
+      referralCode = getReferralCode(caller);
+      referredBy = switch (existingProfile) {
+        case (?p) { p.referredBy };
+        case (null) { null };
+      };
+      referredAt = switch (existingProfile) {
+        case (?p) { p.referredAt };
+        case (null) { null };
+      };
+      rewardClaimed = switch (existingProfile) {
+        case (?p) { p.rewardClaimed };
+        case (null) { false };
+      };
+    };
+    profiles.add(caller, profile);
+    if (not wallets.containsKey(caller)) {
+      let wallet = {
+        cdf = 0.0;
+        usd = 0.0;
+        btc = 0.0;
+        eth = 0.0;
+        usdt = 0.0;
+        okp = 0.0;
+      };
+      wallets.add(caller, wallet);
+      awardOkp(caller, 100.0);
+
+      // Register referral code
+      let code = getReferralCode(caller);
+      referralSignups.add(code, caller);
+      userCreationTimestamps.add(caller, Time.now());
     };
   };
 
@@ -593,71 +1073,6 @@ actor {
     mobileMoneyRequests.values().toArray().sort().reverse();
   };
 
-  //Required frontend functions
-
-  public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
-    profiles.get(caller);
-  };
-
-  public query ({ caller }) func getUserProfile(user : Principal) : async ?UserProfile {
-    if (caller != user and not AccessControl.isAdmin(accessControlState, caller)) {
-      Runtime.trap("Unauthorized: Can only view your own profile");
-    };
-    profiles.get(user);
-  };
-
-  public shared ({ caller }) func saveCallerUserProfile(profile : UserProfile) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can save profiles");
-    };
-    requireNotSuspended(caller);
-    profiles.add(caller, profile);
-    if (not wallets.containsKey(caller)) {
-      let wallet = {
-        cdf = 0.0;
-        usd = 0.0;
-        btc = 0.0;
-        eth = 0.0;
-        usdt = 0.0;
-        okp = 0.0;
-      };
-      wallets.add(caller, wallet);
-      // Récompense d'inscription : 100 OKP (soumis au multiplicateur)
-      awardOkp(caller, 100.0);
-    };
-  };
-
-  /// Profile Management
-  public shared ({ caller }) func updateProfile(request : UpdateProfileRequest) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can update profiles");
-    };
-    requireNotSuspended(caller);
-    let profile = {
-      displayName = request.displayName;
-      country = request.country;
-      preferredCurrency = request.preferredCurrency;
-    };
-    profiles.add(caller, profile);
-    if (not wallets.containsKey(caller)) {
-      let wallet = {
-        cdf = 0.0;
-        usd = 0.0;
-        btc = 0.0;
-        eth = 0.0;
-        usdt = 0.0;
-        okp = 0.0;
-      };
-      wallets.add(caller, wallet);
-      awardOkp(caller, 100.0);
-    };
-  };
-
-  public query ({ caller }) func getProfile() : async ?UserProfile {
-    profiles.get(caller);
-  };
-
-  /// Wallet Management
   public query ({ caller }) func getWallet() : async WalletBalance {
     let wallet = getCallerWallet(caller);
     wallet;
@@ -694,11 +1109,10 @@ actor {
     wallets.add(caller, updatedWallet);
     transactions.add(depositTransaction);
 
-    // Récompense dépôt : 10 OKP (soumis au multiplicateur)
+    // Récompense dépôt : 10 OKP (soumis au multiplicateur déclinant)
     awardOkp(caller, 10.0);
   };
 
-  /// Exchange Rate Management
   public query ({ caller }) func getExchangeRates() : async [ExchangeRate] {
     exchangeRates.values().toArray().sort();
   };
@@ -717,30 +1131,6 @@ actor {
       sellRate = request.sellRate;
     };
     exchangeRates.add(request.pair, rate);
-  };
-
-  /// Transaction Helper Functions
-  func createTransaction(input : TransactionInput) : Transaction {
-    {
-      input with id = nextTransactionId();
-    };
-  };
-
-  func getExchangeRate(pair : Text) : ExchangeRate {
-    switch (exchangeRates.get(pair)) {
-      case (null) {
-        Runtime.trap("Exchange rate not found for pair: " # pair);
-      };
-      case (?rate) { rate };
-    };
-  };
-
-  func validateBuyRequest(request : BuyCryptoRequest) : Bool {
-    request.fiatAmount > 0.0;
-  };
-
-  func validateSellRequest(request : SellCryptoRequest) : Bool {
-    request.cryptoAmount > 0.0;
   };
 
   // Buy Crypto
@@ -801,6 +1191,9 @@ actor {
 
     // Récompense achat : 25 OKP (soumis au multiplicateur déclinant)
     awardOkp(caller, 25.0);
+
+    // Check and reward referrer on first transaction
+    checkAndRewardReferrer(caller);
 
     {
       success = true;
@@ -868,6 +1261,9 @@ actor {
 
     // Récompense vente : 10 OKP (soumis au multiplicateur)
     awardOkp(caller, 10.0);
+
+    // Check and reward referrer on first transaction
+    checkAndRewardReferrer(caller);
 
     {
       success = true;
@@ -1231,7 +1627,6 @@ actor {
     { success = true; message = "Unstaking successful! You received " # totalAmount.toText() # " OKP"; newBalance = ?updatedWallet };
   };
 
-  // Get caller's stakes
   public query ({ caller }) func getStakes() : async [StakeRecord] {
     stakes.values().toArray().filter(
       func(stake) { stake.userId == caller }
@@ -1269,8 +1664,6 @@ actor {
 
     { success = true; message = "Daily reward claimed! " # actualAmount.toText() # " OKP added to your wallet."; amount = actualAmount };
   };
-
-  // Admin dashboard functions
 
   public query ({ caller }) func getAdminStats() : async AdminStats {
     if (not (AccessControl.isAdmin(accessControlState, caller))) {
@@ -1348,6 +1741,7 @@ actor {
             case (#guest) { "guest" };
           };
           walletBalance = wallets.get(user);
+          referral = profiles.get(user);
         };
       }
     );
@@ -1419,7 +1813,6 @@ actor {
     kycRecord;
   };
 
-  // User status management
   public shared ({ caller }) func suspendUser(user : Principal) : async () {
     if (not (AccessControl.isAdmin(accessControlState, caller))) {
       Runtime.trap("Unauthorized: Only admins can suspend users");
@@ -1509,14 +1902,13 @@ actor {
     wallets.toArray();
   };
 
-  public query ({ caller }) func getAllUserProfiles() : async [(Principal, UserProfile)] {
+  public query ({ caller }) func getAllUserProfiles() : async [(Principal, UserProfileWithReferral)] {
     if (not (AccessControl.isAdmin(accessControlState, caller))) {
       Runtime.trap("Unauthorized: Only admins can view all user profiles");
     };
     profiles.toArray();
   };
 
-  // Payment config
   public query func getPaymentConfig() : async PaymentConfig {
     paymentConfig
   };

@@ -13,6 +13,7 @@ import {
 import {
   ArrowDownLeft,
   ArrowUpRight,
+  Gift,
   History,
   Loader2,
   PieChart,
@@ -29,9 +30,11 @@ import {
   useDepositFiat,
   useExchangeRates,
   usePortfolioValue,
+  useProfile,
   useTransactions,
   useWallet,
 } from "../hooks/useQueries";
+import ReferralSection, { ApplyReferralCard } from "./ReferralSection";
 import TransactionHistory from "./TransactionHistory";
 
 function formatCDF(n: number) {
@@ -58,6 +61,7 @@ export default function Dashboard() {
   const { data: transactions, isLoading: txLoading } = useTransactions();
   const { data: portfolio, isLoading: portfolioLoading } = usePortfolioValue();
   const { data: okpBalance = 0 } = useOkpBalance();
+  const { data: profile } = useProfile();
   const depositFiat = useDepositFiat();
 
   const [converterFiat, setConverterFiat] = useState("");
@@ -144,6 +148,10 @@ export default function Dashboard() {
     },
   ];
 
+  // Check if user has been referred (has referredBy)
+  const hasReferredBy =
+    profile && (profile as { referredBy?: unknown }).referredBy != null;
+
   if (!identity) {
     return (
       <section id="dashboard" className="py-16 bg-background">
@@ -192,6 +200,17 @@ export default function Dashboard() {
             Gérez vos actifs, convertissez et suivez vos transactions.
           </p>
         </div>
+
+        {/* Apply referral code banner (shown only if user has no referredBy yet) */}
+        {profile && !hasReferredBy && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6"
+          >
+            <ApplyReferralCard />
+          </motion.div>
+        )}
 
         <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6">
           {/* Exchange Rates Card */}
@@ -772,6 +791,44 @@ export default function Dashboard() {
             </p>
           </div>
           <TransactionHistory />
+        </motion.div>
+
+        {/* Parrainage Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ delay: 0.1, duration: 0.5 }}
+          className="mt-8"
+        >
+          <div
+            className="p-[1px] rounded-2xl"
+            style={{
+              background:
+                "linear-gradient(135deg, oklch(0.52 0.12 160), oklch(0.77 0.13 85))",
+            }}
+          >
+            <div
+              className="rounded-2xl p-6"
+              style={{ background: "oklch(0.97 0.005 220)" }}
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <div
+                  className="w-10 h-10 rounded-full flex items-center justify-center"
+                  style={{ background: "oklch(0.77 0.13 85)" }}
+                >
+                  <Gift size={18} style={{ color: "white" }} />
+                </div>
+                <div>
+                  <h3 className="font-display font-bold text-xl">Parrainage</h3>
+                  <p className="text-muted-foreground text-sm">
+                    Gagnez des OKP en invitant vos amis sur KongoKash
+                  </p>
+                </div>
+              </div>
+              <ReferralSection />
+            </div>
+          </div>
         </motion.div>
       </div>
     </section>

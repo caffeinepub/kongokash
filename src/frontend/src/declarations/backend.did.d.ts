@@ -66,7 +66,29 @@ export interface OkpAllocation {
   'amount' : number,
   'percentage' : number,
 }
+export interface PaymentConfig {
+  'tmbAccount' : string,
+  'equityBeneficiary' : string,
+  'equityAccount' : string,
+  'mpesaNumber' : string,
+  'rawbankAccount' : string,
+  'equitySwift' : string,
+  'airtelNumber' : string,
+}
 export interface PortfolioValue { 'totalCDF' : number, 'totalUSD' : number }
+export interface Referral {
+  'activated' : boolean,
+  'referredUser' : Principal,
+  'rewardAmount' : number,
+  'activatedAt' : bigint,
+  'referredAt' : bigint,
+}
+export interface ReferralStats {
+  'activated' : bigint,
+  'totalOkpEarned' : number,
+  'totalReferred' : bigint,
+  'referrals' : Array<Referral>,
+}
 export interface SellCryptoRequest {
   'asset' : string,
   'fiatCurrency' : string,
@@ -110,6 +132,7 @@ export interface UpdateProfileRequest {
 }
 export interface UserAdminView {
   'principal' : Principal,
+  'referral' : [] | [UserProfileWithReferral],
   'accountStatus' : string,
   'role' : string,
   'kycStatus' : string,
@@ -120,6 +143,15 @@ export interface UserProfile {
   'country' : string,
   'displayName' : string,
   'preferredCurrency' : string,
+}
+export interface UserProfileWithReferral {
+  'referralCode' : string,
+  'country' : string,
+  'displayName' : string,
+  'rewardClaimed' : boolean,
+  'preferredCurrency' : string,
+  'referredAt' : [] | [bigint],
+  'referredBy' : [] | [Principal],
 }
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
@@ -135,6 +167,10 @@ export interface WalletBalance {
 export interface _SERVICE {
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'activateUser' : ActorMethod<[Principal], undefined>,
+  'applyReferralCode' : ActorMethod<
+    [string],
+    { 'message' : string, 'success' : boolean }
+  >,
   'approveKyc' : ActorMethod<[Principal], KycRecord>,
   'approveMobileMoneyRequest' : ActorMethod<[bigint], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
@@ -144,37 +180,37 @@ export interface _SERVICE {
     { 'message' : string, 'success' : boolean, 'amount' : number }
   >,
   'claimFirstAdmin' : ActorMethod<[], undefined>,
-  'getPaymentConfig' : ActorMethod<[], {airtelNumber:string;mpesaNumber:string;equityAccount:string;equityBeneficiary:string;equitySwift:string;rawbankAccount:string;tmbAccount:string;}>,
-  'setPaymentConfig' : ActorMethod<[{airtelNumber:string;mpesaNumber:string;equityAccount:string;equityBeneficiary:string;equitySwift:string;rawbankAccount:string;tmbAccount:string;}], undefined>,
   'depositFiat' : ActorMethod<[string, number], undefined>,
+  'getActivatedListQuery' : ActorMethod<[], Array<Principal>>,
   'getAdminStats' : ActorMethod<[], AdminStats>,
   'getAllKyc' : ActorMethod<[], Array<KycRecord>>,
   'getAllMobileMoneyRequests' : ActorMethod<[], Array<MobileMoneyRequest>>,
   'getAllTransactions' : ActorMethod<[], Array<Transaction>>,
-  'getAllUserProfiles' : ActorMethod<[], Array<[Principal, UserProfile]>>,
+  'getAllUserProfiles' : ActorMethod<
+    [],
+    Array<[Principal, UserProfileWithReferral]>
+  >,
   'getAllUsers' : ActorMethod<[], Array<UserAdminView>>,
   'getAllWallets' : ActorMethod<[], Array<[Principal, WalletBalance]>>,
-  'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
+  'getCallerUserProfile' : ActorMethod<[], [] | [UserProfileWithReferral]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
-  /**
-   * / Exchange Rate Management
-   */
   'getExchangeRates' : ActorMethod<[], Array<ExchangeRate>>,
   'getMyKyc' : ActorMethod<[], KycRecord>,
   'getMyMobileMoneyRequests' : ActorMethod<[], Array<MobileMoneyRequest>>,
   'getOkpAdminStats' : ActorMethod<[], OkpAdminStats>,
   'getOkpBalance' : ActorMethod<[], number>,
   'getOkpToCdfRate' : ActorMethod<[], number>,
+  'getPaymentConfig' : ActorMethod<[], PaymentConfig>,
   'getPortfolioValue' : ActorMethod<[], PortfolioValue>,
-  'getProfile' : ActorMethod<[], [] | [UserProfile]>,
+  'getReferralCodeQuery' : ActorMethod<[], string>,
+  'getReferralRewardsQuery' : ActorMethod<[], bigint>,
+  'getReferralStatsQuery' : ActorMethod<[], ReferralStats>,
+  'getReferredListQuery' : ActorMethod<[], Array<Principal>>,
   'getRewardMultiplier' : ActorMethod<[], number>,
   'getStakes' : ActorMethod<[], Array<StakeRecord>>,
   'getTransactions' : ActorMethod<[], Array<Transaction>>,
   'getUserPortfolio' : ActorMethod<[Principal], PortfolioValue>,
-  'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
-  /**
-   * / Wallet Management
-   */
+  'getUserProfile' : ActorMethod<[Principal], [] | [UserProfileWithReferral]>,
   'getWallet' : ActorMethod<[], WalletBalance>,
   'isAdminAssigned' : ActorMethod<[], boolean>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
@@ -186,10 +222,11 @@ export interface _SERVICE {
   'rejectMobileMoneyRequest' : ActorMethod<[bigint, string], undefined>,
   'resetPriceAdjustment' : ActorMethod<[], undefined>,
   'resetRewardMultiplier' : ActorMethod<[], undefined>,
-  'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
+  'saveCallerUserProfile' : ActorMethod<[UserProfileWithReferral], undefined>,
   'sellCrypto' : ActorMethod<[SellCryptoRequest], TransactionResult>,
   'setExchangeRate' : ActorMethod<[SetExchangeRateRequest], undefined>,
   'setOkpToCdfRate' : ActorMethod<[number], undefined>,
+  'setPaymentConfig' : ActorMethod<[PaymentConfig], undefined>,
   'setRewardMultiplier' : ActorMethod<[number], undefined>,
   'stakeOkp' : ActorMethod<
     [number, bigint],

@@ -37,7 +37,7 @@ export function useProfile() {
     queryKey: ["profile"],
     queryFn: async () => {
       if (!actor) return null;
-      return actor.getProfile();
+      return actor.getCallerUserProfile();
     },
     enabled: !!actor && !isFetching,
   });

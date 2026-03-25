@@ -7,8 +7,18 @@ export interface None {
     __kind__: "None";
 }
 export type Option<T> = Some<T> | None;
+export interface PaymentConfig {
+    tmbAccount: string;
+    equityBeneficiary: string;
+    equityAccount: string;
+    mpesaNumber: string;
+    rawbankAccount: string;
+    equitySwift: string;
+    airtelNumber: string;
+}
 export interface UserAdminView {
     principal: Principal;
+    referral?: UserProfileWithReferral;
     accountStatus: string;
     role: string;
     kycStatus: string;
@@ -50,6 +60,12 @@ export interface OkpAllocation {
     amount: number;
     percentage: number;
 }
+export interface ReferralStats {
+    activated: bigint;
+    totalOkpEarned: number;
+    totalReferred: bigint;
+    referrals: Array<Referral>;
+}
 export interface BuyCryptoRequest {
     paymentMethod: string;
     asset: string;
@@ -64,6 +80,15 @@ export interface StakeRecord {
     claimed: boolean;
     rewardRate: number;
     amount: number;
+}
+export interface UserProfileWithReferral {
+    referralCode: string;
+    country: string;
+    displayName: string;
+    rewardClaimed: boolean;
+    preferredCurrency: string;
+    referredAt?: bigint;
+    referredBy?: Principal;
 }
 export interface Transaction {
     id: bigint;
@@ -115,6 +140,13 @@ export interface AdminStats {
     pendingKycCount: bigint;
     totalTransactions: bigint;
 }
+export interface Referral {
+    activated: boolean;
+    referredUser: Principal;
+    rewardAmount: number;
+    activatedAt: bigint;
+    referredAt: bigint;
+}
 export interface SellCryptoRequest {
     asset: string;
     fiatCurrency: string;
@@ -136,6 +168,10 @@ export enum UserRole {
 }
 export interface backendInterface {
     activateUser(user: Principal): Promise<void>;
+    applyReferralCode(code: string): Promise<{
+        message: string;
+        success: boolean;
+    }>;
     approveKyc(user: Principal): Promise<KycRecord>;
     approveMobileMoneyRequest(requestId: bigint): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
@@ -146,53 +182,34 @@ export interface backendInterface {
         amount: number;
     }>;
     claimFirstAdmin(): Promise<void>;
-    getPaymentConfig(): Promise<{
-      airtelNumber: string;
-      mpesaNumber: string;
-      equityAccount: string;
-      equityBeneficiary: string;
-      equitySwift: string;
-      rawbankAccount: string;
-      tmbAccount: string;
-    }>;
-    setPaymentConfig(config: {
-      airtelNumber: string;
-      mpesaNumber: string;
-      equityAccount: string;
-      equityBeneficiary: string;
-      equitySwift: string;
-      rawbankAccount: string;
-      tmbAccount: string;
-    }): Promise<void>;
     depositFiat(currency: string, amount: number): Promise<void>;
+    getActivatedListQuery(): Promise<Array<Principal>>;
     getAdminStats(): Promise<AdminStats>;
     getAllKyc(): Promise<Array<KycRecord>>;
     getAllMobileMoneyRequests(): Promise<Array<MobileMoneyRequest>>;
     getAllTransactions(): Promise<Array<Transaction>>;
-    getAllUserProfiles(): Promise<Array<[Principal, UserProfile]>>;
+    getAllUserProfiles(): Promise<Array<[Principal, UserProfileWithReferral]>>;
     getAllUsers(): Promise<Array<UserAdminView>>;
     getAllWallets(): Promise<Array<[Principal, WalletBalance]>>;
-    getCallerUserProfile(): Promise<UserProfile | null>;
+    getCallerUserProfile(): Promise<UserProfileWithReferral | null>;
     getCallerUserRole(): Promise<UserRole>;
-    /**
-     * / Exchange Rate Management
-     */
     getExchangeRates(): Promise<Array<ExchangeRate>>;
     getMyKyc(): Promise<KycRecord>;
     getMyMobileMoneyRequests(): Promise<Array<MobileMoneyRequest>>;
     getOkpAdminStats(): Promise<OkpAdminStats>;
     getOkpBalance(): Promise<number>;
     getOkpToCdfRate(): Promise<number>;
+    getPaymentConfig(): Promise<PaymentConfig>;
     getPortfolioValue(): Promise<PortfolioValue>;
-    getProfile(): Promise<UserProfile | null>;
+    getReferralCodeQuery(): Promise<string>;
+    getReferralRewardsQuery(): Promise<bigint>;
+    getReferralStatsQuery(): Promise<ReferralStats>;
+    getReferredListQuery(): Promise<Array<Principal>>;
     getRewardMultiplier(): Promise<number>;
     getStakes(): Promise<Array<StakeRecord>>;
     getTransactions(): Promise<Array<Transaction>>;
     getUserPortfolio(user: Principal): Promise<PortfolioValue>;
-    getUserProfile(user: Principal): Promise<UserProfile | null>;
-    /**
-     * / Wallet Management
-     */
+    getUserProfile(user: Principal): Promise<UserProfileWithReferral | null>;
     getWallet(): Promise<WalletBalance>;
     isAdminAssigned(): Promise<boolean>;
     isCallerAdmin(): Promise<boolean>;
@@ -201,10 +218,11 @@ export interface backendInterface {
     rejectMobileMoneyRequest(requestId: bigint, reason: string): Promise<void>;
     resetPriceAdjustment(): Promise<void>;
     resetRewardMultiplier(): Promise<void>;
-    saveCallerUserProfile(profile: UserProfile): Promise<void>;
+    saveCallerUserProfile(profile: UserProfileWithReferral): Promise<void>;
     sellCrypto(request: SellCryptoRequest): Promise<TransactionResult>;
     setExchangeRate(request: SetExchangeRateRequest): Promise<void>;
     setOkpToCdfRate(rate: number): Promise<void>;
+    setPaymentConfig(config: PaymentConfig): Promise<void>;
     setRewardMultiplier(multiplier: number): Promise<void>;
     stakeOkp(amount: number, durationDays: bigint): Promise<{
         stakeId?: bigint;

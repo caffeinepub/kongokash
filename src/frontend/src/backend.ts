@@ -89,8 +89,18 @@ export class ExternalBlob {
         return this;
     }
 }
+export interface PaymentConfig {
+    tmbAccount: string;
+    equityBeneficiary: string;
+    equityAccount: string;
+    mpesaNumber: string;
+    rawbankAccount: string;
+    equitySwift: string;
+    airtelNumber: string;
+}
 export interface UserAdminView {
     principal: Principal;
+    referral?: UserProfileWithReferral;
     accountStatus: string;
     role: string;
     kycStatus: string;
@@ -132,6 +142,12 @@ export interface OkpAllocation {
     amount: number;
     percentage: number;
 }
+export interface ReferralStats {
+    activated: bigint;
+    totalOkpEarned: number;
+    totalReferred: bigint;
+    referrals: Array<Referral>;
+}
 export interface BuyCryptoRequest {
     paymentMethod: string;
     asset: string;
@@ -146,6 +162,15 @@ export interface StakeRecord {
     claimed: boolean;
     rewardRate: number;
     amount: number;
+}
+export interface UserProfileWithReferral {
+    referralCode: string;
+    country: string;
+    displayName: string;
+    rewardClaimed: boolean;
+    preferredCurrency: string;
+    referredAt?: bigint;
+    referredBy?: Principal;
 }
 export interface Transaction {
     id: bigint;
@@ -197,6 +222,13 @@ export interface AdminStats {
     pendingKycCount: bigint;
     totalTransactions: bigint;
 }
+export interface Referral {
+    activated: boolean;
+    referredUser: Principal;
+    rewardAmount: number;
+    activatedAt: bigint;
+    referredAt: bigint;
+}
 export interface SellCryptoRequest {
     asset: string;
     fiatCurrency: string;
@@ -219,6 +251,10 @@ export enum UserRole {
 export interface backendInterface {
     _initializeAccessControlWithSecret(userSecret: string): Promise<void>;
     activateUser(user: Principal): Promise<void>;
+    applyReferralCode(code: string): Promise<{
+        message: string;
+        success: boolean;
+    }>;
     approveKyc(user: Principal): Promise<KycRecord>;
     approveMobileMoneyRequest(requestId: bigint): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
@@ -229,37 +265,34 @@ export interface backendInterface {
         amount: number;
     }>;
     claimFirstAdmin(): Promise<void>;
-    getPaymentConfig(): Promise<{airtelNumber:string;mpesaNumber:string;equityAccount:string;equityBeneficiary:string;equitySwift:string;rawbankAccount:string;tmbAccount:string;}>;
-    setPaymentConfig(config:{airtelNumber:string;mpesaNumber:string;equityAccount:string;equityBeneficiary:string;equitySwift:string;rawbankAccount:string;tmbAccount:string;}): Promise<void>;
     depositFiat(currency: string, amount: number): Promise<void>;
+    getActivatedListQuery(): Promise<Array<Principal>>;
     getAdminStats(): Promise<AdminStats>;
     getAllKyc(): Promise<Array<KycRecord>>;
     getAllMobileMoneyRequests(): Promise<Array<MobileMoneyRequest>>;
     getAllTransactions(): Promise<Array<Transaction>>;
-    getAllUserProfiles(): Promise<Array<[Principal, UserProfile]>>;
+    getAllUserProfiles(): Promise<Array<[Principal, UserProfileWithReferral]>>;
     getAllUsers(): Promise<Array<UserAdminView>>;
     getAllWallets(): Promise<Array<[Principal, WalletBalance]>>;
-    getCallerUserProfile(): Promise<UserProfile | null>;
+    getCallerUserProfile(): Promise<UserProfileWithReferral | null>;
     getCallerUserRole(): Promise<UserRole>;
-    /**
-     * / Exchange Rate Management
-     */
     getExchangeRates(): Promise<Array<ExchangeRate>>;
     getMyKyc(): Promise<KycRecord>;
     getMyMobileMoneyRequests(): Promise<Array<MobileMoneyRequest>>;
     getOkpAdminStats(): Promise<OkpAdminStats>;
     getOkpBalance(): Promise<number>;
     getOkpToCdfRate(): Promise<number>;
+    getPaymentConfig(): Promise<PaymentConfig>;
     getPortfolioValue(): Promise<PortfolioValue>;
-    getProfile(): Promise<UserProfile | null>;
+    getReferralCodeQuery(): Promise<string>;
+    getReferralRewardsQuery(): Promise<bigint>;
+    getReferralStatsQuery(): Promise<ReferralStats>;
+    getReferredListQuery(): Promise<Array<Principal>>;
     getRewardMultiplier(): Promise<number>;
     getStakes(): Promise<Array<StakeRecord>>;
     getTransactions(): Promise<Array<Transaction>>;
     getUserPortfolio(user: Principal): Promise<PortfolioValue>;
-    getUserProfile(user: Principal): Promise<UserProfile | null>;
-    /**
-     * / Wallet Management
-     */
+    getUserProfile(user: Principal): Promise<UserProfileWithReferral | null>;
     getWallet(): Promise<WalletBalance>;
     isAdminAssigned(): Promise<boolean>;
     isCallerAdmin(): Promise<boolean>;
@@ -268,10 +301,11 @@ export interface backendInterface {
     rejectMobileMoneyRequest(requestId: bigint, reason: string): Promise<void>;
     resetPriceAdjustment(): Promise<void>;
     resetRewardMultiplier(): Promise<void>;
-    saveCallerUserProfile(profile: UserProfile): Promise<void>;
+    saveCallerUserProfile(profile: UserProfileWithReferral): Promise<void>;
     sellCrypto(request: SellCryptoRequest): Promise<TransactionResult>;
     setExchangeRate(request: SetExchangeRateRequest): Promise<void>;
     setOkpToCdfRate(rate: number): Promise<void>;
+    setPaymentConfig(config: PaymentConfig): Promise<void>;
     setRewardMultiplier(multiplier: number): Promise<void>;
     stakeOkp(amount: number, durationDays: bigint): Promise<{
         stakeId?: bigint;
@@ -289,7 +323,7 @@ export interface backendInterface {
      */
     updateProfile(request: UpdateProfileRequest): Promise<void>;
 }
-import type { TransactionResult as _TransactionResult, UserAdminView as _UserAdminView, UserProfile as _UserProfile, UserRole as _UserRole, WalletBalance as _WalletBalance } from "./declarations/backend.did.d.ts";
+import type { TransactionResult as _TransactionResult, UserAdminView as _UserAdminView, UserProfile as _UserProfile, UserProfileWithReferral as _UserProfileWithReferral, UserRole as _UserRole, WalletBalance as _WalletBalance } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
     constructor(private actor: ActorSubclass<_SERVICE>, private _uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, private _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, private processError?: (error: unknown) => never){}
     async _initializeAccessControlWithSecret(arg0: string): Promise<void> {
@@ -317,6 +351,23 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.activateUser(arg0);
+            return result;
+        }
+    }
+    async applyReferralCode(arg0: string): Promise<{
+        message: string;
+        success: boolean;
+    }> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.applyReferralCode(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.applyReferralCode(arg0);
             return result;
         }
     }
@@ -408,14 +459,6 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async getPaymentConfig() {
-        if (this.processError) { try { return await this.actor.getPaymentConfig(); } catch(e){ this.processError(e); throw new Error('unreachable'); } }
-        return await this.actor.getPaymentConfig();
-    }
-    async setPaymentConfig(config: {airtelNumber:string;mpesaNumber:string;equityAccount:string;equityBeneficiary:string;equitySwift:string;rawbankAccount:string;tmbAccount:string;}) {
-        if (this.processError) { try { return await this.actor.setPaymentConfig(config); } catch(e){ this.processError(e); throw new Error('unreachable'); } }
-        return await this.actor.setPaymentConfig(config);
-    }
     async depositFiat(arg0: string, arg1: number): Promise<void> {
         if (this.processError) {
             try {
@@ -427,6 +470,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.depositFiat(arg0, arg1);
+            return result;
+        }
+    }
+    async getActivatedListQuery(): Promise<Array<Principal>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getActivatedListQuery();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getActivatedListQuery();
             return result;
         }
     }
@@ -486,32 +543,32 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async getAllUserProfiles(): Promise<Array<[Principal, UserProfile]>> {
+    async getAllUserProfiles(): Promise<Array<[Principal, UserProfileWithReferral]>> {
         if (this.processError) {
             try {
                 const result = await this.actor.getAllUserProfiles();
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.getAllUserProfiles();
-            return result;
-        }
-    }
-    async getAllUsers(): Promise<Array<UserAdminView>> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.getAllUsers();
                 return from_candid_vec_n6(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.getAllUsers();
+            const result = await this.actor.getAllUserProfiles();
             return from_candid_vec_n6(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getAllUsers(): Promise<Array<UserAdminView>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getAllUsers();
+                return from_candid_vec_n12(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getAllUsers();
+            return from_candid_vec_n12(this._uploadFile, this._downloadFile, result);
         }
     }
     async getAllWallets(): Promise<Array<[Principal, WalletBalance]>> {
@@ -528,32 +585,32 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async getCallerUserProfile(): Promise<UserProfile | null> {
+    async getCallerUserProfile(): Promise<UserProfileWithReferral | null> {
         if (this.processError) {
             try {
                 const result = await this.actor.getCallerUserProfile();
-                return from_candid_opt_n9(this._uploadFile, this._downloadFile, result);
+                return from_candid_opt_n15(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getCallerUserProfile();
-            return from_candid_opt_n9(this._uploadFile, this._downloadFile, result);
+            return from_candid_opt_n15(this._uploadFile, this._downloadFile, result);
         }
     }
     async getCallerUserRole(): Promise<UserRole> {
         if (this.processError) {
             try {
                 const result = await this.actor.getCallerUserRole();
-                return from_candid_UserRole_n10(this._uploadFile, this._downloadFile, result);
+                return from_candid_UserRole_n17(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getCallerUserRole();
-            return from_candid_UserRole_n10(this._uploadFile, this._downloadFile, result);
+            return from_candid_UserRole_n17(this._uploadFile, this._downloadFile, result);
         }
     }
     async getExchangeRates(): Promise<Array<ExchangeRate>> {
@@ -640,6 +697,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async getPaymentConfig(): Promise<PaymentConfig> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getPaymentConfig();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getPaymentConfig();
+            return result;
+        }
+    }
     async getPortfolioValue(): Promise<PortfolioValue> {
         if (this.processError) {
             try {
@@ -654,18 +725,60 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async getProfile(): Promise<UserProfile | null> {
+    async getReferralCodeQuery(): Promise<string> {
         if (this.processError) {
             try {
-                const result = await this.actor.getProfile();
-                return from_candid_opt_n9(this._uploadFile, this._downloadFile, result);
+                const result = await this.actor.getReferralCodeQuery();
+                return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.getProfile();
-            return from_candid_opt_n9(this._uploadFile, this._downloadFile, result);
+            const result = await this.actor.getReferralCodeQuery();
+            return result;
+        }
+    }
+    async getReferralRewardsQuery(): Promise<bigint> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getReferralRewardsQuery();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getReferralRewardsQuery();
+            return result;
+        }
+    }
+    async getReferralStatsQuery(): Promise<ReferralStats> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getReferralStatsQuery();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getReferralStatsQuery();
+            return result;
+        }
+    }
+    async getReferredListQuery(): Promise<Array<Principal>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getReferredListQuery();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getReferredListQuery();
+            return result;
         }
     }
     async getRewardMultiplier(): Promise<number> {
@@ -724,18 +837,18 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async getUserProfile(arg0: Principal): Promise<UserProfile | null> {
+    async getUserProfile(arg0: Principal): Promise<UserProfileWithReferral | null> {
         if (this.processError) {
             try {
                 const result = await this.actor.getUserProfile(arg0);
-                return from_candid_opt_n9(this._uploadFile, this._downloadFile, result);
+                return from_candid_opt_n15(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getUserProfile(arg0);
-            return from_candid_opt_n9(this._uploadFile, this._downloadFile, result);
+            return from_candid_opt_n15(this._uploadFile, this._downloadFile, result);
         }
     }
     async getWallet(): Promise<WalletBalance> {
@@ -850,17 +963,17 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async saveCallerUserProfile(arg0: UserProfile): Promise<void> {
+    async saveCallerUserProfile(arg0: UserProfileWithReferral): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.saveCallerUserProfile(arg0);
+                const result = await this.actor.saveCallerUserProfile(to_candid_UserProfileWithReferral_n19(this._uploadFile, this._downloadFile, arg0));
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.saveCallerUserProfile(arg0);
+            const result = await this.actor.saveCallerUserProfile(to_candid_UserProfileWithReferral_n19(this._uploadFile, this._downloadFile, arg0));
             return result;
         }
     }
@@ -906,6 +1019,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async setPaymentConfig(arg0: PaymentConfig): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.setPaymentConfig(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.setPaymentConfig(arg0);
+            return result;
+        }
+    }
     async setRewardMultiplier(arg0: number): Promise<void> {
         if (this.processError) {
             try {
@@ -928,14 +1055,14 @@ export class Backend implements backendInterface {
         if (this.processError) {
             try {
                 const result = await this.actor.stakeOkp(arg0, arg1);
-                return from_candid_record_n12(this._uploadFile, this._downloadFile, result);
+                return from_candid_record_n21(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.stakeOkp(arg0, arg1);
-            return from_candid_record_n12(this._uploadFile, this._downloadFile, result);
+            return from_candid_record_n21(this._uploadFile, this._downloadFile, result);
         }
     }
     async submitKyc(arg0: string, arg1: string): Promise<KycRecord> {
@@ -1040,22 +1167,61 @@ export class Backend implements backendInterface {
 function from_candid_TransactionResult_n3(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _TransactionResult): TransactionResult {
     return from_candid_record_n4(_uploadFile, _downloadFile, value);
 }
-function from_candid_UserAdminView_n7(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserAdminView): UserAdminView {
-    return from_candid_record_n8(_uploadFile, _downloadFile, value);
+function from_candid_UserAdminView_n13(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserAdminView): UserAdminView {
+    return from_candid_record_n14(_uploadFile, _downloadFile, value);
 }
-function from_candid_UserRole_n10(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserRole): UserRole {
-    return from_candid_variant_n11(_uploadFile, _downloadFile, value);
+function from_candid_UserProfileWithReferral_n8(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserProfileWithReferral): UserProfileWithReferral {
+    return from_candid_record_n9(_uploadFile, _downloadFile, value);
 }
-function from_candid_opt_n13(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [bigint]): bigint | null {
+function from_candid_UserRole_n17(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserRole): UserRole {
+    return from_candid_variant_n18(_uploadFile, _downloadFile, value);
+}
+function from_candid_opt_n10(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [bigint]): bigint | null {
+    return value.length === 0 ? null : value[0];
+}
+function from_candid_opt_n11(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [Principal]): Principal | null {
+    return value.length === 0 ? null : value[0];
+}
+function from_candid_opt_n15(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_UserProfileWithReferral]): UserProfileWithReferral | null {
+    return value.length === 0 ? null : from_candid_UserProfileWithReferral_n8(_uploadFile, _downloadFile, value[0]);
+}
+function from_candid_opt_n16(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_UserProfile]): UserProfile | null {
+    return value.length === 0 ? null : value[0];
+}
+function from_candid_opt_n22(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [bigint]): bigint | null {
     return value.length === 0 ? null : value[0];
 }
 function from_candid_opt_n5(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_WalletBalance]): WalletBalance | null {
     return value.length === 0 ? null : value[0];
 }
-function from_candid_opt_n9(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_UserProfile]): UserProfile | null {
-    return value.length === 0 ? null : value[0];
+function from_candid_record_n14(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    principal: Principal;
+    referral: [] | [_UserProfileWithReferral];
+    accountStatus: string;
+    role: string;
+    kycStatus: string;
+    walletBalance: [] | [_WalletBalance];
+    profile: [] | [_UserProfile];
+}): {
+    principal: Principal;
+    referral?: UserProfileWithReferral;
+    accountStatus: string;
+    role: string;
+    kycStatus: string;
+    walletBalance?: WalletBalance;
+    profile?: UserProfile;
+} {
+    return {
+        principal: value.principal,
+        referral: record_opt_to_undefined(from_candid_opt_n15(_uploadFile, _downloadFile, value.referral)),
+        accountStatus: value.accountStatus,
+        role: value.role,
+        kycStatus: value.kycStatus,
+        walletBalance: record_opt_to_undefined(from_candid_opt_n5(_uploadFile, _downloadFile, value.walletBalance)),
+        profile: record_opt_to_undefined(from_candid_opt_n16(_uploadFile, _downloadFile, value.profile))
+    };
 }
-function from_candid_record_n12(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_record_n21(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     stakeId: [] | [bigint];
     message: string;
     success: boolean;
@@ -1065,7 +1231,7 @@ function from_candid_record_n12(_uploadFile: (file: ExternalBlob) => Promise<Uin
     success: boolean;
 } {
     return {
-        stakeId: record_opt_to_undefined(from_candid_opt_n13(_uploadFile, _downloadFile, value.stakeId)),
+        stakeId: record_opt_to_undefined(from_candid_opt_n22(_uploadFile, _downloadFile, value.stakeId)),
         message: value.message,
         success: value.success
     };
@@ -1085,31 +1251,40 @@ function from_candid_record_n4(_uploadFile: (file: ExternalBlob) => Promise<Uint
         success: value.success
     };
 }
-function from_candid_record_n8(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
-    principal: Principal;
-    accountStatus: string;
-    role: string;
-    kycStatus: string;
-    walletBalance: [] | [_WalletBalance];
-    profile: [] | [_UserProfile];
+function from_candid_record_n9(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    referralCode: string;
+    country: string;
+    displayName: string;
+    rewardClaimed: boolean;
+    preferredCurrency: string;
+    referredAt: [] | [bigint];
+    referredBy: [] | [Principal];
 }): {
-    principal: Principal;
-    accountStatus: string;
-    role: string;
-    kycStatus: string;
-    walletBalance?: WalletBalance;
-    profile?: UserProfile;
+    referralCode: string;
+    country: string;
+    displayName: string;
+    rewardClaimed: boolean;
+    preferredCurrency: string;
+    referredAt?: bigint;
+    referredBy?: Principal;
 } {
     return {
-        principal: value.principal,
-        accountStatus: value.accountStatus,
-        role: value.role,
-        kycStatus: value.kycStatus,
-        walletBalance: record_opt_to_undefined(from_candid_opt_n5(_uploadFile, _downloadFile, value.walletBalance)),
-        profile: record_opt_to_undefined(from_candid_opt_n9(_uploadFile, _downloadFile, value.profile))
+        referralCode: value.referralCode,
+        country: value.country,
+        displayName: value.displayName,
+        rewardClaimed: value.rewardClaimed,
+        preferredCurrency: value.preferredCurrency,
+        referredAt: record_opt_to_undefined(from_candid_opt_n10(_uploadFile, _downloadFile, value.referredAt)),
+        referredBy: record_opt_to_undefined(from_candid_opt_n11(_uploadFile, _downloadFile, value.referredBy))
     };
 }
-function from_candid_variant_n11(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_tuple_n7(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [Principal, _UserProfileWithReferral]): [Principal, UserProfileWithReferral] {
+    return [
+        value[0],
+        from_candid_UserProfileWithReferral_n8(_uploadFile, _downloadFile, value[1])
+    ];
+}
+function from_candid_variant_n18(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     admin: null;
 } | {
     user: null;
@@ -1118,11 +1293,44 @@ function from_candid_variant_n11(_uploadFile: (file: ExternalBlob) => Promise<Ui
 }): UserRole {
     return "admin" in value ? UserRole.admin : "user" in value ? UserRole.user : "guest" in value ? UserRole.guest : value;
 }
-function from_candid_vec_n6(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_UserAdminView>): Array<UserAdminView> {
-    return value.map((x)=>from_candid_UserAdminView_n7(_uploadFile, _downloadFile, x));
+function from_candid_vec_n12(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_UserAdminView>): Array<UserAdminView> {
+    return value.map((x)=>from_candid_UserAdminView_n13(_uploadFile, _downloadFile, x));
+}
+function from_candid_vec_n6(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<[Principal, _UserProfileWithReferral]>): Array<[Principal, UserProfileWithReferral]> {
+    return value.map((x)=>from_candid_tuple_n7(_uploadFile, _downloadFile, x));
+}
+function to_candid_UserProfileWithReferral_n19(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserProfileWithReferral): _UserProfileWithReferral {
+    return to_candid_record_n20(_uploadFile, _downloadFile, value);
 }
 function to_candid_UserRole_n1(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserRole): _UserRole {
     return to_candid_variant_n2(_uploadFile, _downloadFile, value);
+}
+function to_candid_record_n20(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    referralCode: string;
+    country: string;
+    displayName: string;
+    rewardClaimed: boolean;
+    preferredCurrency: string;
+    referredAt?: bigint;
+    referredBy?: Principal;
+}): {
+    referralCode: string;
+    country: string;
+    displayName: string;
+    rewardClaimed: boolean;
+    preferredCurrency: string;
+    referredAt: [] | [bigint];
+    referredBy: [] | [Principal];
+} {
+    return {
+        referralCode: value.referralCode,
+        country: value.country,
+        displayName: value.displayName,
+        rewardClaimed: value.rewardClaimed,
+        preferredCurrency: value.preferredCurrency,
+        referredAt: value.referredAt ? candid_some(value.referredAt) : candid_none(),
+        referredBy: value.referredBy ? candid_some(value.referredBy) : candid_none()
+    };
 }
 function to_candid_variant_n2(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserRole): {
     admin: null;

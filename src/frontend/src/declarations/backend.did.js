@@ -89,6 +89,15 @@ export const Transaction = IDL.Record({
   'fiatCurrency' : IDL.Text,
   'cryptoAmount' : IDL.Float64,
 });
+export const UserProfileWithReferral = IDL.Record({
+  'referralCode' : IDL.Text,
+  'country' : IDL.Text,
+  'displayName' : IDL.Text,
+  'rewardClaimed' : IDL.Bool,
+  'preferredCurrency' : IDL.Text,
+  'referredAt' : IDL.Opt(IDL.Int),
+  'referredBy' : IDL.Opt(IDL.Principal),
+});
 export const UserProfile = IDL.Record({
   'country' : IDL.Text,
   'displayName' : IDL.Text,
@@ -96,6 +105,7 @@ export const UserProfile = IDL.Record({
 });
 export const UserAdminView = IDL.Record({
   'principal' : IDL.Principal,
+  'referral' : IDL.Opt(UserProfileWithReferral),
   'accountStatus' : IDL.Text,
   'role' : IDL.Text,
   'kycStatus' : IDL.Text,
@@ -107,9 +117,31 @@ export const ExchangeRate = IDL.Record({
   'buyRate' : IDL.Float64,
   'sellRate' : IDL.Float64,
 });
+export const PaymentConfig = IDL.Record({
+  'tmbAccount' : IDL.Text,
+  'equityBeneficiary' : IDL.Text,
+  'equityAccount' : IDL.Text,
+  'mpesaNumber' : IDL.Text,
+  'rawbankAccount' : IDL.Text,
+  'equitySwift' : IDL.Text,
+  'airtelNumber' : IDL.Text,
+});
 export const PortfolioValue = IDL.Record({
   'totalCDF' : IDL.Float64,
   'totalUSD' : IDL.Float64,
+});
+export const Referral = IDL.Record({
+  'activated' : IDL.Bool,
+  'referredUser' : IDL.Principal,
+  'rewardAmount' : IDL.Float64,
+  'activatedAt' : IDL.Int,
+  'referredAt' : IDL.Int,
+});
+export const ReferralStats = IDL.Record({
+  'activated' : IDL.Nat,
+  'totalOkpEarned' : IDL.Float64,
+  'totalReferred' : IDL.Nat,
+  'referrals' : IDL.Vec(Referral),
 });
 export const StakeRecord = IDL.Record({
   'id' : IDL.Nat,
@@ -139,6 +171,11 @@ export const UpdateProfileRequest = IDL.Record({
 export const idlService = IDL.Service({
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
   'activateUser' : IDL.Func([IDL.Principal], [], []),
+  'applyReferralCode' : IDL.Func(
+      [IDL.Text],
+      [IDL.Record({ 'message' : IDL.Text, 'success' : IDL.Bool })],
+      [],
+    ),
   'approveKyc' : IDL.Func([IDL.Principal], [KycRecord], []),
   'approveMobileMoneyRequest' : IDL.Func([IDL.Nat], [], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
@@ -155,43 +192,8 @@ export const idlService = IDL.Service({
       [],
     ),
   'claimFirstAdmin' : IDL.Func([], [], []),
-  'getPaymentConfig' : IDL.Func([], [IDL.Record({
-    'airtelNumber' : IDL.Text,
-    'mpesaNumber' : IDL.Text,
-    'equityAccount' : IDL.Text,
-    'equityBeneficiary' : IDL.Text,
-    'equitySwift' : IDL.Text,
-    'rawbankAccount' : IDL.Text,
-    'tmbAccount' : IDL.Text,
-  })], ['query']),
-  'setPaymentConfig' : IDL.Func([IDL.Record({
-    'airtelNumber' : IDL.Text,
-    'mpesaNumber' : IDL.Text,
-    'equityAccount' : IDL.Text,
-    'equityBeneficiary' : IDL.Text,
-    'equitySwift' : IDL.Text,
-    'rawbankAccount' : IDL.Text,
-    'tmbAccount' : IDL.Text,
-  })], [], []),
-  'getPaymentConfig' : IDL.Func([], [IDL.Record({
-    'airtelNumber' : IDL.Text,
-    'mpesaNumber' : IDL.Text,
-    'equityAccount' : IDL.Text,
-    'equityBeneficiary' : IDL.Text,
-    'equitySwift' : IDL.Text,
-    'rawbankAccount' : IDL.Text,
-    'tmbAccount' : IDL.Text,
-  })], ['query']),
-  'setPaymentConfig' : IDL.Func([IDL.Record({
-    'airtelNumber' : IDL.Text,
-    'mpesaNumber' : IDL.Text,
-    'equityAccount' : IDL.Text,
-    'equityBeneficiary' : IDL.Text,
-    'equitySwift' : IDL.Text,
-    'rawbankAccount' : IDL.Text,
-    'tmbAccount' : IDL.Text,
-  })], [], []),
   'depositFiat' : IDL.Func([IDL.Text, IDL.Float64], [], []),
+  'getActivatedListQuery' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
   'getAdminStats' : IDL.Func([], [AdminStats], ['query']),
   'getAllKyc' : IDL.Func([], [IDL.Vec(KycRecord)], ['query']),
   'getAllMobileMoneyRequests' : IDL.Func(
@@ -202,7 +204,7 @@ export const idlService = IDL.Service({
   'getAllTransactions' : IDL.Func([], [IDL.Vec(Transaction)], ['query']),
   'getAllUserProfiles' : IDL.Func(
       [],
-      [IDL.Vec(IDL.Tuple(IDL.Principal, UserProfile))],
+      [IDL.Vec(IDL.Tuple(IDL.Principal, UserProfileWithReferral))],
       ['query'],
     ),
   'getAllUsers' : IDL.Func([], [IDL.Vec(UserAdminView)], ['query']),
@@ -211,7 +213,11 @@ export const idlService = IDL.Service({
       [IDL.Vec(IDL.Tuple(IDL.Principal, WalletBalance))],
       ['query'],
     ),
-  'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
+  'getCallerUserProfile' : IDL.Func(
+      [],
+      [IDL.Opt(UserProfileWithReferral)],
+      ['query'],
+    ),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
   'getExchangeRates' : IDL.Func([], [IDL.Vec(ExchangeRate)], ['query']),
   'getMyKyc' : IDL.Func([], [KycRecord], ['query']),
@@ -223,15 +229,19 @@ export const idlService = IDL.Service({
   'getOkpAdminStats' : IDL.Func([], [OkpAdminStats], ['query']),
   'getOkpBalance' : IDL.Func([], [IDL.Float64], ['query']),
   'getOkpToCdfRate' : IDL.Func([], [IDL.Float64], ['query']),
+  'getPaymentConfig' : IDL.Func([], [PaymentConfig], ['query']),
   'getPortfolioValue' : IDL.Func([], [PortfolioValue], ['query']),
-  'getProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
+  'getReferralCodeQuery' : IDL.Func([], [IDL.Text], ['query']),
+  'getReferralRewardsQuery' : IDL.Func([], [IDL.Nat], ['query']),
+  'getReferralStatsQuery' : IDL.Func([], [ReferralStats], ['query']),
+  'getReferredListQuery' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
   'getRewardMultiplier' : IDL.Func([], [IDL.Float64], ['query']),
   'getStakes' : IDL.Func([], [IDL.Vec(StakeRecord)], ['query']),
   'getTransactions' : IDL.Func([], [IDL.Vec(Transaction)], ['query']),
   'getUserPortfolio' : IDL.Func([IDL.Principal], [PortfolioValue], []),
   'getUserProfile' : IDL.Func(
       [IDL.Principal],
-      [IDL.Opt(UserProfile)],
+      [IDL.Opt(UserProfileWithReferral)],
       ['query'],
     ),
   'getWallet' : IDL.Func([], [WalletBalance], ['query']),
@@ -246,10 +256,11 @@ export const idlService = IDL.Service({
   'rejectMobileMoneyRequest' : IDL.Func([IDL.Nat, IDL.Text], [], []),
   'resetPriceAdjustment' : IDL.Func([], [], []),
   'resetRewardMultiplier' : IDL.Func([], [], []),
-  'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
+  'saveCallerUserProfile' : IDL.Func([UserProfileWithReferral], [], []),
   'sellCrypto' : IDL.Func([SellCryptoRequest], [TransactionResult], []),
   'setExchangeRate' : IDL.Func([SetExchangeRateRequest], [], []),
   'setOkpToCdfRate' : IDL.Func([IDL.Float64], [], []),
+  'setPaymentConfig' : IDL.Func([PaymentConfig], [], []),
   'setRewardMultiplier' : IDL.Func([IDL.Float64], [], []),
   'stakeOkp' : IDL.Func(
       [IDL.Float64, IDL.Nat],
@@ -367,6 +378,15 @@ export const idlFactory = ({ IDL }) => {
     'fiatCurrency' : IDL.Text,
     'cryptoAmount' : IDL.Float64,
   });
+  const UserProfileWithReferral = IDL.Record({
+    'referralCode' : IDL.Text,
+    'country' : IDL.Text,
+    'displayName' : IDL.Text,
+    'rewardClaimed' : IDL.Bool,
+    'preferredCurrency' : IDL.Text,
+    'referredAt' : IDL.Opt(IDL.Int),
+    'referredBy' : IDL.Opt(IDL.Principal),
+  });
   const UserProfile = IDL.Record({
     'country' : IDL.Text,
     'displayName' : IDL.Text,
@@ -374,6 +394,7 @@ export const idlFactory = ({ IDL }) => {
   });
   const UserAdminView = IDL.Record({
     'principal' : IDL.Principal,
+    'referral' : IDL.Opt(UserProfileWithReferral),
     'accountStatus' : IDL.Text,
     'role' : IDL.Text,
     'kycStatus' : IDL.Text,
@@ -385,9 +406,31 @@ export const idlFactory = ({ IDL }) => {
     'buyRate' : IDL.Float64,
     'sellRate' : IDL.Float64,
   });
+  const PaymentConfig = IDL.Record({
+    'tmbAccount' : IDL.Text,
+    'equityBeneficiary' : IDL.Text,
+    'equityAccount' : IDL.Text,
+    'mpesaNumber' : IDL.Text,
+    'rawbankAccount' : IDL.Text,
+    'equitySwift' : IDL.Text,
+    'airtelNumber' : IDL.Text,
+  });
   const PortfolioValue = IDL.Record({
     'totalCDF' : IDL.Float64,
     'totalUSD' : IDL.Float64,
+  });
+  const Referral = IDL.Record({
+    'activated' : IDL.Bool,
+    'referredUser' : IDL.Principal,
+    'rewardAmount' : IDL.Float64,
+    'activatedAt' : IDL.Int,
+    'referredAt' : IDL.Int,
+  });
+  const ReferralStats = IDL.Record({
+    'activated' : IDL.Nat,
+    'totalOkpEarned' : IDL.Float64,
+    'totalReferred' : IDL.Nat,
+    'referrals' : IDL.Vec(Referral),
   });
   const StakeRecord = IDL.Record({
     'id' : IDL.Nat,
@@ -417,6 +460,11 @@ export const idlFactory = ({ IDL }) => {
   return IDL.Service({
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
     'activateUser' : IDL.Func([IDL.Principal], [], []),
+    'applyReferralCode' : IDL.Func(
+        [IDL.Text],
+        [IDL.Record({ 'message' : IDL.Text, 'success' : IDL.Bool })],
+        [],
+      ),
     'approveKyc' : IDL.Func([IDL.Principal], [KycRecord], []),
     'approveMobileMoneyRequest' : IDL.Func([IDL.Nat], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
@@ -434,6 +482,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'claimFirstAdmin' : IDL.Func([], [], []),
     'depositFiat' : IDL.Func([IDL.Text, IDL.Float64], [], []),
+    'getActivatedListQuery' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
     'getAdminStats' : IDL.Func([], [AdminStats], ['query']),
     'getAllKyc' : IDL.Func([], [IDL.Vec(KycRecord)], ['query']),
     'getAllMobileMoneyRequests' : IDL.Func(
@@ -444,7 +493,7 @@ export const idlFactory = ({ IDL }) => {
     'getAllTransactions' : IDL.Func([], [IDL.Vec(Transaction)], ['query']),
     'getAllUserProfiles' : IDL.Func(
         [],
-        [IDL.Vec(IDL.Tuple(IDL.Principal, UserProfile))],
+        [IDL.Vec(IDL.Tuple(IDL.Principal, UserProfileWithReferral))],
         ['query'],
       ),
     'getAllUsers' : IDL.Func([], [IDL.Vec(UserAdminView)], ['query']),
@@ -453,7 +502,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(IDL.Tuple(IDL.Principal, WalletBalance))],
         ['query'],
       ),
-    'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
+    'getCallerUserProfile' : IDL.Func(
+        [],
+        [IDL.Opt(UserProfileWithReferral)],
+        ['query'],
+      ),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
     'getExchangeRates' : IDL.Func([], [IDL.Vec(ExchangeRate)], ['query']),
     'getMyKyc' : IDL.Func([], [KycRecord], ['query']),
@@ -465,15 +518,19 @@ export const idlFactory = ({ IDL }) => {
     'getOkpAdminStats' : IDL.Func([], [OkpAdminStats], ['query']),
     'getOkpBalance' : IDL.Func([], [IDL.Float64], ['query']),
     'getOkpToCdfRate' : IDL.Func([], [IDL.Float64], ['query']),
+    'getPaymentConfig' : IDL.Func([], [PaymentConfig], ['query']),
     'getPortfolioValue' : IDL.Func([], [PortfolioValue], ['query']),
-    'getProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
+    'getReferralCodeQuery' : IDL.Func([], [IDL.Text], ['query']),
+    'getReferralRewardsQuery' : IDL.Func([], [IDL.Nat], ['query']),
+    'getReferralStatsQuery' : IDL.Func([], [ReferralStats], ['query']),
+    'getReferredListQuery' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
     'getRewardMultiplier' : IDL.Func([], [IDL.Float64], ['query']),
     'getStakes' : IDL.Func([], [IDL.Vec(StakeRecord)], ['query']),
     'getTransactions' : IDL.Func([], [IDL.Vec(Transaction)], ['query']),
     'getUserPortfolio' : IDL.Func([IDL.Principal], [PortfolioValue], []),
     'getUserProfile' : IDL.Func(
         [IDL.Principal],
-        [IDL.Opt(UserProfile)],
+        [IDL.Opt(UserProfileWithReferral)],
         ['query'],
       ),
     'getWallet' : IDL.Func([], [WalletBalance], ['query']),
@@ -488,10 +545,11 @@ export const idlFactory = ({ IDL }) => {
     'rejectMobileMoneyRequest' : IDL.Func([IDL.Nat, IDL.Text], [], []),
     'resetPriceAdjustment' : IDL.Func([], [], []),
     'resetRewardMultiplier' : IDL.Func([], [], []),
-    'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
+    'saveCallerUserProfile' : IDL.Func([UserProfileWithReferral], [], []),
     'sellCrypto' : IDL.Func([SellCryptoRequest], [TransactionResult], []),
     'setExchangeRate' : IDL.Func([SetExchangeRateRequest], [], []),
     'setOkpToCdfRate' : IDL.Func([IDL.Float64], [], []),
+    'setPaymentConfig' : IDL.Func([PaymentConfig], [], []),
     'setRewardMultiplier' : IDL.Func([IDL.Float64], [], []),
     'stakeOkp' : IDL.Func(
         [IDL.Float64, IDL.Nat],

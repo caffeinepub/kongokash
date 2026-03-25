@@ -1,30 +1,29 @@
-# KongoKash — Historique des Transactions
+# KongoKash — Notifications Transactions & Récompenses
 
 ## Current State
-The backend already exposes `getTransactions(): Promise<Array<Transaction>>` which returns the last 50 transactions for the authenticated user (filtered by userId == caller). The Transaction type includes: id, userId, type (Buy/Sell/Deposit/Withdrawal/Transfer/Staking/Reward), cryptoAsset, cryptoAmount, fiatAmount, fiatCurrency, paymentMethod, status, timestamp, description, feeOkp.
-
-The Dashboard component (src/frontend/src/components/Dashboard.tsx) contains the portfolio view. There is no transaction history UI anywhere in the app.
+- App KongoKash avec historique des transactions dans `TransactionHistory.tsx`
+- Navbar sans système de notifications
+- Backend expose `getTransactions()` (liste des transactions de l'utilisateur connecté)
+- Toast (sonner) déjà présent dans App.tsx via `<Toaster richColors position="top-right" />`
+- Pas de système de notifications in-app
 
 ## Requested Changes (Diff)
 
 ### Add
-- A new `TransactionHistory` component (`src/frontend/src/components/TransactionHistory.tsx`) that:
-  - Calls `getTransactions()` on load (requires user to be authenticated)
-  - Displays a table/list of up to 50 recent transactions
-  - Shows columns: Date, Type (with icon/badge), Actif, Montant crypto, Montant fiat, Statut (badge coloré), Description
-  - Supports filtering by type (Tous, Achat, Vente, Dépôt, Retrait, Transfert, Staking, Récompense)
-  - Loading skeleton state
-  - Empty state message ("Aucune transaction pour le moment")
-- Integrate the TransactionHistory component into the Dashboard under a new tab "Historique"
+- `NotificationCenter` component : icône cloche dans la Navbar (desktop + mobile) avec badge rouge indiquant le nombre de notifications non lues
+- Dropdown de notifications affichant les 10 dernières transactions/récompenses avec : icône, type (Achat BTC, Récompense OKP, Dépôt CDF...), montant, date, statut
+- Hook `useNotifications` : poll `getTransactions()` toutes les 30s quand l'utilisateur est connecté, détecte les nouvelles transactions par rapport à un timestamp stocké en localStorage (`kongokash_last_seen_ts`), déclenche des toasts automatiques pour chaque nouvelle transaction ou récompense
+- Toast automatique pour : nouvelle transaction confirmée ("Achat BTC confirmé"), nouvelle récompense OKP reçue ("Récompense : +25 OKP"), unstaking disponible
+- Bouton "Tout marquer comme lu" dans le dropdown pour mettre à jour `kongokash_last_seen_ts`
 
 ### Modify
-- `src/frontend/src/components/Dashboard.tsx`: Add an "Historique" tab that renders the new TransactionHistory component
+- `Navbar.tsx` : ajouter le composant `NotificationCenter` à droite des liens de navigation (desktop) et dans le menu mobile, uniquement si l'utilisateur est connecté
 
 ### Remove
-- Nothing removed
+- Rien
 
 ## Implementation Plan
-1. Create `TransactionHistory.tsx` with filtered list, badges per type/status, and date formatting in French
-2. Add "Historique" tab to Dashboard tabs
-3. Wire to `getTransactions()` from backend via useActor hook
-4. Validate (typecheck, lint, build)
+1. Créer `src/frontend/src/hooks/useNotifications.ts` : poll getTransactions, comparer timestamps, retourner `unreadCount`, `notifications[]`, `markAllRead()`
+2. Créer `src/frontend/src/components/NotificationCenter.tsx` : cloche avec badge, Popover/dropdown avec liste des notifications récentes, bouton marquer comme lu
+3. Modifier `Navbar.tsx` pour intégrer `NotificationCenter` quand `identity` est défini
+4. Toasts automatiques déclenchés depuis le hook via `toast()` de sonner pour les nouvelles entrées

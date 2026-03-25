@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useProfile } from "../hooks/useQueries";
 import AuthModal from "./AuthModal";
+import NotificationCenter from "./NotificationCenter";
 
 interface NavbarProps {
   onSectionClick: (section: string) => void;
@@ -88,8 +89,9 @@ export default function Navbar({
             )}
           </nav>
 
-          {/* Auth buttons */}
-          <div className="hidden md:flex items-center gap-3">
+          {/* Auth buttons + notifications */}
+          <div className="hidden md:flex items-center gap-2">
+            {identity && <NotificationCenter />}
             {identity ? (
               <div className="flex items-center gap-3">
                 <span className="text-white/70 text-sm">
@@ -175,7 +177,8 @@ export default function Navbar({
                 Admin
               </button>
             )}
-            <div className="flex gap-2 mt-3">
+            <div className="flex gap-2 mt-3 items-center">
+              {identity && <NotificationCenter />}
               {identity ? (
                 <Button
                   variant="outline"

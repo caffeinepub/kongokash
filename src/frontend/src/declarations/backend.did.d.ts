@@ -10,6 +10,15 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
+export interface AdminStats {
+  'okpStats' : OkpAdminStats,
+  'suspendedUsersCount' : bigint,
+  'totalVolumeCdf' : number,
+  'totalVolumeUsd' : number,
+  'totalUsers' : bigint,
+  'pendingKycCount' : bigint,
+  'totalTransactions' : bigint,
+}
 export interface BuyCryptoRequest {
   'paymentMethod' : string,
   'asset' : string,
@@ -20,6 +29,42 @@ export interface ExchangeRate {
   'pair' : string,
   'buyRate' : number,
   'sellRate' : number,
+}
+export interface KycRecord {
+  'status' : string,
+  'userId' : Principal,
+  'fullName' : string,
+  'submittedAt' : bigint,
+  'reviewedAt' : bigint,
+  'phone' : string,
+}
+export interface MobileMoneyRequest {
+  'id' : bigint,
+  'status' : string,
+  'userId' : Principal,
+  'operator' : string,
+  'rejectionReason' : string,
+  'timestamp' : bigint,
+  'txType' : string,
+  'amountCdf' : number,
+  'phone' : string,
+}
+export interface OkpAdminStats {
+  'circulatingSupply' : number,
+  'totalIssued' : number,
+  'totalSupply' : number,
+  'currentRate' : number,
+  'totalBurned' : number,
+  'allocations' : Array<OkpAllocation>,
+  'totalStaked' : number,
+  'rewardMultiplier' : number,
+}
+export interface OkpAllocation {
+  'name' : string,
+  'locked' : boolean,
+  'description' : string,
+  'amount' : number,
+  'percentage' : number,
 }
 export interface PortfolioValue { 'totalCDF' : number, 'totalUSD' : number }
 export interface SellCryptoRequest {
@@ -63,6 +108,14 @@ export interface UpdateProfileRequest {
   'displayName' : string,
   'preferredCurrency' : string,
 }
+export interface UserAdminView {
+  'principal' : Principal,
+  'accountStatus' : string,
+  'role' : string,
+  'kycStatus' : string,
+  'walletBalance' : [] | [WalletBalance],
+  'profile' : [] | [UserProfile],
+}
 export interface UserProfile {
   'country' : string,
   'displayName' : string,
@@ -81,49 +134,71 @@ export interface WalletBalance {
 }
 export interface _SERVICE {
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
+  'activateUser' : ActorMethod<[Principal], undefined>,
+  'approveKyc' : ActorMethod<[Principal], KycRecord>,
+  'approveMobileMoneyRequest' : ActorMethod<[bigint], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'buyCrypto' : ActorMethod<[BuyCryptoRequest], TransactionResult>,
   'claimDailyReward' : ActorMethod<
     [],
     { 'message' : string, 'success' : boolean, 'amount' : number }
   >,
+  'claimFirstAdmin' : ActorMethod<[], undefined>,
+  'getPaymentConfig' : ActorMethod<[], {airtelNumber:string;mpesaNumber:string;equityAccount:string;equityBeneficiary:string;equitySwift:string;rawbankAccount:string;tmbAccount:string;}>,
+  'setPaymentConfig' : ActorMethod<[{airtelNumber:string;mpesaNumber:string;equityAccount:string;equityBeneficiary:string;equitySwift:string;rawbankAccount:string;tmbAccount:string;}], undefined>,
   'depositFiat' : ActorMethod<[string, number], undefined>,
-  /**
-   * / Get the current user's profile
-   */
+  'getAdminStats' : ActorMethod<[], AdminStats>,
+  'getAllKyc' : ActorMethod<[], Array<KycRecord>>,
+  'getAllMobileMoneyRequests' : ActorMethod<[], Array<MobileMoneyRequest>>,
+  'getAllTransactions' : ActorMethod<[], Array<Transaction>>,
+  'getAllUserProfiles' : ActorMethod<[], Array<[Principal, UserProfile]>>,
+  'getAllUsers' : ActorMethod<[], Array<UserAdminView>>,
+  'getAllWallets' : ActorMethod<[], Array<[Principal, WalletBalance]>>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   /**
    * / Exchange Rate Management
    */
   'getExchangeRates' : ActorMethod<[], Array<ExchangeRate>>,
+  'getMyKyc' : ActorMethod<[], KycRecord>,
+  'getMyMobileMoneyRequests' : ActorMethod<[], Array<MobileMoneyRequest>>,
+  'getOkpAdminStats' : ActorMethod<[], OkpAdminStats>,
   'getOkpBalance' : ActorMethod<[], number>,
   'getOkpToCdfRate' : ActorMethod<[], number>,
   'getPortfolioValue' : ActorMethod<[], PortfolioValue>,
   'getProfile' : ActorMethod<[], [] | [UserProfile]>,
+  'getRewardMultiplier' : ActorMethod<[], number>,
   'getStakes' : ActorMethod<[], Array<StakeRecord>>,
   'getTransactions' : ActorMethod<[], Array<Transaction>>,
-  /**
-   * / Get a specific user's profile (must be owner or admin)
-   */
+  'getUserPortfolio' : ActorMethod<[Principal], PortfolioValue>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   /**
    * / Wallet Management
    */
   'getWallet' : ActorMethod<[], WalletBalance>,
+  'isAdminAssigned' : ActorMethod<[], boolean>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'payMerchantOkp' : ActorMethod<
     [Principal, number, boolean],
     TransactionResult
   >,
+  'rejectKyc' : ActorMethod<[Principal], KycRecord>,
+  'rejectMobileMoneyRequest' : ActorMethod<[bigint, string], undefined>,
+  'resetPriceAdjustment' : ActorMethod<[], undefined>,
+  'resetRewardMultiplier' : ActorMethod<[], undefined>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
   'sellCrypto' : ActorMethod<[SellCryptoRequest], TransactionResult>,
   'setExchangeRate' : ActorMethod<[SetExchangeRateRequest], undefined>,
   'setOkpToCdfRate' : ActorMethod<[number], undefined>,
+  'setRewardMultiplier' : ActorMethod<[number], undefined>,
   'stakeOkp' : ActorMethod<
     [number, bigint],
     { 'stakeId' : [] | [bigint], 'message' : string, 'success' : boolean }
   >,
+  'submitKyc' : ActorMethod<[string, string], KycRecord>,
+  'submitMobileMoneyDeposit' : ActorMethod<[string, string, number], bigint>,
+  'submitMobileMoneyWithdrawal' : ActorMethod<[string, string, number], bigint>,
+  'suspendUser' : ActorMethod<[Principal], undefined>,
   'transferOkp' : ActorMethod<[Principal, number], TransactionResult>,
   'unstakeOkp' : ActorMethod<[bigint], TransactionResult>,
   /**

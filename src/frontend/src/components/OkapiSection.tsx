@@ -294,7 +294,12 @@ function WhitepaperTab() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-3xl font-bold" style={{ color: OKP_COLOR }}>
-            🦏 Livre Blanc Okapi (OKP)
+            <img
+              src="/assets/generated/okapi-token-logo-transparent.dim_400x400.png"
+              className="w-8 h-8 inline-block mr-2"
+              alt="OKP"
+            />{" "}
+            Livre Blanc Okapi (OKP)
           </h2>
           <p className="text-muted-foreground mt-1">Version 1.0 — Mars 2025</p>
         </div>
@@ -847,7 +852,11 @@ export default function OkapiSection() {
           className="text-center mb-10"
         >
           <div className="inline-flex items-center gap-3 mb-4">
-            <span className="text-4xl">🦏</span>
+            <img
+              src="/assets/generated/okapi-token-logo-transparent.dim_400x400.png"
+              className="w-16 h-16"
+              alt="OKP"
+            />
             <h2 className="font-display font-bold text-3xl">
               Token <span style={{ color: OKP_COLOR }}>Okapi</span> (OKP)
             </h2>
@@ -1053,10 +1062,14 @@ export default function OkapiSection() {
                   <CardContent className="pt-6">
                     <div className="flex flex-wrap items-center gap-4">
                       <div
-                        className="w-12 h-12 rounded-full flex items-center justify-center text-2xl flex-shrink-0"
+                        className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
                         style={{ background: OKP_BG }}
                       >
-                        🦏
+                        <img
+                          src="/assets/generated/okapi-token-logo-transparent.dim_400x400.png"
+                          className="w-8 h-8"
+                          alt="OKP"
+                        />
                       </div>
                       <div className="flex-1">
                         <h4
@@ -1459,7 +1472,7 @@ export default function OkapiSection() {
                             className="font-semibold text-xs"
                             style={{ color: OKP_COLOR }}
                           >
-                            Réduits grâce à OKP 🦏
+                            Réduits grâce à OKP
                           </span>
                         </div>
                       </div>

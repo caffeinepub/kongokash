@@ -32,6 +32,7 @@ import {
   useTransactions,
   useWallet,
 } from "../hooks/useQueries";
+import TransactionHistory from "./TransactionHistory";
 
 function formatCDF(n: number) {
   return `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(n)} FC`;
@@ -136,7 +137,7 @@ export default function Dashboard() {
     },
     {
       symbol: "OKP",
-      icon: "🦏",
+      icon: "OKP_IMG",
       amount: wallet?.okp ?? okpBalance,
       valueCDF: 0,
       color: "oklch(0.65 0.18 35)",
@@ -441,7 +442,7 @@ export default function Dashboard() {
                         },
                         {
                           label: "OKP",
-                          icon: "🦏",
+                          icon: "OKP_IMG",
                           value: `${(wallet?.okp ?? okpBalance).toFixed(4)} OKP`,
                           color: "oklch(0.65 0.18 35)",
                         },
@@ -458,7 +459,15 @@ export default function Dashboard() {
                                 color: item.color,
                               }}
                             >
-                              {item.icon}
+                              {item.icon === "OKP_IMG" ? (
+                                <img
+                                  src="/assets/generated/okapi-token-logo-transparent.dim_400x400.png"
+                                  className="w-5 h-5"
+                                  alt="OKP"
+                                />
+                              ) : (
+                                item.icon
+                              )}
                             </span>
                             <span className="text-sm font-medium">
                               {item.label}
@@ -504,7 +513,7 @@ export default function Dashboard() {
             </Card>
           </motion.div>
 
-          {/* Transaction History Card */}
+          {/* Mini Transaction History Card */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -602,7 +611,7 @@ export default function Dashboard() {
           </motion.div>
         </div>
 
-        {/* Portfolio Summary — visible uniquement si connecté */}
+        {/* Portfolio Summary */}
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -716,7 +725,15 @@ export default function Dashboard() {
                           className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold mx-auto mb-2"
                           style={{ background: asset.color, color: "white" }}
                         >
-                          {asset.icon}
+                          {asset.icon === "OKP_IMG" ? (
+                            <img
+                              src="/assets/generated/okapi-token-logo-transparent.dim_400x400.png"
+                              className="w-7 h-7"
+                              alt="OKP"
+                            />
+                          ) : (
+                            asset.icon
+                          )}
                         </div>
                         <div className="font-semibold text-sm">
                           {asset.symbol}
@@ -735,6 +752,26 @@ export default function Dashboard() {
               </Card>
             </div>
           </div>
+        </motion.div>
+
+        {/* Full Transaction History */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ delay: 0.1, duration: 0.5 }}
+          className="mt-8"
+        >
+          <div className="mb-6">
+            <h3 className="font-display font-bold text-xl">
+              Historique des Transactions
+            </h3>
+            <p className="text-muted-foreground text-sm mt-1">
+              Toutes vos opérations — achats, ventes, dépôts, retraits, staking
+              et récompenses.
+            </p>
+          </div>
+          <TransactionHistory />
         </motion.div>
       </div>
     </section>

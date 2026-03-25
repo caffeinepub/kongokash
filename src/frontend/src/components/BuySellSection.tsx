@@ -17,6 +17,24 @@ import { toast } from "sonner";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useBuyCrypto, useSellCrypto } from "../hooks/useQueries";
 
+type PaymentMethod = "bank" | "airtel" | "mpesa";
+
+const PAYMENT_OPTIONS: Array<{
+  id: PaymentMethod;
+  label: string;
+  icon: string;
+  desc: string;
+}> = [
+  {
+    id: "bank",
+    label: "Virement Bancaire — Equity BCDC",
+    icon: "🏦",
+    desc: "Virement direct",
+  },
+  { id: "airtel", label: "Airtel Money", icon: "🔴", desc: "Mobile Money" },
+  { id: "mpesa", label: "M-Pesa", icon: "🟢", desc: "Mobile Money" },
+];
+
 export default function BuySellSection() {
   const { identity } = useInternetIdentity();
   const buyCrypto = useBuyCrypto();
@@ -25,15 +43,25 @@ export default function BuySellSection() {
   const [buyAsset, setBuyAsset] = useState("BTC");
   const [buyFiatAmount, setBuyFiatAmount] = useState("");
   const [buyFiatCurrency, setBuyFiatCurrency] = useState("CDF");
-  const buyPaymentMethod = "bank";
+  const [buyPaymentMethod, setBuyPaymentMethod] =
+    useState<PaymentMethod>("bank");
 
   const [sellAsset, setSellAsset] = useState("BTC");
   const [sellCryptoAmount, setSellCryptoAmount] = useState("");
   const [sellFiatCurrency, setSellFiatCurrency] = useState("CDF");
 
+  const scrollToMobileMoney = () => {
+    const el = document.getElementById("mobilemoney");
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   const handleBuy = async () => {
     if (!identity) {
       toast.error("Veuillez vous connecter d'abord");
+      return;
+    }
+    if (buyPaymentMethod !== "bank") {
+      scrollToMobileMoney();
       return;
     }
     if (!buyFiatAmount || Number.parseFloat(buyFiatAmount) <= 0) {
@@ -104,9 +132,8 @@ export default function BuySellSection() {
             </h2>
             <p className="text-muted-foreground leading-relaxed">
               Notre plateforme décentralisée vous permet d'échanger directement
-              avec vos Francs Congolais ou vos Dollars sans intermédiaire
-              coûteux. Paiement via virement bancaire Equity BCDC. Les paiements
-              mobiles (M-Pesa, Airtel Money) seront disponibles prochainement.
+              avec vos Francs Congolais ou vos Dollars. Paiement via virement
+              bancaire Equity BCDC ou Mobile Money (Airtel Money, M-Pesa).
             </p>
 
             <div className="grid grid-cols-2 gap-4">
@@ -129,7 +156,7 @@ export default function BuySellSection() {
                 {
                   icon: "📱",
                   title: "Mobile",
-                  desc: "Disponible sur tous les appareils",
+                  desc: "Airtel Money & M-Pesa disponibles",
                 },
               ].map((item) => (
                 <div
@@ -146,7 +173,6 @@ export default function BuySellSection() {
               ))}
             </div>
 
-            {/* Floating crypto icons for visual */}
             <div className="flex gap-4 flex-wrap">
               {["₿ Bitcoin", "⟠ Ethereum", "₮ USDT"].map((c) => (
                 <span
@@ -223,33 +249,55 @@ export default function BuySellSection() {
                       </div>
                     </div>
 
-                    {/* Static payment method — only Equity BCDC for now */}
+                    {/* Payment method selector */}
                     <div className="space-y-2">
                       <Label>Méthode de paiement</Label>
-                      <div
-                        className="flex items-center gap-2 px-3 py-2 rounded-md border text-sm font-medium"
-                        style={{
-                          background: "oklch(0.97 0.005 220)",
-                          borderColor: "oklch(0.85 0.02 220)",
-                        }}
-                        data-ocid="buysell.panel"
-                      >
-                        <span>🏦</span>
-                        <span>Virement Bancaire — Equity BCDC</span>
-                        <span
-                          className="ml-auto text-xs px-2 py-0.5 rounded-full font-semibold"
-                          style={{
-                            background: "oklch(0.52 0.12 160 / 0.12)",
-                            color: "oklch(0.38 0.1 160)",
-                          }}
-                        >
-                          Actif
-                        </span>
+                      <div className="space-y-2" data-ocid="buysell.panel">
+                        {PAYMENT_OPTIONS.map((opt) => (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => {
+                              setBuyPaymentMethod(opt.id);
+                              if (opt.id !== "bank") scrollToMobileMoney();
+                            }}
+                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border-2 text-sm transition-all text-left"
+                            style={{
+                              borderColor:
+                                buyPaymentMethod === opt.id
+                                  ? "oklch(0.27 0.07 195)"
+                                  : "oklch(0.88 0.02 220)",
+                              background:
+                                buyPaymentMethod === opt.id
+                                  ? "oklch(0.27 0.07 195 / 0.07)"
+                                  : "transparent",
+                            }}
+                            data-ocid={`buysell.${opt.id}_button`}
+                          >
+                            <span className="text-base">{opt.icon}</span>
+                            <div className="flex-1">
+                              <div className="font-medium">{opt.label}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {opt.desc}
+                              </div>
+                            </div>
+                            {buyPaymentMethod === opt.id && (
+                              <CheckCircle
+                                size={14}
+                                style={{ color: "oklch(0.27 0.07 195)" }}
+                              />
+                            )}
+                          </button>
+                        ))}
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        Les paiements mobiles (M-Pesa, Airtel Money) seront
-                        disponibles prochainement.
-                      </p>
+                      {buyPaymentMethod !== "bank" && (
+                        <p
+                          className="text-xs"
+                          style={{ color: "oklch(0.52 0.12 160)" }}
+                        >
+                          ↓ Rendez-vous dans la section Mobile Money ci-dessous
+                        </p>
+                      )}
                     </div>
 
                     {!identity && (
@@ -266,7 +314,10 @@ export default function BuySellSection() {
 
                     <Button
                       onClick={handleBuy}
-                      disabled={buyCrypto.isPending || !identity}
+                      disabled={
+                        (buyCrypto.isPending && buyPaymentMethod === "bank") ||
+                        !identity
+                      }
                       className="w-full font-semibold"
                       style={{
                         background: "oklch(0.52 0.12 160)",
@@ -274,11 +325,13 @@ export default function BuySellSection() {
                       }}
                       data-ocid="buysell.primary_button"
                     >
-                      {buyCrypto.isPending ? (
+                      {buyCrypto.isPending && buyPaymentMethod === "bank" ? (
                         <>
                           <Loader2 size={16} className="mr-2 animate-spin" />{" "}
                           Traitement...
                         </>
+                      ) : buyPaymentMethod !== "bank" ? (
+                        "Aller au Mobile Money ↓"
                       ) : buyCrypto.isSuccess ? (
                         <>
                           <CheckCircle size={16} className="mr-2" /> Confirmer
@@ -292,7 +345,8 @@ export default function BuySellSection() {
                         "Confirmer l'achat"
                       )}
                     </Button>
-                    {buyCrypto.isSuccess && (
+
+                    {buyCrypto.isSuccess && buyPaymentMethod === "bank" && (
                       <div
                         className="text-center text-sm"
                         style={{ color: "oklch(0.52 0.12 160)" }}

@@ -89,19 +89,13 @@ export class ExternalBlob {
         return this;
     }
 }
-export interface PortfolioValue {
-    totalCDF: number;
-    totalUSD: number;
-}
-export interface SetExchangeRateRequest {
-    pair: string;
-    buyRate: number;
-    sellRate: number;
-}
-export interface UpdateProfileRequest {
-    country: string;
-    displayName: string;
-    preferredCurrency: string;
+export interface UserAdminView {
+    principal: Principal;
+    accountStatus: string;
+    role: string;
+    kycStatus: string;
+    walletBalance?: WalletBalance;
+    profile?: UserProfile;
 }
 export interface TransactionResult {
     newBalance?: WalletBalance;
@@ -116,15 +110,27 @@ export interface WalletBalance {
     usd: number;
     usdt: number;
 }
+export interface OkpAdminStats {
+    circulatingSupply: number;
+    totalIssued: number;
+    totalSupply: number;
+    currentRate: number;
+    totalBurned: number;
+    allocations: Array<OkpAllocation>;
+    totalStaked: number;
+    rewardMultiplier: number;
+}
 export interface ExchangeRate {
     pair: string;
     buyRate: number;
     sellRate: number;
 }
-export interface SellCryptoRequest {
-    asset: string;
-    fiatCurrency: string;
-    cryptoAmount: number;
+export interface OkpAllocation {
+    name: string;
+    locked: boolean;
+    description: string;
+    amount: number;
+    percentage: number;
 }
 export interface BuyCryptoRequest {
     paymentMethod: string;
@@ -141,11 +147,6 @@ export interface StakeRecord {
     rewardRate: number;
     amount: number;
 }
-export interface UserProfile {
-    country: string;
-    displayName: string;
-    preferredCurrency: string;
-}
 export interface Transaction {
     id: bigint;
     status: string;
@@ -158,6 +159,58 @@ export interface Transaction {
     fiatCurrency: string;
     cryptoAmount: number;
 }
+export interface SetExchangeRateRequest {
+    pair: string;
+    buyRate: number;
+    sellRate: number;
+}
+export interface UpdateProfileRequest {
+    country: string;
+    displayName: string;
+    preferredCurrency: string;
+}
+export interface MobileMoneyRequest {
+    id: bigint;
+    status: string;
+    userId: Principal;
+    operator: string;
+    rejectionReason: string;
+    timestamp: bigint;
+    txType: string;
+    amountCdf: number;
+    phone: string;
+}
+export interface KycRecord {
+    status: string;
+    userId: Principal;
+    fullName: string;
+    submittedAt: bigint;
+    reviewedAt: bigint;
+    phone: string;
+}
+export interface AdminStats {
+    okpStats: OkpAdminStats;
+    suspendedUsersCount: bigint;
+    totalVolumeCdf: number;
+    totalVolumeUsd: number;
+    totalUsers: bigint;
+    pendingKycCount: bigint;
+    totalTransactions: bigint;
+}
+export interface SellCryptoRequest {
+    asset: string;
+    fiatCurrency: string;
+    cryptoAmount: number;
+}
+export interface UserProfile {
+    country: string;
+    displayName: string;
+    preferredCurrency: string;
+}
+export interface PortfolioValue {
+    totalCDF: number;
+    totalUSD: number;
+}
 export enum UserRole {
     admin = "admin",
     user = "user",
@@ -165,6 +218,9 @@ export enum UserRole {
 }
 export interface backendInterface {
     _initializeAccessControlWithSecret(userSecret: string): Promise<void>;
+    activateUser(user: Principal): Promise<void>;
+    approveKyc(user: Principal): Promise<KycRecord>;
+    approveMobileMoneyRequest(requestId: bigint): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     buyCrypto(request: BuyCryptoRequest): Promise<TransactionResult>;
     claimDailyReward(): Promise<{
@@ -172,41 +228,60 @@ export interface backendInterface {
         success: boolean;
         amount: number;
     }>;
+    claimFirstAdmin(): Promise<void>;
+    getPaymentConfig(): Promise<{airtelNumber:string;mpesaNumber:string;equityAccount:string;equityBeneficiary:string;equitySwift:string;rawbankAccount:string;tmbAccount:string;}>;
+    setPaymentConfig(config:{airtelNumber:string;mpesaNumber:string;equityAccount:string;equityBeneficiary:string;equitySwift:string;rawbankAccount:string;tmbAccount:string;}): Promise<void>;
     depositFiat(currency: string, amount: number): Promise<void>;
-    /**
-     * / Get the current user's profile
-     */
+    getAdminStats(): Promise<AdminStats>;
+    getAllKyc(): Promise<Array<KycRecord>>;
+    getAllMobileMoneyRequests(): Promise<Array<MobileMoneyRequest>>;
+    getAllTransactions(): Promise<Array<Transaction>>;
+    getAllUserProfiles(): Promise<Array<[Principal, UserProfile]>>;
+    getAllUsers(): Promise<Array<UserAdminView>>;
+    getAllWallets(): Promise<Array<[Principal, WalletBalance]>>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     /**
      * / Exchange Rate Management
      */
     getExchangeRates(): Promise<Array<ExchangeRate>>;
+    getMyKyc(): Promise<KycRecord>;
+    getMyMobileMoneyRequests(): Promise<Array<MobileMoneyRequest>>;
+    getOkpAdminStats(): Promise<OkpAdminStats>;
     getOkpBalance(): Promise<number>;
     getOkpToCdfRate(): Promise<number>;
     getPortfolioValue(): Promise<PortfolioValue>;
     getProfile(): Promise<UserProfile | null>;
+    getRewardMultiplier(): Promise<number>;
     getStakes(): Promise<Array<StakeRecord>>;
     getTransactions(): Promise<Array<Transaction>>;
-    /**
-     * / Get a specific user's profile (must be owner or admin)
-     */
+    getUserPortfolio(user: Principal): Promise<PortfolioValue>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     /**
      * / Wallet Management
      */
     getWallet(): Promise<WalletBalance>;
+    isAdminAssigned(): Promise<boolean>;
     isCallerAdmin(): Promise<boolean>;
     payMerchantOkp(merchant: Principal, okpAmount: number, convertToCdf: boolean): Promise<TransactionResult>;
+    rejectKyc(user: Principal): Promise<KycRecord>;
+    rejectMobileMoneyRequest(requestId: bigint, reason: string): Promise<void>;
+    resetPriceAdjustment(): Promise<void>;
+    resetRewardMultiplier(): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     sellCrypto(request: SellCryptoRequest): Promise<TransactionResult>;
     setExchangeRate(request: SetExchangeRateRequest): Promise<void>;
     setOkpToCdfRate(rate: number): Promise<void>;
+    setRewardMultiplier(multiplier: number): Promise<void>;
     stakeOkp(amount: number, durationDays: bigint): Promise<{
         stakeId?: bigint;
         message: string;
         success: boolean;
     }>;
+    submitKyc(fullName: string, phone: string): Promise<KycRecord>;
+    submitMobileMoneyDeposit(phone: string, operator: string, amountCdf: number): Promise<bigint>;
+    submitMobileMoneyWithdrawal(phone: string, operator: string, amountCdf: number): Promise<bigint>;
+    suspendUser(user: Principal): Promise<void>;
     transferOkp(to: Principal, amount: number): Promise<TransactionResult>;
     unstakeOkp(stakeId: bigint): Promise<TransactionResult>;
     /**
@@ -214,7 +289,7 @@ export interface backendInterface {
      */
     updateProfile(request: UpdateProfileRequest): Promise<void>;
 }
-import type { TransactionResult as _TransactionResult, UserProfile as _UserProfile, UserRole as _UserRole, WalletBalance as _WalletBalance } from "./declarations/backend.did.d.ts";
+import type { TransactionResult as _TransactionResult, UserAdminView as _UserAdminView, UserProfile as _UserProfile, UserRole as _UserRole, WalletBalance as _WalletBalance } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
     constructor(private actor: ActorSubclass<_SERVICE>, private _uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, private _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, private processError?: (error: unknown) => never){}
     async _initializeAccessControlWithSecret(arg0: string): Promise<void> {
@@ -228,6 +303,48 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor._initializeAccessControlWithSecret(arg0);
+            return result;
+        }
+    }
+    async activateUser(arg0: Principal): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.activateUser(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.activateUser(arg0);
+            return result;
+        }
+    }
+    async approveKyc(arg0: Principal): Promise<KycRecord> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.approveKyc(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.approveKyc(arg0);
+            return result;
+        }
+    }
+    async approveMobileMoneyRequest(arg0: bigint): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.approveMobileMoneyRequest(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.approveMobileMoneyRequest(arg0);
             return result;
         }
     }
@@ -277,6 +394,28 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async claimFirstAdmin(): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.claimFirstAdmin();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.claimFirstAdmin();
+            return result;
+        }
+    }
+    async getPaymentConfig() {
+        if (this.processError) { try { return await this.actor.getPaymentConfig(); } catch(e){ this.processError(e); throw new Error('unreachable'); } }
+        return await this.actor.getPaymentConfig();
+    }
+    async setPaymentConfig(config: {airtelNumber:string;mpesaNumber:string;equityAccount:string;equityBeneficiary:string;equitySwift:string;rawbankAccount:string;tmbAccount:string;}) {
+        if (this.processError) { try { return await this.actor.setPaymentConfig(config); } catch(e){ this.processError(e); throw new Error('unreachable'); } }
+        return await this.actor.setPaymentConfig(config);
+    }
     async depositFiat(arg0: string, arg1: number): Promise<void> {
         if (this.processError) {
             try {
@@ -291,32 +430,130 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async getAdminStats(): Promise<AdminStats> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getAdminStats();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getAdminStats();
+            return result;
+        }
+    }
+    async getAllKyc(): Promise<Array<KycRecord>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getAllKyc();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getAllKyc();
+            return result;
+        }
+    }
+    async getAllMobileMoneyRequests(): Promise<Array<MobileMoneyRequest>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getAllMobileMoneyRequests();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getAllMobileMoneyRequests();
+            return result;
+        }
+    }
+    async getAllTransactions(): Promise<Array<Transaction>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getAllTransactions();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getAllTransactions();
+            return result;
+        }
+    }
+    async getAllUserProfiles(): Promise<Array<[Principal, UserProfile]>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getAllUserProfiles();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getAllUserProfiles();
+            return result;
+        }
+    }
+    async getAllUsers(): Promise<Array<UserAdminView>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getAllUsers();
+                return from_candid_vec_n6(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getAllUsers();
+            return from_candid_vec_n6(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getAllWallets(): Promise<Array<[Principal, WalletBalance]>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getAllWallets();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getAllWallets();
+            return result;
+        }
+    }
     async getCallerUserProfile(): Promise<UserProfile | null> {
         if (this.processError) {
             try {
                 const result = await this.actor.getCallerUserProfile();
-                return from_candid_opt_n6(this._uploadFile, this._downloadFile, result);
+                return from_candid_opt_n9(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getCallerUserProfile();
-            return from_candid_opt_n6(this._uploadFile, this._downloadFile, result);
+            return from_candid_opt_n9(this._uploadFile, this._downloadFile, result);
         }
     }
     async getCallerUserRole(): Promise<UserRole> {
         if (this.processError) {
             try {
                 const result = await this.actor.getCallerUserRole();
-                return from_candid_UserRole_n7(this._uploadFile, this._downloadFile, result);
+                return from_candid_UserRole_n10(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getCallerUserRole();
-            return from_candid_UserRole_n7(this._uploadFile, this._downloadFile, result);
+            return from_candid_UserRole_n10(this._uploadFile, this._downloadFile, result);
         }
     }
     async getExchangeRates(): Promise<Array<ExchangeRate>> {
@@ -330,6 +567,48 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.getExchangeRates();
+            return result;
+        }
+    }
+    async getMyKyc(): Promise<KycRecord> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getMyKyc();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getMyKyc();
+            return result;
+        }
+    }
+    async getMyMobileMoneyRequests(): Promise<Array<MobileMoneyRequest>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getMyMobileMoneyRequests();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getMyMobileMoneyRequests();
+            return result;
+        }
+    }
+    async getOkpAdminStats(): Promise<OkpAdminStats> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getOkpAdminStats();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getOkpAdminStats();
             return result;
         }
     }
@@ -379,14 +658,28 @@ export class Backend implements backendInterface {
         if (this.processError) {
             try {
                 const result = await this.actor.getProfile();
-                return from_candid_opt_n6(this._uploadFile, this._downloadFile, result);
+                return from_candid_opt_n9(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getProfile();
-            return from_candid_opt_n6(this._uploadFile, this._downloadFile, result);
+            return from_candid_opt_n9(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getRewardMultiplier(): Promise<number> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getRewardMultiplier();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getRewardMultiplier();
+            return result;
         }
     }
     async getStakes(): Promise<Array<StakeRecord>> {
@@ -417,18 +710,32 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async getUserPortfolio(arg0: Principal): Promise<PortfolioValue> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getUserPortfolio(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getUserPortfolio(arg0);
+            return result;
+        }
+    }
     async getUserProfile(arg0: Principal): Promise<UserProfile | null> {
         if (this.processError) {
             try {
                 const result = await this.actor.getUserProfile(arg0);
-                return from_candid_opt_n6(this._uploadFile, this._downloadFile, result);
+                return from_candid_opt_n9(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getUserProfile(arg0);
-            return from_candid_opt_n6(this._uploadFile, this._downloadFile, result);
+            return from_candid_opt_n9(this._uploadFile, this._downloadFile, result);
         }
     }
     async getWallet(): Promise<WalletBalance> {
@@ -442,6 +749,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.getWallet();
+            return result;
+        }
+    }
+    async isAdminAssigned(): Promise<boolean> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.isAdminAssigned();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.isAdminAssigned();
             return result;
         }
     }
@@ -471,6 +792,62 @@ export class Backend implements backendInterface {
         } else {
             const result = await this.actor.payMerchantOkp(arg0, arg1, arg2);
             return from_candid_TransactionResult_n3(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async rejectKyc(arg0: Principal): Promise<KycRecord> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.rejectKyc(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.rejectKyc(arg0);
+            return result;
+        }
+    }
+    async rejectMobileMoneyRequest(arg0: bigint, arg1: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.rejectMobileMoneyRequest(arg0, arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.rejectMobileMoneyRequest(arg0, arg1);
+            return result;
+        }
+    }
+    async resetPriceAdjustment(): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.resetPriceAdjustment();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.resetPriceAdjustment();
+            return result;
+        }
+    }
+    async resetRewardMultiplier(): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.resetRewardMultiplier();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.resetRewardMultiplier();
+            return result;
         }
     }
     async saveCallerUserProfile(arg0: UserProfile): Promise<void> {
@@ -529,6 +906,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async setRewardMultiplier(arg0: number): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.setRewardMultiplier(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.setRewardMultiplier(arg0);
+            return result;
+        }
+    }
     async stakeOkp(arg0: number, arg1: bigint): Promise<{
         stakeId?: bigint;
         message: string;
@@ -537,14 +928,70 @@ export class Backend implements backendInterface {
         if (this.processError) {
             try {
                 const result = await this.actor.stakeOkp(arg0, arg1);
-                return from_candid_record_n9(this._uploadFile, this._downloadFile, result);
+                return from_candid_record_n12(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.stakeOkp(arg0, arg1);
-            return from_candid_record_n9(this._uploadFile, this._downloadFile, result);
+            return from_candid_record_n12(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async submitKyc(arg0: string, arg1: string): Promise<KycRecord> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.submitKyc(arg0, arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.submitKyc(arg0, arg1);
+            return result;
+        }
+    }
+    async submitMobileMoneyDeposit(arg0: string, arg1: string, arg2: number): Promise<bigint> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.submitMobileMoneyDeposit(arg0, arg1, arg2);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.submitMobileMoneyDeposit(arg0, arg1, arg2);
+            return result;
+        }
+    }
+    async submitMobileMoneyWithdrawal(arg0: string, arg1: string, arg2: number): Promise<bigint> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.submitMobileMoneyWithdrawal(arg0, arg1, arg2);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.submitMobileMoneyWithdrawal(arg0, arg1, arg2);
+            return result;
+        }
+    }
+    async suspendUser(arg0: Principal): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.suspendUser(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.suspendUser(arg0);
+            return result;
         }
     }
     async transferOkp(arg0: Principal, arg1: number): Promise<TransactionResult> {
@@ -593,17 +1040,35 @@ export class Backend implements backendInterface {
 function from_candid_TransactionResult_n3(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _TransactionResult): TransactionResult {
     return from_candid_record_n4(_uploadFile, _downloadFile, value);
 }
-function from_candid_UserRole_n7(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserRole): UserRole {
-    return from_candid_variant_n8(_uploadFile, _downloadFile, value);
+function from_candid_UserAdminView_n7(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserAdminView): UserAdminView {
+    return from_candid_record_n8(_uploadFile, _downloadFile, value);
 }
-function from_candid_opt_n10(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [bigint]): bigint | null {
+function from_candid_UserRole_n10(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserRole): UserRole {
+    return from_candid_variant_n11(_uploadFile, _downloadFile, value);
+}
+function from_candid_opt_n13(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [bigint]): bigint | null {
     return value.length === 0 ? null : value[0];
 }
 function from_candid_opt_n5(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_WalletBalance]): WalletBalance | null {
     return value.length === 0 ? null : value[0];
 }
-function from_candid_opt_n6(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_UserProfile]): UserProfile | null {
+function from_candid_opt_n9(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_UserProfile]): UserProfile | null {
     return value.length === 0 ? null : value[0];
+}
+function from_candid_record_n12(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    stakeId: [] | [bigint];
+    message: string;
+    success: boolean;
+}): {
+    stakeId?: bigint;
+    message: string;
+    success: boolean;
+} {
+    return {
+        stakeId: record_opt_to_undefined(from_candid_opt_n13(_uploadFile, _downloadFile, value.stakeId)),
+        message: value.message,
+        success: value.success
+    };
 }
 function from_candid_record_n4(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     newBalance: [] | [_WalletBalance];
@@ -620,22 +1085,31 @@ function from_candid_record_n4(_uploadFile: (file: ExternalBlob) => Promise<Uint
         success: value.success
     };
 }
-function from_candid_record_n9(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
-    stakeId: [] | [bigint];
-    message: string;
-    success: boolean;
+function from_candid_record_n8(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    principal: Principal;
+    accountStatus: string;
+    role: string;
+    kycStatus: string;
+    walletBalance: [] | [_WalletBalance];
+    profile: [] | [_UserProfile];
 }): {
-    stakeId?: bigint;
-    message: string;
-    success: boolean;
+    principal: Principal;
+    accountStatus: string;
+    role: string;
+    kycStatus: string;
+    walletBalance?: WalletBalance;
+    profile?: UserProfile;
 } {
     return {
-        stakeId: record_opt_to_undefined(from_candid_opt_n10(_uploadFile, _downloadFile, value.stakeId)),
-        message: value.message,
-        success: value.success
+        principal: value.principal,
+        accountStatus: value.accountStatus,
+        role: value.role,
+        kycStatus: value.kycStatus,
+        walletBalance: record_opt_to_undefined(from_candid_opt_n5(_uploadFile, _downloadFile, value.walletBalance)),
+        profile: record_opt_to_undefined(from_candid_opt_n9(_uploadFile, _downloadFile, value.profile))
     };
 }
-function from_candid_variant_n8(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_variant_n11(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     admin: null;
 } | {
     user: null;
@@ -643,6 +1117,9 @@ function from_candid_variant_n8(_uploadFile: (file: ExternalBlob) => Promise<Uin
     guest: null;
 }): UserRole {
     return "admin" in value ? UserRole.admin : "user" in value ? UserRole.user : "guest" in value ? UserRole.guest : value;
+}
+function from_candid_vec_n6(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_UserAdminView>): Array<UserAdminView> {
+    return value.map((x)=>from_candid_UserAdminView_n7(_uploadFile, _downloadFile, x));
 }
 function to_candid_UserRole_n1(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserRole): _UserRole {
     return to_candid_variant_n2(_uploadFile, _downloadFile, value);

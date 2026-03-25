@@ -10,9 +10,11 @@ import Principal "mo:core/Principal";
 import Runtime "mo:core/Runtime";
 import Iter "mo:core/Iter";
 
+
 import MixinAuthorization "authorization/MixinAuthorization";
 import AccessControl "authorization/access-control";
 
+// Make every change relative to the old state, using migration
 
 actor {
   module Transaction {
@@ -24,6 +26,12 @@ actor {
   module ExchangeRate {
     public func compare(exchangeRate1 : ExchangeRate, exchangeRate2 : ExchangeRate) : Order.Order {
       Text.compare(exchangeRate1.pair, exchangeRate2.pair);
+    };
+  };
+
+  module MobileMoneyRequest {
+    public func compare(mobileMoneyRequest1 : MobileMoneyRequest, mobileMoneyRequest2 : MobileMoneyRequest) : Order.Order {
+      Int.compare(mobileMoneyRequest1.timestamp, mobileMoneyRequest2.timestamp);
     };
   };
 
@@ -185,6 +193,69 @@ actor {
     fiatCurrency : Text;
   };
 
+  //Admin dashboard types
+
+  type AdminStats = {
+    totalUsers : Nat;
+    totalTransactions : Nat;
+    totalVolumeCdf : Float;
+    totalVolumeUsd : Float;
+    pendingKycCount : Nat;
+    suspendedUsersCount : Nat;
+    okpStats : OkpAdminStats;
+  };
+
+  type UserAdminView = {
+    principal : Principal;
+    profile : ?UserProfile;
+    kycStatus : Text;
+    accountStatus : Text; // "active" or "suspended"
+    role : Text;          // "guest", "user", "admin"
+    walletBalance : ?WalletBalance;
+  };
+
+  type KycRecord = {
+    userId : Principal;
+    fullName : Text;
+    phone : Text;
+    status : Text; // "pending", "approved", "rejected"
+    submittedAt : Int;
+    reviewedAt : Int;
+  };
+
+  type MobileMoneyRequest = {
+    id : Nat;
+    userId : Principal;
+    operator : Text; // "airtel" or "mpesa"
+    phone : Text;
+    amountCdf : Float;
+    txType : Text; // "deposit" or "withdrawal"
+    status : Text; // "pending"/"approved"/"rejected"
+    timestamp : Int;
+    rejectionReason : Text;
+  };
+
+  type MobileMoneyRequestInput = {
+    userId : Principal;
+    operator : Text; // "airtel" or "mpesa"
+    phone : Text;
+    amountCdf : Float;
+    txType : Text;
+    status : Text;
+    timestamp : Int;
+    rejectionReason : Text;
+  };
+
+  type PaymentConfig = {
+    airtelNumber : Text;
+    mpesaNumber : Text;
+    equityAccount : Text;
+    equityBeneficiary : Text;
+    equitySwift : Text;
+    rawbankAccount : Text;
+    tmbAccount : Text;
+  };
+
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
 
@@ -197,9 +268,11 @@ actor {
 
   var transactionId = 0;
   var stakeCounter = 0;
+  var mobileMoneyRequests = Map.empty<Nat, MobileMoneyRequest>();
+  var mobileMoneyRequestId = 0;
 
   // Prix OKP/CDF : taux de base configurable + ajustement dynamique basé sur l'usage
-  var okpToCdfRate : Float = 500.0;    // Taux de base admin-configurable
+  var okpToCdfRate : Float = 50.0;    // Taux de base admin-configurable
   var okpPriceAdjustment : Float = 0.0; // Ajustement accumulé selon l'usage
 
   // Statistiques globales de la supply
@@ -210,10 +283,43 @@ actor {
   var totalOkpIssued : Float = 0.0;  // Total OKP mintés (rewards + initialisation)
   var totalOkpBurned : Float = 0.0;  // Total OKP détruits
   var okpTxVolume : Float = 0.0;     // Volume cumulé de transactions OKP
+  var rewardMultiplierOverride : ?Float = null;
+  var paymentConfig : PaymentConfig = {
+    airtelNumber = "";
+    mpesaNumber = "";
+    equityAccount = "";
+    equityBeneficiary = "";
+    equitySwift = "EQBLCGDX";
+    rawbankAccount = "";
+    tmbAccount = "";
+  };
+
+  let kycRecords = Map.empty<Principal, KycRecord>();
+  let userStatus = Map.empty<Principal, Text>();
 
   func nextTransactionId() : Nat {
     transactionId += 1;
     transactionId;
+  };
+
+  func nextMobileMoneyRequestId() : Nat {
+    mobileMoneyRequestId += 1;
+    mobileMoneyRequestId;
+  };
+
+  /// Check if user is suspended
+  func isUserSuspended(user : Principal) : Bool {
+    switch (userStatus.get(user)) {
+      case (?status) { status == "suspended" };
+      case (null) { false };
+    };
+  };
+
+  /// Enforce that user is not suspended
+  func requireNotSuspended(caller : Principal) {
+    if (isUserSuspended(caller)) {
+      Runtime.trap("Account suspended: Contact administrator");
+    };
   };
 
   /// Taux effectif = taux de base + ajustement dynamique
@@ -222,7 +328,14 @@ actor {
   };
 
   /// Multiplicateur de récompense : halvening tous les 500k OKP mintés
-  func getRewardMultiplier() : Float {
+  func internalGetRewardMultiplier() : Float {
+    if (rewardMultiplierOverride != null) {
+      return switch (rewardMultiplierOverride) {
+        case (null) { 1.0 };
+        case (?multiplier) { multiplier };
+      };
+    };
+
     let halvings = totalOkpIssued / OKP_HALVING_INTERVAL;
     if (halvings < 1.0) { 1.0 }
     else if (halvings < 2.0) { 0.5 }
@@ -242,13 +355,12 @@ actor {
     total;
   };
 
-  /// Helper Functions
   func awardOkp(user : Principal, baseAmount : Float) {
     // Vérifier la limite de supply
     if (totalOkpIssued >= OKP_TOTAL_SUPPLY) { return };
 
     // Appliquer le multiplicateur déclinant
-    let multiplier = getRewardMultiplier();
+    let multiplier = internalGetRewardMultiplier();
     let amount = baseAmount * multiplier;
     if (amount <= 0.0) { return };
 
@@ -312,13 +424,181 @@ actor {
     };
   };
 
-  // Required frontend functions
-  /// Get the current user's profile
+  // Mobile Money
+  func createMobileMoneyRequest(input : MobileMoneyRequestInput) : MobileMoneyRequest {
+    {
+      input with id = nextMobileMoneyRequestId();
+    };
+  };
+
+  public shared ({ caller }) func submitMobileMoneyDeposit(phone : Text, operator : Text, amountCdf : Float) : async Nat {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can submit mobile money deposits");
+    };
+    requireNotSuspended(caller);
+
+    if (operator != "airtel" and operator != "mpesa") {
+      Runtime.trap("Invalid operator: Must be \"airtel\" or \"mpesa\"");
+    };
+    if (amountCdf <= 0.0) {
+      Runtime.trap("Amount must be positive");
+    };
+
+    let request = createMobileMoneyRequest({
+      userId = caller;
+      operator;
+      phone;
+      amountCdf;
+      txType = "deposit";
+      status = "pending";
+      timestamp = Time.now();
+      rejectionReason = "";
+    });
+
+    mobileMoneyRequests.add(request.id, request);
+    request.id;
+  };
+
+  public shared ({ caller }) func submitMobileMoneyWithdrawal(phone : Text, operator : Text, amountCdf : Float) : async Nat {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can submit mobile money withdrawals");
+    };
+    requireNotSuspended(caller);
+
+    if (operator != "airtel" and operator != "mpesa") {
+      Runtime.trap("Invalid operator: Must be \"airtel\" or \"mpesa\"");
+    };
+    if (amountCdf <= 0.0) {
+      Runtime.trap("Amount must be positive");
+    };
+
+    let wallet = getCallerWallet(caller);
+    if (wallet.cdf < amountCdf) {
+      Runtime.trap("Insufficient CDF balance");
+    };
+
+    let updatedWallet = {
+      wallet with cdf = wallet.cdf - amountCdf;
+    };
+    wallets.add(caller, updatedWallet);
+
+    let request = createMobileMoneyRequest({
+      userId = caller;
+      operator;
+      phone;
+      amountCdf;
+      txType = "withdrawal";
+      status = "pending";
+      timestamp = Time.now();
+      rejectionReason = "";
+    });
+
+    mobileMoneyRequests.add(request.id, request);
+    request.id;
+  };
+
+  public shared ({ caller }) func approveMobileMoneyRequest(requestId : Nat) : async () {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can approve mobile money requests");
+    };
+
+    let ?request = mobileMoneyRequests.get(requestId) else {
+      Runtime.trap("Mobile money request not found");
+    };
+
+    if (request.status != "pending") {
+      Runtime.trap("Request is not pending");
+    };
+
+    let approvedRequest = { request with status = "approved" };
+    mobileMoneyRequests.add(requestId, approvedRequest);
+
+    if (request.txType == "deposit") {
+      let wallet = switch (wallets.get(request.userId)) {
+        case (null) {
+          let newWallet = {
+            cdf = request.amountCdf;
+            usd = 0.0;
+            btc = 0.0;
+            eth = 0.0;
+            usdt = 0.0;
+            okp = 0.0;
+          };
+          wallets.add(request.userId, newWallet);
+          newWallet;
+        };
+        case (?w) { w };
+      };
+
+      let updatedWallet = {
+        wallet with cdf = wallet.cdf + request.amountCdf;
+      };
+      wallets.add(request.userId, updatedWallet);
+    };
+  };
+
+  public shared ({ caller }) func rejectMobileMoneyRequest(requestId : Nat, reason : Text) : async () {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can reject mobile money requests");
+    };
+
+    let ?request = mobileMoneyRequests.get(requestId) else {
+      Runtime.trap("Mobile money request not found");
+    };
+
+    if (request.status != "pending") {
+      Runtime.trap("Request is not pending");
+    };
+
+    let rejectedRequest = {
+      request with status = "rejected"; rejectionReason = reason;
+    };
+    mobileMoneyRequests.add(requestId, rejectedRequest);
+
+    if (request.txType == "withdrawal") {
+      let wallet = switch (wallets.get(request.userId)) {
+        case (null) {
+          let newWallet = {
+            cdf = request.amountCdf;
+            usd = 0.0;
+            btc = 0.0;
+            eth = 0.0;
+            usdt = 0.0;
+            okp = 0.0;
+          };
+          wallets.add(request.userId, newWallet);
+          newWallet;
+        };
+        case (?w) { w };
+      };
+
+      let updatedWallet = {
+        wallet with cdf = wallet.cdf + request.amountCdf;
+      };
+      wallets.add(request.userId, updatedWallet);
+    };
+  };
+
+  public query ({ caller }) func getMyMobileMoneyRequests() : async [MobileMoneyRequest] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can view requests");
+    };
+    mobileMoneyRequests.values().toArray().filter(func(req) { req.userId == caller }).sort().reverse();
+  };
+
+  public query ({ caller }) func getAllMobileMoneyRequests() : async [MobileMoneyRequest] {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can view all requests");
+    };
+    mobileMoneyRequests.values().toArray().sort().reverse();
+  };
+
+  //Required frontend functions
+
   public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
     profiles.get(caller);
   };
 
-  /// Get a specific user's profile (must be owner or admin)
   public query ({ caller }) func getUserProfile(user : Principal) : async ?UserProfile {
     if (caller != user and not AccessControl.isAdmin(accessControlState, caller)) {
       Runtime.trap("Unauthorized: Can only view your own profile");
@@ -330,6 +610,7 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can save profiles");
     };
+    requireNotSuspended(caller);
     profiles.add(caller, profile);
     if (not wallets.containsKey(caller)) {
       let wallet = {
@@ -351,6 +632,7 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can update profiles");
     };
+    requireNotSuspended(caller);
     let profile = {
       displayName = request.displayName;
       country = request.country;
@@ -385,6 +667,7 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can deposit fiat");
     };
+    requireNotSuspended(caller);
     if (amount <= 0) {
       Runtime.trap("Amount must be positive");
     };
@@ -465,6 +748,7 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can buy crypto");
     };
+    requireNotSuspended(caller);
     if (not validateBuyRequest(request)) {
       return {
         success = false;
@@ -530,6 +814,7 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can sell crypto");
     };
+    requireNotSuspended(caller);
     if (not validateSellRequest(request)) {
       return {
         success = false;
@@ -684,7 +969,7 @@ actor {
       totalStaked;
       totalBurned = totalOkpBurned;
       currentRate = getEffectiveOkpRate();
-      rewardMultiplier = getRewardMultiplier();
+      rewardMultiplier = internalGetRewardMultiplier();
       allocations = getInitialAllocations();
     };
   };
@@ -694,6 +979,7 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can transfer OKP");
     };
+    requireNotSuspended(caller);
     if (caller == to) {
       return {
         success = false;
@@ -759,6 +1045,7 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can pay merchants");
     };
+    requireNotSuspended(caller);
     if (okpAmount <= 0.0) {
       return {
         success = false;
@@ -854,6 +1141,7 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can stake OKP");
     };
+    requireNotSuspended(caller);
     let wallet = getCallerWallet(caller);
     if (amount <= 0.0) {
       return {
@@ -905,6 +1193,7 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can unstake OKP");
     };
+    requireNotSuspended(caller);
     let ?stake = stakes.get(stakeId) else {
       return { success = false; message = "Stake not found"; newBalance = null };
     };
@@ -944,7 +1233,9 @@ actor {
 
   // Get caller's stakes
   public query ({ caller }) func getStakes() : async [StakeRecord] {
-    stakes.values().toArray().filter(func(stake) { stake.userId == caller });
+    stakes.values().toArray().filter(
+      func(stake) { stake.userId == caller }
+    );
   };
 
   // Claim daily reward
@@ -956,9 +1247,12 @@ actor {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can claim daily rewards");
     };
+    requireNotSuspended(caller);
     let now = Time.now();
     let lastRewardTime = switch (lastDailyReward.get(caller)) {
-      case (null) { 0 };
+      case (null) {
+        0;
+      };
       case (?time) { time };
     };
 
@@ -968,11 +1262,286 @@ actor {
     };
 
     // Base 50 OKP, soumis au multiplicateur déclinant
-    let multiplier = getRewardMultiplier();
+    let multiplier = internalGetRewardMultiplier();
     let actualAmount = 50.0 * multiplier;
     awardOkp(caller, 50.0);
     lastDailyReward.add(caller, now);
 
     { success = true; message = "Daily reward claimed! " # actualAmount.toText() # " OKP added to your wallet."; amount = actualAmount };
   };
+
+  // Admin dashboard functions
+
+  public query ({ caller }) func getAdminStats() : async AdminStats {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can view stats");
+    };
+
+    let totalUsers = profiles.size();
+    let userStatuses = userStatus.toArray();
+    let suspendedUserCount = userStatuses.filter(
+      func((_, status)) { status == "suspended" }
+    ).size();
+
+    let walletArray = wallets.values().toArray();
+    let allTransactions = transactions.toArray();
+    let totalVolumeCdf = walletArray.foldLeft(
+      allTransactions.foldLeft(0.0, func(accum, tx) { accum + tx.fiatAmount }),
+      func(accum, wallet) {
+        accum + wallet.cdf;
+      },
+    );
+    let totalVolumeUsd = walletArray.foldLeft(
+      allTransactions.foldLeft(0.0, func(accum, tx) { accum + tx.fiatAmount }),
+      func(accum, wallet) {
+        accum + wallet.usd;
+      },
+    );
+
+    let kycCount = kycRecords.values().toArray().size();
+    let pendingKycCount = kycRecords.values().toArray().filter(
+      func(kyc) { kyc.status == "pending" }
+    ).size();
+
+    {
+      totalUsers;
+      suspendedUsersCount = suspendedUserCount;
+      totalVolumeCdf;
+      totalVolumeUsd;
+      totalTransactions = transactions.size();
+      pendingKycCount;
+      okpStats = {
+        totalSupply = OKP_TOTAL_SUPPLY;
+        totalIssued = totalOkpIssued;
+        circulatingSupply = Float.max(0.0, totalOkpIssued - totalOkpBurned);
+        totalBurned = totalOkpBurned;
+        totalStaked = computeTotalStaked();
+        currentRate = getEffectiveOkpRate();
+        rewardMultiplier = internalGetRewardMultiplier();
+        allocations = getInitialAllocations();
+      };
+    };
+  };
+
+  public query ({ caller }) func getAllUsers() : async [UserAdminView] {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can view users");
+    };
+
+    let allPrincipals = profiles.keys().toArray();
+    allPrincipals.map(
+      func(user) {
+        {
+          principal = user;
+          kycStatus = switch (kycRecords.get(user)) {
+            case (null) { "missing" };
+            case (?record) { record.status };
+          };
+          profile = profiles.get(user);
+          accountStatus = switch (userStatus.get(user)) {
+            case (null) { "active" };
+            case (?status) { status };
+          };
+          role = switch (AccessControl.getUserRole(accessControlState, user)) {
+            case (#admin) { "admin" };
+            case (#user) { "user" };
+            case (#guest) { "guest" };
+          };
+          walletBalance = wallets.get(user);
+        };
+      }
+    );
+  };
+
+  public query ({ caller }) func getAllTransactions() : async [Transaction] {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can view all transactions");
+    };
+    transactions.toArray();
+  };
+
+  // KYC management
+  public shared ({ caller }) func submitKyc(fullName : Text, phone : Text) : async KycRecord {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can submit KYC");
+    };
+    requireNotSuspended(caller);
+
+    let record = {
+      userId = caller;
+      fullName;
+      phone;
+      status = "pending";
+      submittedAt = Time.now();
+      reviewedAt = 0;
+    };
+    kycRecords.add(caller, record);
+    record;
+  };
+
+  public shared ({ caller }) func approveKyc(user : Principal) : async KycRecord {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can approve KYC");
+    };
+
+    let ?kyc = kycRecords.get(user) else {
+      Runtime.trap("KYC record not found for user");
+    };
+
+    let updatedRecord = {
+      kyc with status = "approved"; reviewedAt = Time.now();
+    };
+    kycRecords.add(user, updatedRecord);
+    updatedRecord;
+  };
+
+  public shared ({ caller }) func rejectKyc(user : Principal) : async KycRecord {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can reject KYC");
+    };
+
+    let ?kyc = kycRecords.get(user) else {
+      Runtime.trap("KYC record not found for user");
+    };
+
+    let updatedRecord = { kyc with status = "rejected"; reviewedAt = Time.now() };
+    kycRecords.add(user, updatedRecord);
+    updatedRecord;
+  };
+
+  public query ({ caller }) func getMyKyc() : async KycRecord {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can view KYC records");
+    };
+    let ?kycRecord = kycRecords.get(caller) else {
+      Runtime.trap("KYC record not found");
+    };
+    kycRecord;
+  };
+
+  // User status management
+  public shared ({ caller }) func suspendUser(user : Principal) : async () {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can suspend users");
+    };
+    userStatus.add(user, "suspended");
+  };
+
+  public shared ({ caller }) func activateUser(user : Principal) : async () {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can activate users");
+    };
+    userStatus.add(user, "active");
+  };
+
+  // Reward multiplier configuration
+  public shared ({ caller }) func setRewardMultiplier(multiplier : Float) : async () {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can set reward multiplier");
+    };
+    rewardMultiplierOverride := ?multiplier;
+  };
+
+  public shared ({ caller }) func resetRewardMultiplier() : async () {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can reset reward multiplier");
+    };
+    rewardMultiplierOverride := null;
+  };
+
+  public query ({ caller }) func getRewardMultiplier() : async Float {
+    internalGetRewardMultiplier();
+  };
+
+  public shared ({ caller }) func getUserPortfolio(user : Principal) : async PortfolioValue {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can view user portfolios");
+    };
+    let wallet = switch (wallets.get(user)) {
+      case (null) {
+        Runtime.trap("User not found");
+      };
+      case (?w) { w };
+    };
+    let rates = exchangeRates.values().toArray();
+    let btcToCdf = switch (rates.find(func(rate) { rate.pair == "BTC/CDF" })) {
+      case (?rate) { rate.sellRate };
+      case (null) { 145000000.0 };
+    };
+    let ethToCdf = switch (rates.find(func(rate) { rate.pair == "ETH/CDF" })) {
+      case (?rate) { rate.sellRate };
+      case (null) { 9000000.0 };
+    };
+    let usdtToCdf = switch (rates.find(func(rate) { rate.pair == "USDT/CDF" })) {
+      case (?rate) { rate.sellRate };
+      case (null) { 2480.0 };
+    };
+    let btcToUsd = switch (rates.find(func(rate) { rate.pair == "BTC/USD" })) {
+      case (?rate) { rate.sellRate };
+      case (null) { 39920.0 };
+    };
+    let ethToUsd = switch (rates.find(func(rate) { rate.pair == "ETH/USD" })) {
+      case (?rate) { rate.sellRate };
+      case (null) { 2500.0 };
+    };
+
+    let effectiveRate = getEffectiveOkpRate();
+    let totalCDF = wallet.cdf + (wallet.btc * btcToCdf) + (wallet.eth * ethToCdf) + (wallet.usdt * usdtToCdf) + (wallet.usd * 2480.0) + (wallet.okp * effectiveRate);
+    let totalUSD = wallet.usd + (wallet.btc * btcToUsd) + (wallet.eth * ethToUsd) + wallet.usdt + (wallet.cdf / 2480.0) + (wallet.okp * effectiveRate / 2480.0);
+
+    {
+      totalCDF;
+      totalUSD;
+    };
+  };
+
+  public query ({ caller }) func getAllKyc() : async [KycRecord] {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can view KYC records");
+    };
+    kycRecords.values().toArray();
+  };
+
+  public query ({ caller }) func getAllWallets() : async [(Principal, WalletBalance)] {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can view all wallets");
+    };
+    wallets.toArray();
+  };
+
+  public query ({ caller }) func getAllUserProfiles() : async [(Principal, UserProfile)] {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can view all user profiles");
+    };
+    profiles.toArray();
+  };
+
+  // Payment config
+  public query func getPaymentConfig() : async PaymentConfig {
+    paymentConfig
+  };
+
+  public shared ({ caller }) func setPaymentConfig(config : PaymentConfig) : async () {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can update payment config");
+    };
+    paymentConfig := config;
+  };
+
+  // First-run admin setup
+  public query func isAdminAssigned() : async Bool {
+    accessControlState.adminAssigned
+  };
+
+  public shared ({ caller }) func claimFirstAdmin() : async () {
+    if (caller.isAnonymous()) {
+      Runtime.trap("Vous devez etre connecte pour devenir administrateur");
+    };
+    if (accessControlState.adminAssigned) {
+      Runtime.trap("Un administrateur a deja ete assigne");
+    };
+    accessControlState.userRoles.add(caller, #admin);
+    accessControlState.adminAssigned := true;
+  };
 };
+

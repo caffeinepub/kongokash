@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Menu, X } from "lucide-react";
+import { Menu, Shield, X } from "lucide-react";
 import { useState } from "react";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useProfile } from "../hooks/useQueries";
@@ -7,9 +7,13 @@ import AuthModal from "./AuthModal";
 
 interface NavbarProps {
   onSectionClick: (section: string) => void;
+  isAdmin?: boolean;
 }
 
-export default function Navbar({ onSectionClick }: NavbarProps) {
+export default function Navbar({
+  onSectionClick,
+  isAdmin = false,
+}: NavbarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [authTab, setAuthTab] = useState<"login" | "register">("login");
@@ -47,10 +51,11 @@ export default function Navbar({ onSectionClick }: NavbarProps) {
             className="flex items-center gap-2 group"
             data-ocid="nav.link"
           >
-            <span className="text-2xl">🐆</span>
-            <span className="font-display font-bold text-xl text-white tracking-tight">
-              KongoKash
-            </span>
+            <img
+              src="/assets/generated/kongokash-logo-transparent.dim_600x200.png"
+              className="h-9 w-auto"
+              alt="KongoKash"
+            />
           </button>
 
           {/* Desktop nav */}
@@ -66,6 +71,21 @@ export default function Navbar({ onSectionClick }: NavbarProps) {
                 {link.label}
               </button>
             ))}
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => onSectionClick("admin")}
+                className="px-3 py-2 text-sm font-medium flex items-center gap-1.5 rounded-md transition-colors"
+                style={{
+                  color: "oklch(0.77 0.13 85)",
+                  background: "oklch(0.77 0.13 85 / 0.12)",
+                }}
+                data-ocid="nav.link"
+              >
+                <Shield size={13} />
+                Admin
+              </button>
+            )}
           </nav>
 
           {/* Auth buttons */}
@@ -140,6 +160,21 @@ export default function Navbar({ onSectionClick }: NavbarProps) {
                 {link.label}
               </button>
             ))}
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => {
+                  onSectionClick("admin");
+                  setMenuOpen(false);
+                }}
+                className="block w-full text-left px-3 py-2 text-sm flex items-center gap-1.5"
+                style={{ color: "oklch(0.77 0.13 85)" }}
+                data-ocid="nav.link"
+              >
+                <Shield size={13} />
+                Admin
+              </button>
+            )}
             <div className="flex gap-2 mt-3">
               {identity ? (
                 <Button

@@ -17,10 +17,11 @@ export default function Footer() {
           {/* Logo + tagline */}
           <div className="lg:col-span-1">
             <div className="flex items-center gap-2 mb-4">
-              <span className="text-3xl">🐆</span>
-              <span className="font-display font-bold text-xl tracking-tight">
-                KongoKash
-              </span>
+              <img
+                src="/assets/generated/kongokash-logo-transparent.dim_600x200.png"
+                alt="KongoKash"
+                className="h-8 w-auto"
+              />
             </div>
             <p className="text-white/60 text-sm leading-relaxed">
               La plateforme décentralisée pour acheter et vendre des

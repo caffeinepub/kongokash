@@ -71,7 +71,11 @@ export default function AuthModal({
       <DialogContent className="sm:max-w-md" data-ocid="auth.dialog">
         <DialogHeader>
           <DialogTitle className="font-display text-xl flex items-center gap-2">
-            <span>🐆</span> KongoKash
+            <img
+              src="/assets/generated/kongokash-logo-transparent.dim_600x200.png"
+              alt="KongoKash"
+              className="h-7 w-auto"
+            />
           </DialogTitle>
         </DialogHeader>
 

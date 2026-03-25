@@ -1,47 +1,30 @@
-# KongoKash — Livre Blanc Okapi
+# KongoKash — Historique des Transactions
 
 ## Current State
-L'application KongoKash dispose d'une section Okapi (`OkapiSection.tsx`) avec 5 onglets :
-- Vue d'ensemble (solde, récompenses quotidiennes)
-- Staking
-- Transfert P2P
-- Paiement marchand
-- Admin (statistiques et tokenomics)
+The backend already exposes `getTransactions(): Promise<Array<Transaction>>` which returns the last 50 transactions for the authenticated user (filtered by userId == caller). The Transaction type includes: id, userId, type (Buy/Sell/Deposit/Withdrawal/Transfer/Staking/Reward), cryptoAsset, cryptoAmount, fiatAmount, fiatCurrency, paymentMethod, status, timestamp, description, feeOkp.
 
-Les allocations tokenomics, le burn, le halvening et les stats temps réel sont déjà intégrés.
+The Dashboard component (src/frontend/src/components/Dashboard.tsx) contains the portfolio view. There is no transaction history UI anywhere in the app.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Nouvel onglet "Livre Blanc" dans `OkapiSection.tsx` (6e onglet)
-- Sections dans le livre blanc :
-  1. Résumé exécutif — présentation de KongoKash et Okapi
-  2. Vision — problème, solution, marché cible (Congo/RDC)
-  3. Tokenomics — supply totale, allocations avec graphique en barres proportionnelles
-  4. Mécanismes clés — burn (1.5%), halvening (tous les 50M OKP), staking (10/15/20%), rewards, prix dynamique
-  5. Calendrier de vesting Équipe — tableau visuel sur 24 mois, déblocage progressif
-  6. Flux utilisateur — étapes visuelles d'onboarding à la transaction
-  7. Roadmap — phases : pré-lancement, lancement, expansion (Q1–Q4 2025+)
-  8. FAQ — 6 à 8 questions courantes sur OKP, KYC, frais, sécurité
-- Graphiques inline (sans librairie externe) :
-  - Distribution des tokens : barres colorées (reprend OKAPI_ALLOCATIONS existant)
-  - Vesting Équipe : tableau de progression sur 24 mois
-  - Flux utilisateur : étapes avec icônes et flèches
-- Bouton "Télécharger PDF" (déclenche window.print() sur la section, ou ouvre une version formatée)
+- A new `TransactionHistory` component (`src/frontend/src/components/TransactionHistory.tsx`) that:
+  - Calls `getTransactions()` on load (requires user to be authenticated)
+  - Displays a table/list of up to 50 recent transactions
+  - Shows columns: Date, Type (with icon/badge), Actif, Montant crypto, Montant fiat, Statut (badge coloré), Description
+  - Supports filtering by type (Tous, Achat, Vente, Dépôt, Retrait, Transfert, Staking, Récompense)
+  - Loading skeleton state
+  - Empty state message ("Aucune transaction pour le moment")
+- Integrate the TransactionHistory component into the Dashboard under a new tab "Historique"
 
 ### Modify
-- `TabsList` dans `OkapiSection.tsx` : ajouter un 6e onglet `value="whitepaper"`
-- Aucune modification backend nécessaire
+- `src/frontend/src/components/Dashboard.tsx`: Add an "Historique" tab that renders the new TransactionHistory component
 
 ### Remove
-- Rien
+- Nothing removed
 
 ## Implementation Plan
-1. Ajouter `TabsTrigger value="whitepaper"` dans le `TabsList` existant
-2. Créer `TabsContent value="whitepaper"` avec toutes les sections du livre blanc
-3. Réutiliser `OKAPI_ALLOCATIONS` pour le graphique de distribution
-4. Créer un tableau vesting 24 mois (déblocage 0% mois 0–11, puis linéaire 8.33%/mois de mois 12 à 24)
-5. Ajouter le flux utilisateur avec étapes visuelles
-6. Ajouter roadmap et FAQ en accordéon ou sections dépliables
-7. Ajouter un bouton print/PDF
-8. Valider et déployer
+1. Create `TransactionHistory.tsx` with filtered list, badges per type/status, and date formatting in French
+2. Add "Historique" tab to Dashboard tabs
+3. Wire to `getTransactions()` from backend via useActor hook
+4. Validate (typecheck, lint, build)

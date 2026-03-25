@@ -8,6 +8,14 @@
 
 import { IDL } from '@icp-sdk/core/candid';
 
+export const KycRecord = IDL.Record({
+  'status' : IDL.Text,
+  'userId' : IDL.Principal,
+  'fullName' : IDL.Text,
+  'submittedAt' : IDL.Int,
+  'reviewedAt' : IDL.Int,
+  'phone' : IDL.Text,
+});
 export const UserRole = IDL.Variant({
   'admin' : IDL.Null,
   'user' : IDL.Null,
@@ -32,10 +40,67 @@ export const TransactionResult = IDL.Record({
   'message' : IDL.Text,
   'success' : IDL.Bool,
 });
+export const OkpAllocation = IDL.Record({
+  'name' : IDL.Text,
+  'locked' : IDL.Bool,
+  'description' : IDL.Text,
+  'amount' : IDL.Float64,
+  'percentage' : IDL.Float64,
+});
+export const OkpAdminStats = IDL.Record({
+  'circulatingSupply' : IDL.Float64,
+  'totalIssued' : IDL.Float64,
+  'totalSupply' : IDL.Float64,
+  'currentRate' : IDL.Float64,
+  'totalBurned' : IDL.Float64,
+  'allocations' : IDL.Vec(OkpAllocation),
+  'totalStaked' : IDL.Float64,
+  'rewardMultiplier' : IDL.Float64,
+});
+export const AdminStats = IDL.Record({
+  'okpStats' : OkpAdminStats,
+  'suspendedUsersCount' : IDL.Nat,
+  'totalVolumeCdf' : IDL.Float64,
+  'totalVolumeUsd' : IDL.Float64,
+  'totalUsers' : IDL.Nat,
+  'pendingKycCount' : IDL.Nat,
+  'totalTransactions' : IDL.Nat,
+});
+export const MobileMoneyRequest = IDL.Record({
+  'id' : IDL.Nat,
+  'status' : IDL.Text,
+  'userId' : IDL.Principal,
+  'operator' : IDL.Text,
+  'rejectionReason' : IDL.Text,
+  'timestamp' : IDL.Int,
+  'txType' : IDL.Text,
+  'amountCdf' : IDL.Float64,
+  'phone' : IDL.Text,
+});
+export const Transaction = IDL.Record({
+  'id' : IDL.Nat,
+  'status' : IDL.Text,
+  'paymentMethod' : IDL.Text,
+  'asset' : IDL.Text,
+  'userId' : IDL.Principal,
+  'timestamp' : IDL.Int,
+  'fiatAmount' : IDL.Float64,
+  'txType' : IDL.Text,
+  'fiatCurrency' : IDL.Text,
+  'cryptoAmount' : IDL.Float64,
+});
 export const UserProfile = IDL.Record({
   'country' : IDL.Text,
   'displayName' : IDL.Text,
   'preferredCurrency' : IDL.Text,
+});
+export const UserAdminView = IDL.Record({
+  'principal' : IDL.Principal,
+  'accountStatus' : IDL.Text,
+  'role' : IDL.Text,
+  'kycStatus' : IDL.Text,
+  'walletBalance' : IDL.Opt(WalletBalance),
+  'profile' : IDL.Opt(UserProfile),
 });
 export const ExchangeRate = IDL.Record({
   'pair' : IDL.Text,
@@ -55,18 +120,6 @@ export const StakeRecord = IDL.Record({
   'rewardRate' : IDL.Float64,
   'amount' : IDL.Float64,
 });
-export const Transaction = IDL.Record({
-  'id' : IDL.Nat,
-  'status' : IDL.Text,
-  'paymentMethod' : IDL.Text,
-  'asset' : IDL.Text,
-  'userId' : IDL.Principal,
-  'timestamp' : IDL.Int,
-  'fiatAmount' : IDL.Float64,
-  'txType' : IDL.Text,
-  'fiatCurrency' : IDL.Text,
-  'cryptoAmount' : IDL.Float64,
-});
 export const SellCryptoRequest = IDL.Record({
   'asset' : IDL.Text,
   'fiatCurrency' : IDL.Text,
@@ -85,6 +138,9 @@ export const UpdateProfileRequest = IDL.Record({
 
 export const idlService = IDL.Service({
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+  'activateUser' : IDL.Func([IDL.Principal], [], []),
+  'approveKyc' : IDL.Func([IDL.Principal], [KycRecord], []),
+  'approveMobileMoneyRequest' : IDL.Func([IDL.Nat], [], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
   'buyCrypto' : IDL.Func([BuyCryptoRequest], [TransactionResult], []),
   'claimDailyReward' : IDL.Func(
@@ -98,32 +154,103 @@ export const idlService = IDL.Service({
       ],
       [],
     ),
+  'claimFirstAdmin' : IDL.Func([], [], []),
+  'getPaymentConfig' : IDL.Func([], [IDL.Record({
+    'airtelNumber' : IDL.Text,
+    'mpesaNumber' : IDL.Text,
+    'equityAccount' : IDL.Text,
+    'equityBeneficiary' : IDL.Text,
+    'equitySwift' : IDL.Text,
+    'rawbankAccount' : IDL.Text,
+    'tmbAccount' : IDL.Text,
+  })], ['query']),
+  'setPaymentConfig' : IDL.Func([IDL.Record({
+    'airtelNumber' : IDL.Text,
+    'mpesaNumber' : IDL.Text,
+    'equityAccount' : IDL.Text,
+    'equityBeneficiary' : IDL.Text,
+    'equitySwift' : IDL.Text,
+    'rawbankAccount' : IDL.Text,
+    'tmbAccount' : IDL.Text,
+  })], [], []),
+  'getPaymentConfig' : IDL.Func([], [IDL.Record({
+    'airtelNumber' : IDL.Text,
+    'mpesaNumber' : IDL.Text,
+    'equityAccount' : IDL.Text,
+    'equityBeneficiary' : IDL.Text,
+    'equitySwift' : IDL.Text,
+    'rawbankAccount' : IDL.Text,
+    'tmbAccount' : IDL.Text,
+  })], ['query']),
+  'setPaymentConfig' : IDL.Func([IDL.Record({
+    'airtelNumber' : IDL.Text,
+    'mpesaNumber' : IDL.Text,
+    'equityAccount' : IDL.Text,
+    'equityBeneficiary' : IDL.Text,
+    'equitySwift' : IDL.Text,
+    'rawbankAccount' : IDL.Text,
+    'tmbAccount' : IDL.Text,
+  })], [], []),
   'depositFiat' : IDL.Func([IDL.Text, IDL.Float64], [], []),
+  'getAdminStats' : IDL.Func([], [AdminStats], ['query']),
+  'getAllKyc' : IDL.Func([], [IDL.Vec(KycRecord)], ['query']),
+  'getAllMobileMoneyRequests' : IDL.Func(
+      [],
+      [IDL.Vec(MobileMoneyRequest)],
+      ['query'],
+    ),
+  'getAllTransactions' : IDL.Func([], [IDL.Vec(Transaction)], ['query']),
+  'getAllUserProfiles' : IDL.Func(
+      [],
+      [IDL.Vec(IDL.Tuple(IDL.Principal, UserProfile))],
+      ['query'],
+    ),
+  'getAllUsers' : IDL.Func([], [IDL.Vec(UserAdminView)], ['query']),
+  'getAllWallets' : IDL.Func(
+      [],
+      [IDL.Vec(IDL.Tuple(IDL.Principal, WalletBalance))],
+      ['query'],
+    ),
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
   'getExchangeRates' : IDL.Func([], [IDL.Vec(ExchangeRate)], ['query']),
+  'getMyKyc' : IDL.Func([], [KycRecord], ['query']),
+  'getMyMobileMoneyRequests' : IDL.Func(
+      [],
+      [IDL.Vec(MobileMoneyRequest)],
+      ['query'],
+    ),
+  'getOkpAdminStats' : IDL.Func([], [OkpAdminStats], ['query']),
   'getOkpBalance' : IDL.Func([], [IDL.Float64], ['query']),
   'getOkpToCdfRate' : IDL.Func([], [IDL.Float64], ['query']),
   'getPortfolioValue' : IDL.Func([], [PortfolioValue], ['query']),
   'getProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
+  'getRewardMultiplier' : IDL.Func([], [IDL.Float64], ['query']),
   'getStakes' : IDL.Func([], [IDL.Vec(StakeRecord)], ['query']),
   'getTransactions' : IDL.Func([], [IDL.Vec(Transaction)], ['query']),
+  'getUserPortfolio' : IDL.Func([IDL.Principal], [PortfolioValue], []),
   'getUserProfile' : IDL.Func(
       [IDL.Principal],
       [IDL.Opt(UserProfile)],
       ['query'],
     ),
   'getWallet' : IDL.Func([], [WalletBalance], ['query']),
+  'isAdminAssigned' : IDL.Func([], [IDL.Bool], ['query']),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
   'payMerchantOkp' : IDL.Func(
       [IDL.Principal, IDL.Float64, IDL.Bool],
       [TransactionResult],
       [],
     ),
+  'rejectKyc' : IDL.Func([IDL.Principal], [KycRecord], []),
+  'rejectMobileMoneyRequest' : IDL.Func([IDL.Nat, IDL.Text], [], []),
+  'resetPriceAdjustment' : IDL.Func([], [], []),
+  'resetRewardMultiplier' : IDL.Func([], [], []),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
   'sellCrypto' : IDL.Func([SellCryptoRequest], [TransactionResult], []),
   'setExchangeRate' : IDL.Func([SetExchangeRateRequest], [], []),
   'setOkpToCdfRate' : IDL.Func([IDL.Float64], [], []),
+  'setRewardMultiplier' : IDL.Func([IDL.Float64], [], []),
   'stakeOkp' : IDL.Func(
       [IDL.Float64, IDL.Nat],
       [
@@ -135,6 +262,18 @@ export const idlService = IDL.Service({
       ],
       [],
     ),
+  'submitKyc' : IDL.Func([IDL.Text, IDL.Text], [KycRecord], []),
+  'submitMobileMoneyDeposit' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Float64],
+      [IDL.Nat],
+      [],
+    ),
+  'submitMobileMoneyWithdrawal' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Float64],
+      [IDL.Nat],
+      [],
+    ),
+  'suspendUser' : IDL.Func([IDL.Principal], [], []),
   'transferOkp' : IDL.Func(
       [IDL.Principal, IDL.Float64],
       [TransactionResult],
@@ -147,6 +286,14 @@ export const idlService = IDL.Service({
 export const idlInitArgs = [];
 
 export const idlFactory = ({ IDL }) => {
+  const KycRecord = IDL.Record({
+    'status' : IDL.Text,
+    'userId' : IDL.Principal,
+    'fullName' : IDL.Text,
+    'submittedAt' : IDL.Int,
+    'reviewedAt' : IDL.Int,
+    'phone' : IDL.Text,
+  });
   const UserRole = IDL.Variant({
     'admin' : IDL.Null,
     'user' : IDL.Null,
@@ -171,10 +318,67 @@ export const idlFactory = ({ IDL }) => {
     'message' : IDL.Text,
     'success' : IDL.Bool,
   });
+  const OkpAllocation = IDL.Record({
+    'name' : IDL.Text,
+    'locked' : IDL.Bool,
+    'description' : IDL.Text,
+    'amount' : IDL.Float64,
+    'percentage' : IDL.Float64,
+  });
+  const OkpAdminStats = IDL.Record({
+    'circulatingSupply' : IDL.Float64,
+    'totalIssued' : IDL.Float64,
+    'totalSupply' : IDL.Float64,
+    'currentRate' : IDL.Float64,
+    'totalBurned' : IDL.Float64,
+    'allocations' : IDL.Vec(OkpAllocation),
+    'totalStaked' : IDL.Float64,
+    'rewardMultiplier' : IDL.Float64,
+  });
+  const AdminStats = IDL.Record({
+    'okpStats' : OkpAdminStats,
+    'suspendedUsersCount' : IDL.Nat,
+    'totalVolumeCdf' : IDL.Float64,
+    'totalVolumeUsd' : IDL.Float64,
+    'totalUsers' : IDL.Nat,
+    'pendingKycCount' : IDL.Nat,
+    'totalTransactions' : IDL.Nat,
+  });
+  const MobileMoneyRequest = IDL.Record({
+    'id' : IDL.Nat,
+    'status' : IDL.Text,
+    'userId' : IDL.Principal,
+    'operator' : IDL.Text,
+    'rejectionReason' : IDL.Text,
+    'timestamp' : IDL.Int,
+    'txType' : IDL.Text,
+    'amountCdf' : IDL.Float64,
+    'phone' : IDL.Text,
+  });
+  const Transaction = IDL.Record({
+    'id' : IDL.Nat,
+    'status' : IDL.Text,
+    'paymentMethod' : IDL.Text,
+    'asset' : IDL.Text,
+    'userId' : IDL.Principal,
+    'timestamp' : IDL.Int,
+    'fiatAmount' : IDL.Float64,
+    'txType' : IDL.Text,
+    'fiatCurrency' : IDL.Text,
+    'cryptoAmount' : IDL.Float64,
+  });
   const UserProfile = IDL.Record({
     'country' : IDL.Text,
     'displayName' : IDL.Text,
     'preferredCurrency' : IDL.Text,
+  });
+  const UserAdminView = IDL.Record({
+    'principal' : IDL.Principal,
+    'accountStatus' : IDL.Text,
+    'role' : IDL.Text,
+    'kycStatus' : IDL.Text,
+    'walletBalance' : IDL.Opt(WalletBalance),
+    'profile' : IDL.Opt(UserProfile),
   });
   const ExchangeRate = IDL.Record({
     'pair' : IDL.Text,
@@ -194,18 +398,6 @@ export const idlFactory = ({ IDL }) => {
     'rewardRate' : IDL.Float64,
     'amount' : IDL.Float64,
   });
-  const Transaction = IDL.Record({
-    'id' : IDL.Nat,
-    'status' : IDL.Text,
-    'paymentMethod' : IDL.Text,
-    'asset' : IDL.Text,
-    'userId' : IDL.Principal,
-    'timestamp' : IDL.Int,
-    'fiatAmount' : IDL.Float64,
-    'txType' : IDL.Text,
-    'fiatCurrency' : IDL.Text,
-    'cryptoAmount' : IDL.Float64,
-  });
   const SellCryptoRequest = IDL.Record({
     'asset' : IDL.Text,
     'fiatCurrency' : IDL.Text,
@@ -224,6 +416,9 @@ export const idlFactory = ({ IDL }) => {
   
   return IDL.Service({
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+    'activateUser' : IDL.Func([IDL.Principal], [], []),
+    'approveKyc' : IDL.Func([IDL.Principal], [KycRecord], []),
+    'approveMobileMoneyRequest' : IDL.Func([IDL.Nat], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
     'buyCrypto' : IDL.Func([BuyCryptoRequest], [TransactionResult], []),
     'claimDailyReward' : IDL.Func(
@@ -237,32 +432,67 @@ export const idlFactory = ({ IDL }) => {
         ],
         [],
       ),
+    'claimFirstAdmin' : IDL.Func([], [], []),
     'depositFiat' : IDL.Func([IDL.Text, IDL.Float64], [], []),
+    'getAdminStats' : IDL.Func([], [AdminStats], ['query']),
+    'getAllKyc' : IDL.Func([], [IDL.Vec(KycRecord)], ['query']),
+    'getAllMobileMoneyRequests' : IDL.Func(
+        [],
+        [IDL.Vec(MobileMoneyRequest)],
+        ['query'],
+      ),
+    'getAllTransactions' : IDL.Func([], [IDL.Vec(Transaction)], ['query']),
+    'getAllUserProfiles' : IDL.Func(
+        [],
+        [IDL.Vec(IDL.Tuple(IDL.Principal, UserProfile))],
+        ['query'],
+      ),
+    'getAllUsers' : IDL.Func([], [IDL.Vec(UserAdminView)], ['query']),
+    'getAllWallets' : IDL.Func(
+        [],
+        [IDL.Vec(IDL.Tuple(IDL.Principal, WalletBalance))],
+        ['query'],
+      ),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
     'getExchangeRates' : IDL.Func([], [IDL.Vec(ExchangeRate)], ['query']),
+    'getMyKyc' : IDL.Func([], [KycRecord], ['query']),
+    'getMyMobileMoneyRequests' : IDL.Func(
+        [],
+        [IDL.Vec(MobileMoneyRequest)],
+        ['query'],
+      ),
+    'getOkpAdminStats' : IDL.Func([], [OkpAdminStats], ['query']),
     'getOkpBalance' : IDL.Func([], [IDL.Float64], ['query']),
     'getOkpToCdfRate' : IDL.Func([], [IDL.Float64], ['query']),
     'getPortfolioValue' : IDL.Func([], [PortfolioValue], ['query']),
     'getProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
+    'getRewardMultiplier' : IDL.Func([], [IDL.Float64], ['query']),
     'getStakes' : IDL.Func([], [IDL.Vec(StakeRecord)], ['query']),
     'getTransactions' : IDL.Func([], [IDL.Vec(Transaction)], ['query']),
+    'getUserPortfolio' : IDL.Func([IDL.Principal], [PortfolioValue], []),
     'getUserProfile' : IDL.Func(
         [IDL.Principal],
         [IDL.Opt(UserProfile)],
         ['query'],
       ),
     'getWallet' : IDL.Func([], [WalletBalance], ['query']),
+    'isAdminAssigned' : IDL.Func([], [IDL.Bool], ['query']),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
     'payMerchantOkp' : IDL.Func(
         [IDL.Principal, IDL.Float64, IDL.Bool],
         [TransactionResult],
         [],
       ),
+    'rejectKyc' : IDL.Func([IDL.Principal], [KycRecord], []),
+    'rejectMobileMoneyRequest' : IDL.Func([IDL.Nat, IDL.Text], [], []),
+    'resetPriceAdjustment' : IDL.Func([], [], []),
+    'resetRewardMultiplier' : IDL.Func([], [], []),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
     'sellCrypto' : IDL.Func([SellCryptoRequest], [TransactionResult], []),
     'setExchangeRate' : IDL.Func([SetExchangeRateRequest], [], []),
     'setOkpToCdfRate' : IDL.Func([IDL.Float64], [], []),
+    'setRewardMultiplier' : IDL.Func([IDL.Float64], [], []),
     'stakeOkp' : IDL.Func(
         [IDL.Float64, IDL.Nat],
         [
@@ -274,6 +504,18 @@ export const idlFactory = ({ IDL }) => {
         ],
         [],
       ),
+    'submitKyc' : IDL.Func([IDL.Text, IDL.Text], [KycRecord], []),
+    'submitMobileMoneyDeposit' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Float64],
+        [IDL.Nat],
+        [],
+      ),
+    'submitMobileMoneyWithdrawal' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Float64],
+        [IDL.Nat],
+        [],
+      ),
+    'suspendUser' : IDL.Func([IDL.Principal], [], []),
     'transferOkp' : IDL.Func(
         [IDL.Principal, IDL.Float64],
         [TransactionResult],

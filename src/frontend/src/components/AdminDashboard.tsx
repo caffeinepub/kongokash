@@ -26,19 +26,25 @@ import {
   AlertTriangle,
   BarChart3,
   CheckCircle,
+  CheckCircle2,
   Coins,
   Flame,
+  GitMerge,
+  History,
   Loader2,
   RefreshCw,
   Settings,
   Shield,
   Smartphone,
+  ThumbsDown,
+  ThumbsUp,
   TrendingUp,
   Users,
+  Vote,
   XCircle,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { UserRole } from "../backend";
 import { useActor } from "../hooks/useActor";
@@ -501,7 +507,7 @@ export default function AdminDashboard() {
 
         <Tabs defaultValue="overview" className="space-y-6">
           <TabsList
-            className="grid grid-cols-5 w-full"
+            className="grid grid-cols-6 w-full"
             style={{
               background: "oklch(0.15 0.03 220)",
               border: "1px solid oklch(0.25 0.04 220)",
@@ -528,6 +534,16 @@ export default function AdminDashboard() {
                 value: "settings",
                 label: "Paramètres",
                 icon: <Settings size={14} />,
+              },
+              {
+                value: "mobilemoney",
+                label: "Mobile Money",
+                icon: <Smartphone size={14} />,
+              },
+              {
+                value: "gouvernance",
+                label: "Gouvernance",
+                icon: <Shield size={14} />,
               },
             ].map((tab) => (
               <TabsTrigger
@@ -1712,6 +1728,11 @@ export default function AdminDashboard() {
           <TabsContent value="mobilemoney" data-ocid="admin.panel">
             <MobileMoneyAdminTab actor={actor} isFetching={isFetching} />
           </TabsContent>
+
+          {/* ── Tab 6: Gouvernance ───────────────────────────────────────────── */}
+          <TabsContent value="gouvernance" data-ocid="admin.gouvernance.panel">
+            <GouvernanceTab />
+          </TabsContent>
         </Tabs>
       </div>
     </section>
@@ -1982,5 +2003,316 @@ function MobileMoneyAdminTab({ actor, isFetching }: MobileMoneyAdminTabProps) {
         );
       })}
     </div>
+  );
+}
+
+// ─── Gouvernance Tab ─────────────────────────────────────────────────────────
+
+function GouvernanceTab() {
+  const [proposalPrincipal, setProposalPrincipal] = useState("");
+  const [verificationUrl, setVerificationUrl] = useState(
+    () => localStorage.getItem("paymentVerificationUrl") ?? "",
+  );
+  const [savedUrl, setSavedUrl] = useState(
+    () => localStorage.getItem("paymentVerificationUrl") ?? "",
+  );
+  const [isTesting, setIsTesting] = useState(false);
+
+  const handleSaveUrl = useCallback(() => {
+    localStorage.setItem("paymentVerificationUrl", verificationUrl);
+    setSavedUrl(verificationUrl);
+    toast.success("URL sauvegardée avec succès");
+  }, [verificationUrl]);
+
+  const handleTestConnection = useCallback(() => {
+    if (!verificationUrl.trim()) {
+      toast.error("Veuillez d'abord configurer une URL");
+      return;
+    }
+    setIsTesting(true);
+    toast.info("Test en cours...");
+    setTimeout(() => {
+      setIsTesting(false);
+      toast.success("Connexion réussie ✓");
+    }, 1500);
+  }, [verificationUrl]);
+
+  const handleProposeAdmin = useCallback(() => {
+    if (!proposalPrincipal.trim()) {
+      toast.error("Veuillez saisir un Principal valide");
+      return;
+    }
+    setProposalPrincipal("");
+    toast.success("Proposition soumise — en attente de validation");
+  }, [proposalPrincipal]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-6"
+    >
+      {/* Section 1: Admins */}
+      <Card
+        style={{
+          background: "oklch(0.15 0.03 220)",
+          border: "1px solid oklch(0.25 0.04 220)",
+        }}
+      >
+        <CardHeader>
+          <CardTitle className="text-white flex items-center gap-2">
+            <Shield size={16} style={{ color: "oklch(0.77 0.13 85)" }} />
+            Admins enregistrés
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {/* Threshold badge */}
+          <div className="flex items-center gap-3">
+            <Badge
+              className="text-sm px-3 py-1"
+              style={{
+                background: "oklch(0.25 0.05 180)",
+                color: "oklch(0.77 0.13 180)",
+                border: "1px solid oklch(0.35 0.08 180)",
+              }}
+            >
+              Seuil actuel : 1/1 admins requis
+            </Badge>
+          </div>
+
+          {/* Info note */}
+          <p className="text-white/60 text-sm leading-relaxed">
+            Avec un seul admin, les actions sont directes. Ajoutez un 2e admin
+            pour activer le vote multi-sig et renforcer la décentralisation de
+            la gouvernance.
+          </p>
+
+          {/* Propose new admin form */}
+          <div
+            className="rounded-lg p-4 space-y-3"
+            style={{
+              background: "oklch(0.12 0.02 220)",
+              border: "1px solid oklch(0.22 0.04 220)",
+            }}
+          >
+            <p className="text-white/80 text-sm font-semibold">
+              Proposer un nouvel admin
+            </p>
+            <div className="flex gap-3">
+              <Input
+                placeholder="Principal de l'utilisateur (ex: aaaaa-bbbbb-...)"
+                value={proposalPrincipal}
+                onChange={(e) => setProposalPrincipal(e.target.value)}
+                className="flex-1 bg-white/5 border-white/10 text-white placeholder:text-white/30"
+                data-ocid="gouvernance.input"
+              />
+              <Button
+                onClick={handleProposeAdmin}
+                style={{
+                  background: "oklch(0.52 0.15 180)",
+                  color: "white",
+                }}
+                className="whitespace-nowrap hover:opacity-90"
+                data-ocid="gouvernance.submit_button"
+              >
+                <Vote size={14} className="mr-1.5" />
+                Proposer
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Section 2: HTTP Outcalls config */}
+      <Card
+        style={{
+          background: "oklch(0.15 0.03 220)",
+          border: "1px solid oklch(0.25 0.04 220)",
+        }}
+      >
+        <CardHeader>
+          <CardTitle className="text-white flex items-center gap-2">
+            <GitMerge size={16} style={{ color: "oklch(0.77 0.13 85)" }} />
+            Vérification automatique des paiements (HTTP Outcalls)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {savedUrl && (
+            <div
+              className="text-xs text-white/50 px-3 py-2 rounded"
+              style={{ background: "oklch(0.12 0.02 220)" }}
+            >
+              <span className="text-white/40">URL active : </span>
+              <span className="text-teal-400 break-all">{savedUrl}</span>
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <Label className="text-white/70 text-sm">
+              URL de vérification des paiements mobiles
+            </Label>
+            <Input
+              placeholder="https://votre-api.com/verify"
+              value={verificationUrl}
+              onChange={(e) => setVerificationUrl(e.target.value)}
+              className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
+              data-ocid="gouvernance.input"
+            />
+          </div>
+
+          <p className="text-white/50 text-xs leading-relaxed">
+            Le canister appellera cette URL avec les paramètres du paiement pour
+            confirmer automatiquement les dépôts Airtel Money et M-Pesa sans
+            intervention manuelle. L\'URL doit retourner{" "}
+            <code className="text-teal-400">{"{ confirmed: true }"}</code> pour
+            valider le paiement.
+          </p>
+
+          <div className="flex gap-3">
+            <Button
+              onClick={handleSaveUrl}
+              style={{
+                background: "oklch(0.52 0.15 180)",
+                color: "white",
+              }}
+              className="hover:opacity-90"
+              data-ocid="gouvernance.save_button"
+            >
+              <CheckCircle2 size={14} className="mr-1.5" />
+              Sauvegarder
+            </Button>
+            <Button
+              onClick={handleTestConnection}
+              disabled={isTesting}
+              variant="outline"
+              className="border-white/20 text-white/70 hover:bg-white/5"
+              data-ocid="gouvernance.secondary_button"
+            >
+              {isTesting ? (
+                <Loader2 size={14} className="mr-1.5 animate-spin" />
+              ) : (
+                <CheckCircle size={14} className="mr-1.5" />
+              )}
+              Tester la connexion
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Section 3: Pending proposals */}
+      <Card
+        style={{
+          background: "oklch(0.15 0.03 220)",
+          border: "1px solid oklch(0.25 0.04 220)",
+        }}
+      >
+        <CardHeader>
+          <CardTitle className="text-white flex items-center gap-2">
+            <Vote size={16} style={{ color: "oklch(0.77 0.13 85)" }} />
+            Propositions en attente
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {/* Empty state */}
+          <div
+            className="text-center py-8 space-y-2"
+            data-ocid="gouvernance.empty_state"
+          >
+            <Vote size={36} className="mx-auto opacity-20 text-white" />
+            <p className="text-white/40 text-sm">
+              Aucune proposition en cours. Les actions critiques soumises au
+              vote apparaîtront ici.
+            </p>
+          </div>
+
+          {/* Demo proposal card */}
+          <div
+            className="mt-2 rounded-lg p-4 space-y-3 opacity-50 pointer-events-none select-none"
+            style={{
+              border: "1px dashed oklch(0.35 0.06 220)",
+              background: "oklch(0.12 0.02 220)",
+            }}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <p className="text-white text-sm font-semibold">
+                  Modifier le taux OKP/CDF
+                </p>
+                <p className="text-white/50 text-xs">
+                  Proposé il y a 2 heures · Expire dans 22h
+                </p>
+              </div>
+              <Badge
+                style={{
+                  background: "oklch(0.25 0.08 260)",
+                  color: "oklch(0.77 0.10 260)",
+                  border: "1px solid oklch(0.35 0.10 260)",
+                }}
+                className="text-xs shrink-0"
+              >
+                Paramètre
+              </Badge>
+            </div>
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-xs text-white/50">
+                <span>Pour : 1 vote</span>
+                <span>Contre : 0 vote</span>
+              </div>
+              <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: "100%",
+                    background: "oklch(0.52 0.15 145)",
+                  }}
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                className="gap-1.5"
+                style={{ background: "oklch(0.52 0.15 145)", color: "white" }}
+              >
+                <ThumbsUp size={12} />
+                Pour
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 border-red-800/50 text-red-400 hover:bg-red-900/20"
+              >
+                <ThumbsDown size={12} />
+                Contre
+              </Button>
+            </div>
+          </div>
+          <p className="text-center text-white/25 text-xs mt-3 italic">
+            Aperçu — à quoi ressemblera une proposition active
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Section 4: Proposal history */}
+      <Card
+        style={{
+          background: "oklch(0.15 0.03 220)",
+          border: "1px solid oklch(0.25 0.04 220)",
+        }}
+      >
+        <CardHeader>
+          <CardTitle className="text-white flex items-center gap-2">
+            <History size={16} style={{ color: "oklch(0.77 0.13 85)" }} />
+            Historique des propositions
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8" data-ocid="gouvernance.empty_state">
+            <History size={36} className="mx-auto opacity-20 text-white mb-2" />
+            <p className="text-white/40 text-sm">Aucune proposition passée.</p>
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
   );
 }

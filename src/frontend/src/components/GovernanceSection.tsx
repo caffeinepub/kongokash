@@ -220,7 +220,7 @@ function VestingTab() {
                 className="text-xl font-bold mb-1"
                 style={{ color: GOV_COLOR }}
               >
-                Allocation Gouvernement / Fonds Public Congo
+                Allocation Fonds pour l'Innovation Numérique en RDC
               </CardTitle>
               <p className="text-sm text-muted-foreground">
                 10% du supply OKP — Vesting progressif sur 5 ans
@@ -888,7 +888,7 @@ export function GovernanceSection() {
           </div>
           <div>
             <h2 className="text-2xl font-bold" style={{ color: GOV_COLOR }}>
-              Gouvernement / Fonds Public Congo
+              Fonds pour l'Innovation Numérique en RDC
             </h2>
             <p className="text-sm text-muted-foreground mt-1">
               100,000,000 OKP (10% du supply) — gérés avec transparence,

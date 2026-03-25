@@ -1,30 +1,35 @@
 # KongoKash
 
 ## Current State
-The GovernanceSection has a MultiSigTab that displays 3 mock signers (with hardcoded names: Banque Centrale du Congo, Ernst & Young, KongoKash Core Team). There is no mechanism to replace a signer, and signers are tied to individual names rather than institutional roles.
+L'application dispose d'une section Okapi avec des allocations de tokens (7 catégories dont certaines ont des valeurs incorrectes : Communauté 30%/300M, Équipe 20%/200M vesting 2 ans, Liquidité 15%/150M, Investisseurs 10%/100M, Marketing 10%/100M, Réserve 5%/50M, Fonds RDC 10%/100M). Le livre blanc a 8 sections mais manque les sections sur la nature du token, l'inclusion des étrangers/touristes, et la philosophie "Bitcoin pour le Congo".
 
 ## Requested Changes (Diff)
 
 ### Add
-- Role-based signer architecture: each slot has a ROLE (Entité Publique, Auditeur Indépendant, Équipe Projet) that persists regardless of who currently fills it
-- "Titulaire actuel" field per role (replaceable), separate from the role label
-- Signer replacement proposal system: any signer can initiate a request to replace the current holder of a role with a new entity
-- Replacement approval flow: the other 2 signers must validate the replacement before it takes effect
-- Visual state for pending replacement proposals (showing approvals count, who approved)
-- Transition log: show history of past replacements in the Transparency tab
+- Section dans le livre blanc : Nature du token (libre, fluctuant, non stablecoin, non collatéralisé, 1 milliard OKP, décentralisation via DAO)
+- Section dans le livre blanc : Inclusion des étrangers/touristes (achat OKAPI sans francs congolais, échange OKAPI → CDF ou paiement direct)
+- Section dans le livre blanc : Philosophie "Bitcoin pour le Congo" (rareté + décentralisation, inclusion, transparence DAO)
 
 ### Modify
-- MultiSigTab: restructure signer cards to clearly show ROLE vs current holder, add "Proposer un remplacement" button per signer slot
-- Governance rules: add a rule about role-based continuity and replacement process
-- Mock signers data: separate role identity from current titulaire
+- OKAPI_ALLOCATIONS : 6 catégories finales :
+  1. Communauté congolaise & récompenses : 25% / 250 000 000 OKP
+  2. Fonds public – RDC (Innovation Numérique) : 10% / 100 000 000 OKP
+  3. Équipe & fondateurs : 15% / 150 000 000 OKP (vesting 4 ans, cliff 12 mois)
+  4. Investisseurs & partenariats : 20% / 200 000 000 OKP (vesting 2–3 ans)
+  5. Liquidité & marché : 20% / 200 000 000 OKP (DEX/CEX, market making)
+  6. Réserve & développement : 10% / 100 000 000 OKP
+- Badge vesting Équipe : "Bloqué 4 ans" au lieu de "Bloqué 2 ans"
+- Description vesting Équipe dans le livre blanc : "150 000 000 OKP (15% de la supply)... 4 ans, cliff 12 mois, libération mensuelle"
+- Descriptions des catégories dans les légendes
+- Mettre à jour la section Investisseurs : "vesting 2–3 ans, libération progressive"
 
 ### Remove
-- Nothing removed, only enhanced
+- Catégorie "Marketing" (10%/100M) — fusionnée dans Communauté
+- Catégorie "Réserve" ancienne (5%/50M) — remplacée par Réserve & développement 10%/100M
 
 ## Implementation Plan
-1. Restructure mock signer data to have: role, roleIcon, roleLabel, currentHolder (name + principal), and replacement requests
-2. Add local state for replacement proposals (id, targetRole, proposedHolder, proposedPrincipal, approvals, status)
-3. In MultiSigTab: redesign signer cards to emphasize role continuity with a "Proposer un remplacement" dialog per slot
-4. Add a ReplacementProposals section within MultiSigTab showing pending proposals with approve buttons
-5. Add replacement history entries to the Transparency timeline
-6. Update governance rules to mention role-based continuity
+1. Mettre à jour OKAPI_ALLOCATIONS avec les 6 nouvelles catégories et montants corrects
+2. Mettre à jour le badge "Bloqué" pour l'équipe (4 ans au lieu de 2 ans)
+3. Mettre à jour la section vesting Équipe dans le livre blanc (150M, 4 ans)
+4. Ajouter 3 nouvelles sections dans le livre blanc : Nature du token, Inclusion étrangers, Philosophie Bitcoin pour le Congo
+5. Valider build

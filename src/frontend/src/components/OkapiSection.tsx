@@ -61,61 +61,61 @@ const OKP_BG = "oklch(0.65 0.18 35 / 0.1)";
 
 const OKAPI_ALLOCATIONS = [
   {
-    name: "Communauté",
-    percentage: 30,
-    amount: 300_000_000,
-    description: "Récompenses, staking et engagement de la communauté",
+    name: "Communauté congolaise & récompenses",
+    percentage: 25,
+    amount: 250_000_000,
+    description: "Airdrops, staking, adoption locale, éducation blockchain",
     locked: false,
+    vestingLabel: null,
     color: "oklch(0.55 0.18 200)",
-  },
-  {
-    name: "Équipe",
-    percentage: 20,
-    amount: 200_000_000,
-    description: "Fondateurs et contributeurs principaux — vesting 2 ans",
-    locked: true,
-    color: "oklch(0.55 0.18 290)",
-  },
-  {
-    name: "Liquidité",
-    percentage: 15,
-    amount: 150_000_000,
-    description: "Pools de liquidité et partenariats stratégiques",
-    locked: false,
-    color: "oklch(0.55 0.18 160)",
-  },
-  {
-    name: "Investisseurs",
-    percentage: 10,
-    amount: 100_000_000,
-    description: "Tour de financement initial et investisseurs seed",
-    locked: false,
-    color: "oklch(0.60 0.18 45)",
-  },
-  {
-    name: "Marketing",
-    percentage: 10,
-    amount: 100_000_000,
-    description: "Croissance, adoption et campagnes de notoriété",
-    locked: false,
-    color: "oklch(0.55 0.18 25)",
-  },
-  {
-    name: "Réserve",
-    percentage: 5,
-    amount: 50_000_000,
-    description: "Développement futur, audits et fonds d'urgence",
-    locked: false,
-    color: "oklch(0.55 0.10 240)",
   },
   {
     name: "Fonds pour l'Innovation Numérique en RDC",
     percentage: 10,
     amount: 100_000_000,
     description:
-      "Allocation dédiée à soutenir l'écosystème numérique congolais — vesting 5 ans, multisig 3 signataires",
+      "Fonds pour l'innovation numérique, multisig institutionnel, DAO — vesting 5 ans",
     locked: true,
+    vestingLabel: "5 ans",
     color: "oklch(0.55 0.18 265)",
+  },
+  {
+    name: "Équipe & fondateurs",
+    percentage: 15,
+    amount: 150_000_000,
+    description:
+      "Fondateurs et contributeurs principaux — vesting 4 ans, cliff 12 mois, libération mensuelle",
+    locked: true,
+    vestingLabel: "4 ans",
+    color: "oklch(0.55 0.18 290)",
+  },
+  {
+    name: "Investisseurs & partenariats",
+    percentage: 20,
+    amount: 200_000_000,
+    description:
+      "Private sale, early investors — vesting 2–3 ans, libération progressive",
+    locked: true,
+    vestingLabel: "2–3 ans",
+    color: "oklch(0.60 0.18 45)",
+  },
+  {
+    name: "Liquidité & marché",
+    percentage: 20,
+    amount: 200_000_000,
+    description: "Pools DEX/CEX, market making, liquidité OKAPI ↔ CDF",
+    locked: false,
+    vestingLabel: null,
+    color: "oklch(0.55 0.18 160)",
+  },
+  {
+    name: "Réserve & développement",
+    percentage: 10,
+    amount: 100_000_000,
+    description: "Développement futur, partenariats, croissance du réseau",
+    locked: false,
+    vestingLabel: null,
+    color: "oklch(0.55 0.10 240)",
   },
 ];
 
@@ -213,8 +213,12 @@ function WhitepaperTab() {
     { month: 0, unlocked: 0, label: "Démarrage" },
     { month: 6, unlocked: 0, label: "Cliff — aucun déblocage" },
     { month: 12, unlocked: 0, label: "Fin du cliff" },
-    { month: 18, unlocked: 50, label: "Déblocage partiel" },
-    { month: 24, unlocked: 100, label: "Déblocage total" },
+    { month: 18, unlocked: 16.67, label: "6 mois après cliff" },
+    { month: 24, unlocked: 33.33, label: "1 an après cliff" },
+    { month: 30, unlocked: 50, label: "50% débloqué" },
+    { month: 36, unlocked: 66.67, label: "2 ans après cliff" },
+    { month: 42, unlocked: 83.33, label: "3 ans après cliff" },
+    { month: 48, unlocked: 100, label: "Déblocage total" },
   ];
 
   const mechanismes = [
@@ -456,9 +460,10 @@ function WhitepaperTab() {
                     >
                       {a.percentage}%
                     </Badge>
-                    {a.locked && (
+                    {a.locked && a.vestingLabel && (
                       <Badge className="text-xs bg-amber-100 text-amber-800 border-amber-300">
-                        <Lock size={10} className="mr-1" /> Bloqué 2 ans
+                        <Lock size={10} className="mr-1" /> Bloqué{" "}
+                        {a.vestingLabel}
                       </Badge>
                     )}
                   </div>
@@ -528,9 +533,9 @@ function WhitepaperTab() {
           <div className="flex items-center gap-3 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
             <Lock size={16} />
             <div className="text-sm">
-              <strong>200 000 000 OKP</strong> (20% de la supply totale) bloqués
+              <strong>150 000 000 OKP</strong> (15% de la supply totale) bloqués
               pour les fondateurs et contributeurs principaux. Cliff de 12 mois,
-              puis déblocage linéaire sur 12 mois supplémentaires.
+              puis déblocage linéaire mensuel sur 36 mois.
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -569,7 +574,7 @@ function WhitepaperTab() {
                     </td>
                     <td className="py-2 font-mono text-xs">
                       {new Intl.NumberFormat("fr-FR").format(
-                        (row.unlocked / 100) * 200_000_000,
+                        (row.unlocked / 100) * 150_000_000,
                       )}{" "}
                       OKP
                     </td>
@@ -579,8 +584,8 @@ function WhitepaperTab() {
             </table>
           </div>
           <p className="text-xs text-muted-foreground">
-            * Entre M12 et M24, le déblocage est linéaire : ~8,33% par mois,
-            soit ~16 666 667 OKP/mois.
+            * Entre M12 et M48, le déblocage est linéaire : ~2,78% par mois,
+            soit ~4 166 667 OKP/mois.
           </p>
         </CardContent>
       </Card>
@@ -713,6 +718,237 @@ function WhitepaperTab() {
           ))}
         </CardContent>
       </Card>
+
+      {/* Section 9 — Nature du Token */}
+      <Card>
+        <CardHeader>
+          <CardTitle style={{ color: OKP_COLOR }}>
+            9. Nature du Token OKP
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm">
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div
+              className="p-4 rounded-lg border"
+              style={{ background: OKP_BG, borderColor: `${OKP_COLOR}44` }}
+            >
+              <h4 className="font-semibold mb-3" style={{ color: OKP_COLOR }}>
+                Caractéristiques fondamentales
+              </h4>
+              <ul className="space-y-2 text-muted-foreground">
+                <li className="flex items-start gap-2">
+                  <CheckCircle
+                    size={14}
+                    className="mt-0.5 flex-shrink-0"
+                    style={{ color: OKP_COLOR }}
+                  />
+                  <span>
+                    <strong>Token libre</strong> : valeur fluctuante, déterminée
+                    par le marché
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle
+                    size={14}
+                    className="mt-0.5 flex-shrink-0"
+                    style={{ color: OKP_COLOR }}
+                  />
+                  <span>
+                    <strong>Non stablecoin</strong> : pas d'ancrage à une
+                    monnaie fiat
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle
+                    size={14}
+                    className="mt-0.5 flex-shrink-0"
+                    style={{ color: OKP_COLOR }}
+                  />
+                  <span>
+                    <strong>Non collatéralisé</strong> : pas d'actif sous-jacent
+                    requis
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle
+                    size={14}
+                    className="mt-0.5 flex-shrink-0"
+                    style={{ color: OKP_COLOR }}
+                  />
+                  <span>
+                    <strong>Supply limitée</strong> : 1 000 000 000 OKP — rareté
+                    garantie
+                  </span>
+                </li>
+              </ul>
+            </div>
+            <div className="p-4 rounded-lg border bg-card">
+              <h4 className="font-semibold mb-3">Gouvernance décentralisée</h4>
+              <ul className="space-y-2 text-muted-foreground">
+                <li className="flex items-start gap-2">
+                  <Shield
+                    size={14}
+                    className="mt-0.5 flex-shrink-0 text-blue-500"
+                  />
+                  <span>
+                    <strong>KongoKash = interface seulement</strong> : aucun
+                    contrôle central sur le token
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Shield
+                    size={14}
+                    className="mt-0.5 flex-shrink-0 text-blue-500"
+                  />
+                  <span>
+                    <strong>Gouvernance via DAO</strong> : les décisions
+                    appartiennent aux détenteurs de tokens
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Shield
+                    size={14}
+                    className="mt-0.5 flex-shrink-0 text-blue-500"
+                  />
+                  <span>
+                    <strong>Smart contracts immuables</strong> après déploiement
+                    et audit
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Shield
+                    size={14}
+                    className="mt-0.5 flex-shrink-0 text-blue-500"
+                  />
+                  <span>
+                    <strong>Transactions publiques</strong> et traçables
+                    on-chain
+                  </span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Section 10 — Inclusion des Étrangers & Touristes */}
+      <Card>
+        <CardHeader>
+          <CardTitle style={{ color: OKP_COLOR }}>
+            10. Inclusion des Étrangers & Touristes
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm">
+          <p className="text-muted-foreground leading-relaxed">
+            KongoKash est conçu pour être accessible à{" "}
+            <strong>toute personne</strong>, qu'elle soit congolaise ou
+            étrangère, résidente ou touriste. L'objectif est de faciliter les
+            paiements et de stimuler l'adoption du token dans l'économie locale.
+          </p>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div
+              className="p-4 rounded-lg border"
+              style={{ background: OKP_BG, borderColor: `${OKP_COLOR}44` }}
+            >
+              <h4 className="font-semibold mb-2" style={{ color: OKP_COLOR }}>
+                Pour les visiteurs sans CDF
+              </h4>
+              <ul className="space-y-2 text-muted-foreground list-disc list-inside">
+                <li>Achat d'OKAPI directement avec des devises étrangères</li>
+                <li>Échange OKAPI → Francs Congolais pour achats locaux</li>
+                <li>
+                  Paiement direct avec OKAPI chez les marchands partenaires
+                </li>
+              </ul>
+            </div>
+            <div className="p-4 rounded-lg border bg-card">
+              <h4 className="font-semibold mb-2">
+                Avantages pour l'économie locale
+              </h4>
+              <ul className="space-y-2 text-muted-foreground list-disc list-inside">
+                <li>Afflux de valeur via les touristes et visiteurs</li>
+                <li>Réduction de la dépendance au change informel</li>
+                <li>Adoption accélérée du token dans l'économie réelle</li>
+                <li>Intégration des paiements crypto dans le commerce local</li>
+              </ul>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Section 11 — Philosophie "Bitcoin pour le Congo" */}
+      <Card>
+        <CardHeader>
+          <CardTitle style={{ color: OKP_COLOR }}>
+            11. Philosophie — Bitcoin pour le Congo
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm">
+          <p className="text-muted-foreground leading-relaxed">
+            Okapi (OKP) s'inspire du modèle de <strong>Bitcoin</strong> —
+            rareté, décentralisation, résistance à la censure — et l'adapte aux
+            réalités et aux besoins du peuple congolais.
+          </p>
+          <div className="grid sm:grid-cols-2 gap-3">
+            {[
+              {
+                icon: <TrendingUp size={20} />,
+                title: "Rareté + Décentralisation",
+                desc: "Supply limitée à 1 milliard d'OKP non reproductibles → valeur potentielle à long terme par la rareté et la demande croissante",
+                color: "oklch(0.60 0.20 25)",
+              },
+              {
+                icon: <Users size={20} />,
+                title: "Inclusion dès le départ",
+                desc: "25% de la supply réservée à la communauté congolaise → partage équitable de la richesse numérique dès le lancement",
+                color: "oklch(0.55 0.18 200)",
+              },
+              {
+                icon: <Shield size={20} />,
+                title: "Transparence + DAO",
+                desc: "Gouvernance communautaire, smart contracts auditables, toutes les transactions publiques → confiance des utilisateurs et investisseurs",
+                color: "oklch(0.55 0.18 265)",
+              },
+              {
+                icon: <Coins size={20} />,
+                title: "Potentiel élevé",
+                desc: "Potentiel futur élevé si adoption et usage augmentent — comme Bitcoin a bénéficié de son adoption mondiale",
+                color: "oklch(0.55 0.18 160)",
+              },
+            ].map((item) => (
+              <div
+                key={item.title}
+                className="p-4 rounded-xl border bg-card hover:shadow-md transition-shadow"
+                style={{ borderColor: `${item.color}44` }}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <div
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-white"
+                    style={{ background: item.color }}
+                  >
+                    {item.icon}
+                  </div>
+                  <div className="font-semibold text-sm">{item.title}</div>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {item.desc}
+                </p>
+              </div>
+            ))}
+          </div>
+          <div
+            className="p-4 rounded-lg text-center border"
+            style={{ background: OKP_BG, borderColor: `${OKP_COLOR}44` }}
+          >
+            <p className="font-semibold" style={{ color: OKP_COLOR }}>
+              "Le Congo mérite sa propre révolution monétaire numérique."
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              KongoKash — Okapi (OKP) — Construit sur Internet Computer Protocol
+            </p>
+          </div>
+        </CardContent>
+      </Card>
     </motion.div>
   );
 }
@@ -731,7 +967,7 @@ function nanosToDate(ns: bigint): string {
 }
 
 // ── Mode Simulation Vesting ──────────────────────────────────────────────────
-const TOTAL_OKP = 200_000_000;
+const TOTAL_OKP = 150_000_000;
 const CLIFF_MONTHS = 12;
 const VESTING_MONTHS = 36; // after cliff
 const MONTHLY_RELEASE = Math.floor(TOTAL_OKP / VESTING_MONTHS); // 5 555 555
@@ -870,7 +1106,7 @@ function VestingSimulationPanel() {
             value: fmtDate(vestingEndDate),
             icon: "🏁",
             color: "oklch(0.55 0.18 160)",
-            note: "200 000 000 OKP libérés",
+            note: "150 000 000 OKP libérés",
           },
         ].map(({ label, value, icon, color, note }) => (
           <Card key={label} className="border-0 shadow-md">
@@ -893,7 +1129,7 @@ function VestingSimulationPanel() {
         {[
           {
             label: "Total verrouillé",
-            value: "200 000 000 OKP",
+            value: "150 000 000 OKP",
             sub: "100 % de l'allocation équipe",
           },
           {
@@ -1125,7 +1361,7 @@ function VestingSimulationPanel() {
           </div>
           <p className="text-xs text-muted-foreground text-center mt-3">
             💡 Le dernier mois peut varier légèrement en raison de l'arrondi
-            (total exact : 200 000 000 OKP)
+            (total exact : 150 000 000 OKP)
           </p>
         </CardContent>
       </Card>
@@ -1195,7 +1431,7 @@ function VestingEquipeTab() {
     );
   }
 
-  const total = vestingStatus?.totalAmount ?? 200_000_000;
+  const total = vestingStatus?.totalAmount ?? 150_000_000;
   const claimed = vestingStatus?.claimedAmount ?? 0;
   const available = vestingStatus?.availableToClaim ?? 0;
   const locked = vestingStatus?.lockedAmount ?? total;
@@ -1274,7 +1510,7 @@ function VestingEquipeTab() {
                     Vesting Allocation Équipe
                   </CardTitle>
                   <p className="text-sm text-muted-foreground mt-0.5">
-                    200 000 000 OKP — Cliff 12 mois · Libération sur 4 ans
+                    150 000 000 OKP — Cliff 12 mois · Libération sur 4 ans
                   </p>
                 </div>
                 <div className="ml-auto">

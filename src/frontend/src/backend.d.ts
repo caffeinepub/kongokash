@@ -130,6 +130,8 @@ export interface KycRecord {
     submittedAt: bigint;
     reviewedAt: bigint;
     phone: string;
+    idDocumentBase64: string;
+    selfieBase64: string;
 }
 export interface AdminStats {
     okpStats: OkpAdminStats;
@@ -229,7 +231,7 @@ export interface backendInterface {
         message: string;
         success: boolean;
     }>;
-    submitKyc(fullName: string, phone: string): Promise<KycRecord>;
+    submitKyc(fullName: string, phone: string, idDocumentBase64: string, selfieBase64: string): Promise<KycRecord>;
     submitMobileMoneyDeposit(phone: string, operator: string, amountCdf: number): Promise<bigint>;
     submitMobileMoneyWithdrawal(phone: string, operator: string, amountCdf: number): Promise<bigint>;
     suspendUser(user: Principal): Promise<void>;

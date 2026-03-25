@@ -9,10 +9,18 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CheckCircle2, ClipboardCopy, Lock, ShieldCheck } from "lucide-react";
+import {
+  Camera,
+  CheckCircle2,
+  ClipboardCopy,
+  Lock,
+  ShieldCheck,
+  Upload,
+} from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useActor } from "../hooks/useActor";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import AuthModal from "./AuthModal";
 
@@ -96,6 +104,7 @@ interface CoordonneesDialogProps {
 
 function CoordonneesDialog({ banque, onClose }: CoordonneesDialogProps) {
   const { identity, isLoggingIn } = useInternetIdentity();
+  const { actor } = useActor();
   const [step, setStep] = useState<Step>(() => {
     if (!identity) return "auth";
     if (!isKycVerified()) return "kyc";
@@ -104,6 +113,8 @@ function CoordonneesDialog({ banque, onClose }: CoordonneesDialogProps) {
   const [kycNom, setKycNom] = useState("");
   const [kycTel, setKycTel] = useState("");
   const [kycSubmitting, setKycSubmitting] = useState(false);
+  const [kycIdDocument, setKycIdDocument] = useState("");
+  const [kycSelfie, setKycSelfie] = useState("");
   const [authOpen, setAuthOpen] = useState(false);
 
   const paymentRefRef = useRef<string>(
@@ -150,18 +161,29 @@ function CoordonneesDialog({ banque, onClose }: CoordonneesDialogProps) {
     }
   };
 
-  const handleKycSubmit = () => {
+  const handleKycSubmit = async () => {
     if (!kycNom.trim() || !kycTel.trim()) {
       toast.error("Veuillez remplir tous les champs obligatoires");
       return;
     }
     setKycSubmitting(true);
-    setTimeout(() => {
+    try {
+      if (actor) {
+        await (actor as any).submitKyc(
+          kycNom,
+          kycTel,
+          kycIdDocument,
+          kycSelfie,
+        );
+      }
       setKycVerified();
-      setKycSubmitting(false);
       setStep("revealed");
       toast.success("Vérification réussie ! Accès accordé.");
-    }, 1500);
+    } catch (_err) {
+      toast.error("Erreur lors de la vérification. Veuillez réessayer.");
+    } finally {
+      setKycSubmitting(false);
+    }
   };
 
   const handleCopy = () => {
@@ -285,42 +307,85 @@ function CoordonneesDialog({ banque, onClose }: CoordonneesDialogProps) {
                   </span>
                   <Badge
                     className="text-xs font-medium px-2 py-0.5 text-white"
-                    style={{ background: "oklch(0.60 0.15 260)" }}
+                    style={{ background: "oklch(0.52 0.16 145)" }}
                   >
-                    Bientôt disponible
+                    Actif
                   </Badge>
                 </div>
 
-                <div className="space-y-1 opacity-50 cursor-not-allowed">
-                  <Label className="text-xs text-muted-foreground cursor-not-allowed">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">
                     Pièce d'identité
                   </Label>
-                  <div
-                    className="flex items-center gap-2 rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground"
+                  <label
+                    className="flex items-center gap-2 rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground cursor-pointer hover:bg-muted/30 transition-colors"
                     style={{
-                      borderColor: "oklch(0.82 0.02 200)",
-                      background: "oklch(0.96 0.005 220)",
+                      borderColor: "oklch(0.72 0.08 200)",
                     }}
                   >
-                    <Lock size={12} />
-                    Upload à venir
-                  </div>
+                    <Upload size={12} />
+                    {kycIdDocument
+                      ? "Photo sélectionnée ✓"
+                      : "Choisir une photo (optionnel)"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = (ev) =>
+                          setKycIdDocument((ev.target?.result as string) ?? "");
+                        reader.readAsDataURL(file);
+                      }}
+                    />
+                  </label>
+                  {kycIdDocument && (
+                    <img
+                      src={kycIdDocument}
+                      alt="Pièce d'identité"
+                      className="mt-1 h-20 w-auto rounded-md border object-cover"
+                    />
+                  )}
                 </div>
 
-                <div className="space-y-1 opacity-50 cursor-not-allowed">
-                  <Label className="text-xs text-muted-foreground cursor-not-allowed">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">
                     Selfie de vérification
                   </Label>
-                  <div
-                    className="flex items-center gap-2 rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground"
+                  <label
+                    className="flex items-center gap-2 rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground cursor-pointer hover:bg-muted/30 transition-colors"
                     style={{
-                      borderColor: "oklch(0.82 0.02 200)",
-                      background: "oklch(0.96 0.005 220)",
+                      borderColor: "oklch(0.72 0.08 200)",
                     }}
                   >
-                    <Lock size={12} />
-                    Caméra à venir
-                  </div>
+                    <Camera size={12} />
+                    {kycSelfie
+                      ? "Selfie sélectionné ✓"
+                      : "Prendre un selfie (optionnel)"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="user"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = (ev) =>
+                          setKycSelfie((ev.target?.result as string) ?? "");
+                        reader.readAsDataURL(file);
+                      }}
+                    />
+                  </label>
+                  {kycSelfie && (
+                    <img
+                      src={kycSelfie}
+                      alt="Selfie"
+                      className="mt-1 h-20 w-auto rounded-md border object-cover"
+                    />
+                  )}
                 </div>
               </div>
 

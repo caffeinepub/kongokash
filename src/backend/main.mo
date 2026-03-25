@@ -14,13 +14,13 @@ import Runtime "mo:core/Runtime";
 import Principal "mo:core/Principal";
 import Char "mo:core/Char";
 import Order "mo:core/Order";
-import Migration "migration";
+
 import MixinAuthorization "authorization/MixinAuthorization";
 import AccessControl "authorization/access-control";
 
 // Make every change relative to the old state, using migration
 
-(with migration = Migration.run)
+
 actor {
   var transactionId = 0;
   var stakeCounter = 0;
@@ -217,6 +217,23 @@ actor {
     reviewedAt : Int;
   };
 
+  // Combined KYC record with optional document data for API responses
+  type KycRecordFull = {
+    userId : Principal;
+    fullName : Text;
+    phone : Text;
+    status : Text;
+    submittedAt : Int;
+    reviewedAt : Int;
+    idDocumentBase64 : Text;
+    selfieBase64 : Text;
+  };
+
+  type KycDocumentData = {
+    idDocumentBase64 : Text;
+    selfieBase64 : Text;
+  };
+
   type MobileMoneyRequest = {
     id : Nat;
     userId : Principal;
@@ -372,6 +389,7 @@ actor {
   let stakes = Map.empty<Nat, StakeRecord>();
   let lastDailyReward = Map.empty<Principal, Int>();
   let kycRecords = Map.empty<Principal, KycRecord>();
+  let kycDocuments = Map.empty<Principal, KycDocumentData>();
   let userStatus = Map.empty<Principal, Text>();
 
   let referrer = Principal.fromText("2vxsx-fae");
@@ -1755,7 +1773,7 @@ actor {
   };
 
   // KYC management
-  public shared ({ caller }) func submitKyc(fullName : Text, phone : Text) : async KycRecord {
+  public shared ({ caller }) func submitKyc(fullName : Text, phone : Text, idDocumentBase64 : Text, selfieBase64 : Text) : async KycRecordFull {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can submit KYC");
     };
@@ -1770,10 +1788,20 @@ actor {
       reviewedAt = 0;
     };
     kycRecords.add(caller, record);
-    record;
+    kycDocuments.add(caller, { idDocumentBase64; selfieBase64 });
+    { record with idDocumentBase64; selfieBase64 };
   };
 
-  public shared ({ caller }) func approveKyc(user : Principal) : async KycRecord {
+
+  func mergeKycFull(kyc : KycRecord) : KycRecordFull {
+    let docs = switch (kycDocuments.get(kyc.userId)) {
+      case (?d) { d };
+      case (null) { { idDocumentBase64 = ""; selfieBase64 = "" } };
+    };
+    { kyc with idDocumentBase64 = docs.idDocumentBase64; selfieBase64 = docs.selfieBase64 };
+  };
+
+  public shared ({ caller }) func approveKyc(user : Principal) : async KycRecordFull {
     if (not (AccessControl.isAdmin(accessControlState, caller))) {
       Runtime.trap("Unauthorized: Only admins can approve KYC");
     };
@@ -1786,10 +1814,10 @@ actor {
       kyc with status = "approved"; reviewedAt = Time.now();
     };
     kycRecords.add(user, updatedRecord);
-    updatedRecord;
+    mergeKycFull(updatedRecord);
   };
 
-  public shared ({ caller }) func rejectKyc(user : Principal) : async KycRecord {
+  public shared ({ caller }) func rejectKyc(user : Principal) : async KycRecordFull {
     if (not (AccessControl.isAdmin(accessControlState, caller))) {
       Runtime.trap("Unauthorized: Only admins can reject KYC");
     };
@@ -1800,17 +1828,17 @@ actor {
 
     let updatedRecord = { kyc with status = "rejected"; reviewedAt = Time.now() };
     kycRecords.add(user, updatedRecord);
-    updatedRecord;
+    mergeKycFull(updatedRecord);
   };
 
-  public query ({ caller }) func getMyKyc() : async KycRecord {
+  public query ({ caller }) func getMyKyc() : async KycRecordFull {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can view KYC records");
     };
     let ?kycRecord = kycRecords.get(caller) else {
       Runtime.trap("KYC record not found");
     };
-    kycRecord;
+    mergeKycFull(kycRecord);
   };
 
   public shared ({ caller }) func suspendUser(user : Principal) : async () {
@@ -1888,11 +1916,11 @@ actor {
     };
   };
 
-  public query ({ caller }) func getAllKyc() : async [KycRecord] {
+  public query ({ caller }) func getAllKyc() : async [KycRecordFull] {
     if (not (AccessControl.isAdmin(accessControlState, caller))) {
       Runtime.trap("Unauthorized: Only admins can view KYC records");
     };
-    kycRecords.values().toArray();
+    kycRecords.values().toArray().map(mergeKycFull);
   };
 
   public query ({ caller }) func getAllWallets() : async [(Principal, WalletBalance)] {

@@ -250,6 +250,13 @@ export default function AdminDashboard() {
     enabled: !!actor && !isFetching,
   });
 
+  // ── KYC records query ──────────────────────────────────────────────────
+  const { data: kycRecords = [] } = useQuery({
+    queryKey: ["adminKycRecords"],
+    queryFn: () => actor!.getAllKyc(),
+    enabled: !!actor && !isFetching,
+  });
+
   // ── Mutations ────────────────────────────────────────────────────────────
   const approveKycMutation = useMutation({
     mutationFn: (principal: Principal) => actor!.approveKyc(principal),
@@ -858,6 +865,51 @@ export default function AdminDashboard() {
                             <div className="flex items-center justify-end gap-1 flex-wrap">
                               {user.kycStatus === "pending" && (
                                 <>
+                                  {(() => {
+                                    // eslint-disable-next-line
+                                    const kycRec = kycRecords.find(
+                                      (r) =>
+                                        r.userId.toString() ===
+                                        user.principal.toString(),
+                                    ) as any as
+                                      | {
+                                          idDocumentBase64?: string;
+                                          selfieBase64?: string;
+                                        }
+                                      | undefined;
+                                    return kycRec ? (
+                                      <div className="flex gap-1 mb-1 w-full justify-end flex-wrap">
+                                        {kycRec.idDocumentBase64 && (
+                                          <a
+                                            href={kycRec.idDocumentBase64}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                          >
+                                            <img
+                                              src={kycRec.idDocumentBase64}
+                                              alt="ID"
+                                              className="h-10 w-14 object-cover rounded border border-white/20"
+                                              title="Pièce d'identité"
+                                            />
+                                          </a>
+                                        )}
+                                        {kycRec.selfieBase64 && (
+                                          <a
+                                            href={kycRec.selfieBase64}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                          >
+                                            <img
+                                              src={kycRec.selfieBase64}
+                                              alt="Selfie"
+                                              className="h-10 w-10 object-cover rounded-full border border-white/20"
+                                              title="Selfie"
+                                            />
+                                          </a>
+                                        )}
+                                      </div>
+                                    ) : null;
+                                  })()}
                                   <Button
                                     size="sm"
                                     className="h-7 text-xs px-2"

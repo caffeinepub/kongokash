@@ -37,6 +37,8 @@ export interface KycRecord {
   'submittedAt' : bigint,
   'reviewedAt' : bigint,
   'phone' : string,
+  'idDocumentBase64' : string,
+  'selfieBase64' : string,
 }
 export interface MobileMoneyRequest {
   'id' : bigint,
@@ -232,7 +234,7 @@ export interface _SERVICE {
     [number, bigint],
     { 'stakeId' : [] | [bigint], 'message' : string, 'success' : boolean }
   >,
-  'submitKyc' : ActorMethod<[string, string], KycRecord>,
+  'submitKyc' : ActorMethod<[string, string, string, string], KycRecord>,
   'submitMobileMoneyDeposit' : ActorMethod<[string, string, number], bigint>,
   'submitMobileMoneyWithdrawal' : ActorMethod<[string, string, number], bigint>,
   'suspendUser' : ActorMethod<[Principal], undefined>,

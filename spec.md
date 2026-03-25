@@ -1,44 +1,33 @@
-# KongoKash — Système de Parrainage
+# KongoKash — KYC Avancé
 
 ## Current State
 
-KongoKash has a fully functional backend with user profiles, OKP token rewards, transactions, staking, mobile money, and an admin dashboard. There is no referral system: no referral codes, no tracking of who referred whom, and no referral-specific OKP rewards.
+Le KYC simple (nom + téléphone) est actif. La section "Vérification avancée" dans BanquesSection.tsx existe mais est désactivée avec badge "Bientôt disponible" et champs non-fonctionnels. Le backend `KycRecord` contient seulement `fullName`, `phone`, `status`, `submittedAt`, `reviewedAt`, `userId`.
 
 ## Requested Changes (Diff)
 
 ### Add
-- **Referral code per user**: Each user gets a unique alphanumeric code generated on first login. Stored in backend.
-- **Referral registration**: When a new user signs up, they can optionally enter a referral code. The system records the referrer → referee relationship.
-- **Referral rewards (OKP)**:
-  - Referrer receives +100 OKP when a referred user completes their first crypto transaction.
-  - New user receives +50 OKP bonus at signup when using a valid referral code.
-- **Referral dashboard (user-facing)**: A new "Parrainage" tab in the user Dashboard showing:
-  - User's own referral code (copyable)
-  - Shareable referral link (e.g. `https://app.kongokash.cd?ref=XXXXX`)
-  - List of referred users (display name or anonymous ID, join date, status: actif/en attente)
-  - Total OKP earned via referrals
-- **Admin visibility**: Admin dashboard "Utilisateurs" tab shows referral counts per user.
+- Champs `idDocumentBase64 : Text` et `selfieBase64 : Text` dans le type `KycRecord` (Motoko)
+- Paramètres optionnels `idDocument` et `selfie` dans `submitKyc`
+- Upload de pièce d'identité (photo de carte nationale, passeport) — input file dans le frontend
+- Capture selfie via caméra ou upload photo — input file dans le frontend
+- Affichage des photos ID et selfie dans le Dashboard Admin (onglet Utilisateurs) pour review
+- Indicateur visuel KYC "avancé" approuvé vs KYC simple dans le profil utilisateur
 
 ### Modify
-- `UserProfile` type: add optional `referralCode` and `referredBy` fields.
-- OKP reward logic: when a referred user makes their first crypto purchase, trigger a +100 OKP reward for the referrer.
-- New user signup flow: accept optional referral code, validate it, apply bonus.
+- `submitKyc(fullName, phone)` → `submitKyc(fullName, phone, idDocumentBase64, selfieBase64)` avec champs optionnels (Text vide si non fourni)
+- Section "Vérification avancée" dans BanquesSection.tsx : activer les champs (retirer opacity-50, cursor-not-allowed, badge "Bientôt disponible")
+- `KycRecord` type dans backend.d.ts et declarations
+- Formulaire KYC devient 2 niveaux : basique (nom + tel) suffit pour accès, avancé (ID + selfie) pour statut "vérifié avancé"
 
 ### Remove
-- Nothing removed.
+- Badge "Bientôt disponible" sur la section KYC avancée
+- `opacity-50 cursor-not-allowed` sur les champs ID et selfie
 
 ## Implementation Plan
 
-1. **Backend**:
-   - Add `referralCode : ?Text` and `referredBy : ?Principal` to user data.
-   - `generateReferralCode(caller)` — generates and stores a unique 6-char code for the user.
-   - `getReferralCode(caller)` — returns caller's referral code (generates if missing).
-   - `applyReferralCode(code: Text)` — called by new user at signup; validates code, records referrer, grants +50 OKP.
-   - `getReferralStats(caller)` — returns list of referred users with join date and first-tx status, plus total OKP earned from referrals.
-   - On first `buyCrypto` or `sellCrypto`, check if user was referred and hasn't triggered the referral reward yet → grant +100 OKP to referrer.
-
-2. **Frontend**:
-   - New `ReferralSection.tsx` component with referral code display/copy, shareable link, referred users list, and OKP earned.
-   - Add "Parrainage" tab to the user Dashboard.
-   - Add optional referral code input field in the KYC/profile setup flow (or as a standalone modal at first login).
-   - Admin dashboard: show referral count in user list.
+1. Mettre à jour `KycRecord` dans main.mo pour inclure `idDocumentBase64` et `selfieBase64`
+2. Mettre à jour `submitKyc` pour accepter 4 paramètres (2 existants + 2 nouveaux)
+3. Régénérer/mettre à jour backend.d.ts avec les nouveaux types
+4. Mettre à jour BanquesSection.tsx : activer les champs file upload pour ID et selfie, les rendre fonctionnels (FileReader → base64)
+5. Mettre à jour AdminDashboard.tsx : afficher thumbnails des documents soumis dans la vue utilisateur KYC

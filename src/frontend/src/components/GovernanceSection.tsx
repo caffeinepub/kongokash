@@ -21,10 +21,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+  ArrowRight,
   CheckCircle,
   ExternalLink,
   Landmark,
   Lock,
+  RefreshCw,
   Shield,
   ThumbsDown,
   ThumbsUp,
@@ -91,29 +93,69 @@ const MOCK_WITHDRAWALS = [
   },
 ];
 
-const MOCK_SIGNERS = [
+interface SignerRole {
+  roleId: "public" | "auditor" | "team";
+  roleLabel: string;
+  roleDescription: string;
+  icon: string;
+  currentHolder: {
+    name: string;
+    principal: string;
+    since: string;
+  };
+  signed: boolean;
+}
+
+const INITIAL_SIGNERS: SignerRole[] = [
   {
+    roleId: "public",
+    roleLabel: "Entité Publique",
+    roleDescription: "Représentant institutionnel de l'État congolais",
     icon: "🏛️",
-    type: "Entité Publique",
-    name: "Banque Centrale du Congo",
-    principal: "2vxsx-fae...bcc1",
+    currentHolder: {
+      name: "Banque Centrale du Congo",
+      principal: "2vxsx-fae...bcc1",
+      since: "01 Nov 2025",
+    },
     signed: true,
   },
   {
+    roleId: "auditor",
+    roleLabel: "Auditeur Indépendant",
+    roleDescription: "Entité de contrôle externe et de vérification",
     icon: "🔍",
-    type: "Auditeur Indépendant",
-    name: "Cabinet Ernst & Young RDC",
-    principal: "rdmx6-jaaaa...kq2",
+    currentHolder: {
+      name: "Cabinet Ernst & Young RDC",
+      principal: "rdmx6-jaaaa...kq2",
+      since: "01 Nov 2025",
+    },
     signed: true,
   },
   {
+    roleId: "team",
+    roleLabel: "Équipe Projet",
+    roleDescription: "Représentant opérationnel de KongoKash",
     icon: "👥",
-    type: "Équipe Projet",
-    name: "KongoKash Core Team",
-    principal: "aaaaa-bb...0001",
+    currentHolder: {
+      name: "KongoKash Core Team",
+      principal: "aaaaa-bb...0001",
+      since: "01 Nov 2025",
+    },
     signed: false,
   },
 ];
+
+interface ReplacementProposal {
+  id: number;
+  targetRoleId: string;
+  targetRoleLabel: string;
+  proposedHolder: string;
+  proposedPrincipal: string;
+  proposedBy: string;
+  approvals: string[];
+  status: "en_attente" | "approuve" | "rejete";
+  createdAt: string;
+}
 
 type ProposalStatus = "en_cours" | "approuvee" | "rejetee";
 
@@ -150,7 +192,7 @@ const INITIAL_PROPOSALS: Proposal[] = [
   },
 ];
 
-const TIMELINE = [
+const INITIAL_TIMELINE = [
   {
     date: "01 Nov 2025",
     event: "Initialisation du contrat de vesting",
@@ -180,6 +222,13 @@ const TIMELINE = [
     color: "oklch(0.55 0.18 145)",
   },
   {
+    date: "10 Jan 2026",
+    event: "Remplacement signataire — Entité Publique",
+    detail: "Nouveau titulaire validé par 2/2 signataires",
+    icon: <Users size={14} />,
+    color: GOV_COLOR,
+  },
+  {
     date: "20 Mar 2026",
     event: "Proposition DAO soumise",
     detail: "Financement école numérique — Kinshasa",
@@ -201,6 +250,7 @@ const GOVERNANCE_RULES = [
   "Vesting 5 ans : les tokens sont débloqués progressivement sur 60 mois — impossible d'en extraire la totalité.",
   "Quorum DAO : une proposition est approuvée si elle obtient ≥ 60% des votes et un quorum d'au moins 10% des détenteurs OKP.",
   "Immuabilité : les règles de gouvernance sont encodées dans le smart contract — aucune modification unilatérale possible.",
+  "Continuité des rôles : les 3 rôles signataires sont permanents. Seul le titulaire peut changer, sur validation des 2 autres signataires.",
 ];
 
 function VestingTab() {
@@ -406,7 +456,7 @@ function ProposalsTab() {
     setProposals((prev) =>
       prev.map((p) => {
         if (p.id !== id) return p;
-        const totalVotes = p.pour + p.contre + 10; // simulate adding votes
+        const totalVotes = p.pour + p.contre + 10;
         const newPour = type === "pour" ? p.pour + 8 : p.pour;
         const newContre = type === "contre" ? p.contre + 8 : p.contre;
         const total = newPour + newContre + (totalVotes - p.pour - p.contre);
@@ -612,73 +662,392 @@ function ProposalsTab() {
 }
 
 function MultiSigTab() {
+  const [signers, setSigners] = useState<SignerRole[]>(INITIAL_SIGNERS);
+  const [proposals, setProposals] = useState<ReplacementProposal[]>([]);
+  const [openDialogRoleId, setOpenDialogRoleId] = useState<string | null>(null);
+  const [newHolderName, setNewHolderName] = useState("");
+  const [newHolderPrincipal, setNewHolderPrincipal] = useState("");
+
+  const pendingProposals = proposals.filter((p) => p.status === "en_attente");
+
+  function submitReplacement(role: SignerRole) {
+    if (!newHolderName.trim() || !newHolderPrincipal.trim()) return;
+    const newProposal: ReplacementProposal = {
+      id: proposals.length + 1,
+      targetRoleId: role.roleId,
+      targetRoleLabel: role.roleLabel,
+      proposedHolder: newHolderName.trim(),
+      proposedPrincipal: newHolderPrincipal.trim(),
+      proposedBy: "Équipe Projet",
+      approvals: [],
+      status: "en_attente",
+      createdAt: new Date().toLocaleDateString("fr-FR"),
+    };
+    setProposals((prev) => [newProposal, ...prev]);
+    setNewHolderName("");
+    setNewHolderPrincipal("");
+    setOpenDialogRoleId(null);
+    toast.success(
+      "Proposition de remplacement soumise — en attente de 2 validations",
+    );
+  }
+
+  function approveReplacement(proposalId: number, approvingRoleId: string) {
+    setProposals((prev) =>
+      prev.map((p) => {
+        if (p.id !== proposalId || p.approvals.includes(approvingRoleId))
+          return p;
+        const newApprovals = [...p.approvals, approvingRoleId];
+        if (newApprovals.length >= 2) {
+          // Apply the replacement
+          setSigners((prevSigners) =>
+            prevSigners.map((s) =>
+              s.roleId === p.targetRoleId
+                ? {
+                    ...s,
+                    currentHolder: {
+                      name: p.proposedHolder,
+                      principal: p.proposedPrincipal,
+                      since: new Date().toLocaleDateString("fr-FR"),
+                    },
+                  }
+                : s,
+            ),
+          );
+          toast.success("Remplacement validé — nouveau titulaire actif");
+          return { ...p, approvals: newApprovals, status: "approuve" };
+        }
+        toast.success("Validation enregistrée");
+        return { ...p, approvals: newApprovals };
+      }),
+    );
+  }
+
+  const otherRoles = signers.filter((s) => s.roleId !== "team");
+
   return (
     <div className="space-y-6" data-ocid="governance.multisig.panel">
-      {/* Explanation */}
+      {/* Role continuity banner */}
       <Card style={{ border: `1px solid ${GOV_COLOR}33`, background: GOV_BG }}>
         <CardContent className="pt-5">
           <div className="flex items-start gap-3">
             <Shield size={20} style={{ color: GOV_COLOR, marginTop: 2 }} />
             <div>
               <h3 className="font-semibold mb-1" style={{ color: GOV_COLOR }}>
-                Mécanisme Multi-Signature 3/3
+                Rôles permanents — indépendants des individus
               </h3>
               <p className="text-sm text-muted-foreground">
-                <strong>3 signatures requises</strong> pour chaque retrait
-                mensuel. Les 3 entités signataires désignées doivent approuver
-                individuellement avant qu'aucune transaction ne soit exécutée.
-                Ce mécanisme garantit qu'aucune entité seule ne peut accéder aux
-                fonds.
+                Les rôles sont permanents. Si un titulaire change (ex : nouveau
+                ministre), son remplaçant hérite du rôle{" "}
+                <strong>sans que les fonds ne bougent</strong>. 2 validations
+                des autres signataires sont requises pour tout remplacement.
               </p>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Signers table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base font-semibold">
-            Signataires enregistrés
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {MOCK_SIGNERS.map((s, i) => (
-              <div
-                key={s.name}
-                className="flex items-center gap-4 p-3 rounded-xl"
-                style={{
-                  background: `${GOV_COLOR}08`,
-                  border: `1px solid ${GOV_COLOR}18`,
-                }}
-                data-ocid={`governance.signer.item.${i + 1}`}
-              >
-                <span className="text-2xl">{s.icon}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-sm">{s.name}</span>
-                    <Badge
-                      className="text-xs"
+      {/* Section A — Role cards */}
+      <div>
+        <h3
+          className="font-semibold text-base mb-3"
+          style={{ color: GOV_COLOR }}
+        >
+          Signataires par rôle
+        </h3>
+        <div className="space-y-4">
+          {signers.map((s, i) => (
+            <Card
+              key={s.roleId}
+              style={{ border: `1px solid ${GOV_COLOR}22` }}
+              data-ocid={`governance.signer.item.${i + 1}`}
+            >
+              <CardContent className="pt-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <span className="text-3xl shrink-0">{s.icon}</span>
+                    <div className="min-w-0">
+                      {/* Role label — permanent, prominent */}
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span
+                          className="text-base font-bold"
+                          style={{ color: GOV_COLOR }}
+                        >
+                          {s.roleLabel}
+                        </span>
+                        <Badge
+                          className="text-xs font-medium"
+                          style={{
+                            background: `${GOV_COLOR}15`,
+                            color: GOV_COLOR,
+                            border: `1px solid ${GOV_COLOR}33`,
+                          }}
+                        >
+                          Rôle permanent
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mb-3">
+                        {s.roleDescription}
+                      </p>
+
+                      {/* Current holder — subordinate */}
+                      <div
+                        className="rounded-lg px-3 py-2"
+                        style={{ background: "oklch(0 0 0 / 0.04)" }}
+                      >
+                        <p
+                          className="text-xs font-medium mb-1"
+                          style={{ color: TEAL }}
+                        >
+                          Titulaire actuel
+                        </p>
+                        <p className="text-sm font-semibold text-foreground">
+                          {s.currentHolder.name}
+                        </p>
+                        <p className="text-xs font-mono text-muted-foreground">
+                          {s.currentHolder.principal}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          depuis le {s.currentHolder.since}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Replace button */}
+                  <Dialog
+                    open={openDialogRoleId === s.roleId}
+                    onOpenChange={(o) =>
+                      setOpenDialogRoleId(o ? s.roleId : null)
+                    }
+                  >
+                    <DialogTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="shrink-0"
+                        style={{
+                          borderColor: `${GOLD}66`,
+                          color: GOLD,
+                        }}
+                        data-ocid={`governance.signer.open_modal_button.${i + 1}`}
+                      >
+                        <RefreshCw size={13} className="mr-1" />
+                        Proposer un remplacement
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent
+                      data-ocid={`governance.signer.dialog.${i + 1}`}
+                    >
+                      <DialogHeader>
+                        <DialogTitle>
+                          Proposer un remplacement — {s.roleLabel}
+                        </DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div
+                          className="rounded-lg p-3 text-sm"
+                          style={{
+                            background: `${GOLD}10`,
+                            border: `1px solid ${GOLD}33`,
+                            color: GOLD,
+                          }}
+                        >
+                          Le rôle <strong>{s.roleLabel}</strong> restera actif.
+                          Seul le titulaire changera, après validation des 2
+                          autres signataires.
+                        </div>
+                        <div>
+                          <Label htmlFor={`holder-name-${s.roleId}`}>
+                            Nouveau titulaire (nom de l'institution)
+                          </Label>
+                          <Input
+                            id={`holder-name-${s.roleId}`}
+                            value={newHolderName}
+                            onChange={(e) => setNewHolderName(e.target.value)}
+                            placeholder="ex: Ministère du Numérique"
+                            data-ocid={`governance.signer.input.${i + 1}`}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor={`holder-principal-${s.roleId}`}>
+                            Principal ICP
+                          </Label>
+                          <Input
+                            id={`holder-principal-${s.roleId}`}
+                            value={newHolderPrincipal}
+                            onChange={(e) =>
+                              setNewHolderPrincipal(e.target.value)
+                            }
+                            placeholder="ex: rrkah-fqaaa...abc1"
+                            className="font-mono text-sm"
+                            data-ocid={`governance.signer.principal.input.${i + 1}`}
+                          />
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button
+                          variant="outline"
+                          onClick={() => setOpenDialogRoleId(null)}
+                          data-ocid={`governance.signer.cancel_button.${i + 1}`}
+                        >
+                          Annuler
+                        </Button>
+                        <Button
+                          onClick={() => submitReplacement(s)}
+                          style={{ background: GOLD, color: "white" }}
+                          data-ocid={`governance.signer.submit_button.${i + 1}`}
+                        >
+                          Soumettre la proposition
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      {/* Section B — Pending replacement proposals */}
+      {pendingProposals.length > 0 && (
+        <div>
+          <h3 className="font-semibold text-base mb-3" style={{ color: GOLD }}>
+            Propositions de remplacement en cours
+          </h3>
+          <div className="space-y-4" data-ocid="governance.replacements.list">
+            {pendingProposals.map((prop, idx) => {
+              const targetSigner = signers.find(
+                (s) => s.roleId === prop.targetRoleId,
+              );
+              const approvalCount = prop.approvals.length;
+              const requiredApprovals = 2;
+              return (
+                <Card
+                  key={prop.id}
+                  style={{ border: `1px solid ${GOLD}44` }}
+                  data-ocid={`governance.replacements.item.${idx + 1}`}
+                >
+                  <CardContent className="pt-5 space-y-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span
+                            className="font-semibold text-sm"
+                            style={{ color: GOV_COLOR }}
+                          >
+                            {prop.targetRoleLabel}
+                          </span>
+                          <Badge
+                            style={{
+                              background: `${GOLD}15`,
+                              color: GOLD,
+                              border: `1px solid ${GOLD}44`,
+                            }}
+                          >
+                            En attente
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Proposé par : {prop.proposedBy} · {prop.createdAt}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span
+                          className="text-sm font-bold"
+                          style={{ color: GOLD }}
+                        >
+                          {approvalCount} / {requiredApprovals} validations
+                        </span>
+                        <div className="mt-1 w-24">
+                          <Progress
+                            value={(approvalCount / requiredApprovals) * 100}
+                            className="h-1.5"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Current → Proposed */}
+                    <div
+                      className="flex items-center gap-3 rounded-lg p-3 text-sm"
                       style={{
-                        background: `${TEAL}15`,
-                        color: TEAL,
-                        border: `1px solid ${TEAL}33`,
+                        background: `${GOLD}08`,
+                        border: `1px solid ${GOLD}22`,
                       }}
                     >
-                      Enregistré
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground">{s.type}</p>
-                  <p className="text-xs font-mono text-muted-foreground">
-                    {s.principal}
-                  </p>
-                </div>
-              </div>
-            ))}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-muted-foreground">Actuel</p>
+                        <p className="font-medium truncate">
+                          {targetSigner?.currentHolder.name}
+                        </p>
+                      </div>
+                      <ArrowRight
+                        size={16}
+                        style={{ color: GOLD, flexShrink: 0 }}
+                      />
+                      <div className="flex-1 min-w-0 text-right">
+                        <p className="text-xs text-muted-foreground">Proposé</p>
+                        <p
+                          className="font-semibold truncate"
+                          style={{ color: GOLD }}
+                        >
+                          {prop.proposedHolder}
+                        </p>
+                        <p className="text-xs font-mono text-muted-foreground truncate">
+                          {prop.proposedPrincipal}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Validation buttons — other signers can approve */}
+                    <div className="flex flex-wrap gap-2">
+                      {otherRoles
+                        .filter((r) => r.roleId !== prop.targetRoleId)
+                        .map((r) => {
+                          const hasApproved = prop.approvals.includes(r.roleId);
+                          return (
+                            <Button
+                              key={r.roleId}
+                              size="sm"
+                              variant="outline"
+                              disabled={hasApproved}
+                              onClick={() =>
+                                approveReplacement(prop.id, r.roleId)
+                              }
+                              style={{
+                                borderColor: hasApproved
+                                  ? "oklch(0.55 0.18 145)"
+                                  : `${TEAL}66`,
+                                color: hasApproved
+                                  ? "oklch(0.55 0.18 145)"
+                                  : TEAL,
+                              }}
+                              data-ocid={`governance.replacements.validate.${idx + 1}`}
+                            >
+                              {hasApproved ? (
+                                <>
+                                  <CheckCircle size={13} className="mr-1" />
+                                  {r.roleLabel} — Validé
+                                </>
+                              ) : (
+                                <>
+                                  <Shield size={13} className="mr-1" />
+                                  Valider ({r.roleLabel})
+                                </>
+                              )}
+                            </Button>
+                          );
+                        })}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      )}
 
       {/* Pending withdrawal */}
       <Card>
@@ -716,8 +1085,8 @@ function MultiSigTab() {
 
             {/* Signers status */}
             <div className="space-y-2 mb-4">
-              {MOCK_SIGNERS.map((s) => (
-                <div key={s.name} className="flex items-center gap-2 text-sm">
+              {signers.map((s) => (
+                <div key={s.roleId} className="flex items-center gap-2 text-sm">
                   {s.signed ? (
                     <CheckCircle
                       size={15}
@@ -730,10 +1099,10 @@ function MultiSigTab() {
                     />
                   )}
                   <span className={s.signed ? "" : "text-muted-foreground"}>
-                    {s.name}
+                    {s.currentHolder.name}
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    ({s.type})
+                    ({s.roleLabel})
                   </span>
                 </div>
               ))}
@@ -795,7 +1164,7 @@ function TransparencyTab() {
               style={{ background: `${GOV_COLOR}30` }}
             />
             <div className="space-y-4">
-              {TIMELINE.map((item, i) => (
+              {INITIAL_TIMELINE.map((item, i) => (
                 <div
                   key={item.event}
                   className="flex items-start gap-4 pl-10 relative"
@@ -921,6 +1290,15 @@ export function GovernanceSection() {
                 }}
               >
                 🗳️ Gouvernance DAO
+              </Badge>
+              <Badge
+                style={{
+                  background: "oklch(0.55 0.18 145 / 0.15)",
+                  color: "oklch(0.55 0.18 145)",
+                  border: "1px solid oklch(0.55 0.18 145 / 0.3)",
+                }}
+              >
+                🔄 Rôles permanents
               </Badge>
             </div>
           </div>

@@ -1,31 +1,30 @@
-# KongoKash — Vesting Équipe On-Chain
+# KongoKash
 
 ## Current State
-
-Le backend Motoko (main.mo, ~1967 lignes) gère le token OKP avec staking, rewards, burn, halvening, KYC, mobile money, multi-sig admin. L'allocation Équipe (20% = 200M OKP) est présente dans `getInitialAllocations()` avec le badge `locked = true` mais sans logique de vesting réelle sur la blockchain.
+The GovernanceSection has a MultiSigTab that displays 3 mock signers (with hardcoded names: Banque Centrale du Congo, Ernst & Young, KongoKash Core Team). There is no mechanism to replace a signer, and signers are tied to individual names rather than institutional roles.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Variables d'état pour le vesting Équipe : `vestingStartTime`, `vestingTotalAmount`, `vestingClaimedAmount`
-- Constantes : VESTING_TOTAL = 200_000_000, CLIFF_MONTHS = 12, VESTING_MONTHS = 48
-- Fonction `initTeamVesting(beneficiary: Principal)` — appelable une seule fois par l'admin pour démarrer l'horloge du vesting
-- Fonction `getTeamVestingStatus()` — query publique retournant : montant total, montant réclamé, montant disponible, montant encore verrouillé, temps restant au cliff, prochaine libération mensuelle
-- Fonction `claimTeamVesting()` — callable uniquement par le bénéficiaire désigné, libère uniquement la portion disponible (post-cliff, mensuelle progressive)
-- Type `TeamVestingStatus` dans backend.d.ts
+- Role-based signer architecture: each slot has a ROLE (Entité Publique, Auditeur Indépendant, Équipe Projet) that persists regardless of who currently fills it
+- "Titulaire actuel" field per role (replaceable), separate from the role label
+- Signer replacement proposal system: any signer can initiate a request to replace the current holder of a role with a new entity
+- Replacement approval flow: the other 2 signers must validate the replacement before it takes effect
+- Visual state for pending replacement proposals (showing approvals count, who approved)
+- Transition log: show history of past replacements in the Transparency tab
 
 ### Modify
-- `getInitialAllocations()` : mettre à jour la description de l'allocation Équipe pour refléter "Vesting 4 ans, cliff 12 mois"
-- `getOkpStats()` : inclure le montant Équipe toujours verrouillé dans le calcul des tokens bloqués
+- MultiSigTab: restructure signer cards to clearly show ROLE vs current holder, add "Proposer un remplacement" button per signer slot
+- Governance rules: add a rule about role-based continuity and replacement process
+- Mock signers data: separate role identity from current titulaire
 
 ### Remove
-- Rien à supprimer
+- Nothing removed, only enhanced
 
 ## Implementation Plan
-
-1. Ajouter les variables d'état vesting dans l'acteur (vestingStartTime, vestingBeneficiary, vestingClaimedAmount, vestingInitialized)
-2. Implémenter la logique de calcul : tokens disponibles = max(0, (moisDepuisCliff * montantMensuel) - déjà réclamé)
-3. Ajouter les 3 fonctions publiques : initTeamVesting, getTeamVestingStatus, claimTeamVesting
-4. Mettre à jour les stats OKP pour refléter les tokens toujours verrouillés
-5. Régénérer backend.d.ts avec les nouveaux types
-6. Ajouter un onglet/section "Vesting Équipe" dans la page Okapi du frontend avec l'état en temps réel
+1. Restructure mock signer data to have: role, roleIcon, roleLabel, currentHolder (name + principal), and replacement requests
+2. Add local state for replacement proposals (id, targetRole, proposedHolder, proposedPrincipal, approvals, status)
+3. In MultiSigTab: redesign signer cards to emphasize role continuity with a "Proposer un remplacement" dialog per slot
+4. Add a ReplacementProposals section within MultiSigTab showing pending proposals with approve buttons
+5. Add replacement history entries to the Transparency timeline
+6. Update governance rules to mention role-based continuity

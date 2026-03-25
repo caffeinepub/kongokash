@@ -145,3 +145,48 @@ export function useOkpAdminStats() {
     refetchInterval: 15000,
   });
 }
+
+export function useTeamVestingStatus() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["teamVestingStatus"],
+    queryFn: async () => {
+      if (!actor) return null;
+      return (actor as any).getTeamVestingStatus();
+    },
+    enabled: !!actor && !isFetching,
+    refetchInterval: 30000,
+  });
+}
+
+export function useClaimTeamVesting() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!actor) throw new Error("Non connecté");
+      return (actor as any).claimTeamVesting();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["teamVestingStatus"] });
+      qc.invalidateQueries({ queryKey: ["okpBalance"] });
+      qc.invalidateQueries({ queryKey: ["wallet"] });
+    },
+  });
+}
+
+export function useInitTeamVesting() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (
+      beneficiary: import("@icp-sdk/core/principal").Principal,
+    ) => {
+      if (!actor) throw new Error("Non connecté");
+      return (actor as any).initTeamVesting(beneficiary);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["teamVestingStatus"] });
+    },
+  });
+}

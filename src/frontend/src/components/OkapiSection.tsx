@@ -38,15 +38,19 @@ import {
 import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useActor } from "../hooks/useActor";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   useClaimDailyReward,
+  useClaimTeamVesting,
+  useInitTeamVesting,
   useOkpAdminStats,
   useOkpBalance,
   useOkpToCdfRate,
   usePayMerchantOkp,
   useStakeOkp,
   useStakes,
+  useTeamVestingStatus,
   useTransferOkp,
   useUnstakeOkp,
 } from "../hooks/useOkpQueries";
@@ -713,6 +717,376 @@ function WhitepaperTab() {
   );
 }
 
+function formatOkpAmount(amount: number): string {
+  return new Intl.NumberFormat("fr-FR").format(Math.floor(amount));
+}
+
+function nanosToDate(ns: bigint): string {
+  const ms = Number(ns) / 1_000_000;
+  return new Date(ms).toLocaleDateString("fr-FR", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function VestingEquipeTab() {
+  const { actor } = useActor();
+  const { identity } = useInternetIdentity();
+  const { data: vestingStatus, isLoading } = useTeamVestingStatus();
+  const claimMutation = useClaimTeamVesting();
+  const initMutation = useInitTeamVesting();
+  const [beneficiaryInput, setBeneficiaryInput] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // Check admin status when actor is available
+  useState(() => {
+    if (actor) {
+      actor
+        .isCallerAdmin()
+        .then(setIsAdmin)
+        .catch(() => setIsAdmin(false));
+    }
+  });
+
+  const isBeneficiary =
+    identity &&
+    vestingStatus?.beneficiary &&
+    identity.getPrincipal().toString() === vestingStatus.beneficiary.toString();
+
+  async function handleInit() {
+    if (!beneficiaryInput.trim()) return;
+    try {
+      const { Principal } = await import("@icp-sdk/core/principal");
+      const principal = Principal.fromText(beneficiaryInput.trim());
+      await initMutation.mutateAsync(principal);
+      toast.success("Vesting initialisé avec succès !");
+    } catch {
+      toast.error("Erreur : principal invalide ou non autorisé");
+    }
+  }
+
+  async function handleClaim() {
+    try {
+      const result = await claimMutation.mutateAsync();
+      toast.success(
+        `${formatOkpAmount(result.claimedAmount - (vestingStatus?.claimedAmount ?? 0))} OKP réclamés !`,
+      );
+    } catch {
+      toast.error("Erreur lors de la réclamation");
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div
+        className="flex items-center justify-center py-16"
+        data-ocid="vesting.loading_state"
+      >
+        <Loader2 className="animate-spin mr-3 text-primary" size={28} />
+        <span className="text-muted-foreground">Chargement du vesting…</span>
+      </div>
+    );
+  }
+
+  const total = vestingStatus?.totalAmount ?? 200_000_000;
+  const claimed = vestingStatus?.claimedAmount ?? 0;
+  const available = vestingStatus?.availableToClaim ?? 0;
+  const locked = vestingStatus?.lockedAmount ?? total;
+  const claimedPct = (claimed / total) * 100;
+  const availablePct = (available / total) * 100;
+
+  const now = BigInt(Date.now()) * 1_000_000n;
+  const cliffPassed =
+    vestingStatus?.initialized && vestingStatus.cliffEndTime < now;
+  const monthsToCliff =
+    vestingStatus?.initialized && !cliffPassed
+      ? Math.max(
+          0,
+          Math.ceil(
+            Number(vestingStatus.cliffEndTime - now) /
+              1_000_000 /
+              1000 /
+              60 /
+              60 /
+              24 /
+              30,
+          ),
+        )
+      : 0;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className="space-y-6"
+    >
+      {/* Header */}
+      <Card className="border-0 shadow-lg overflow-hidden">
+        <div className="h-2 w-full bg-gradient-to-r from-primary via-[oklch(0.75_0.18_85)] to-muted" />
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div
+              className="p-2 rounded-xl"
+              style={{ background: "oklch(0.55 0.18 200 / 0.12)" }}
+            >
+              <Lock className="text-primary" size={22} />
+            </div>
+            <div>
+              <CardTitle className="text-xl font-bold">
+                Vesting Allocation Équipe
+              </CardTitle>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                200 000 000 OKP — Cliff 12 mois · Libération sur 4 ans
+              </p>
+            </div>
+            <div className="ml-auto">
+              {!vestingStatus?.initialized ? (
+                <Badge variant="secondary" data-ocid="vesting.status.badge">
+                  Non initialisé
+                </Badge>
+              ) : !cliffPassed ? (
+                <Badge
+                  className="bg-amber-100 text-amber-800 border-amber-200"
+                  data-ocid="vesting.status.badge"
+                >
+                  Période de cliff · {monthsToCliff} mois restants
+                </Badge>
+              ) : (
+                <Badge
+                  className="bg-emerald-100 text-emerald-800 border-emerald-200"
+                  data-ocid="vesting.status.badge"
+                >
+                  En cours de libération ·{" "}
+                  {vestingStatus.monthsElapsedSinceCliff.toString()} mois
+                  écoulés
+                </Badge>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className="space-y-6">
+          {/* Multi-segment progress bar */}
+          <div>
+            <div className="flex justify-between text-xs text-muted-foreground mb-2">
+              <span>Réclamé : {claimedPct.toFixed(1)}%</span>
+              <span>Disponible : {availablePct.toFixed(1)}%</span>
+              <span>
+                Verrouillé : {(100 - claimedPct - availablePct).toFixed(1)}%
+              </span>
+            </div>
+            <div
+              className="h-4 rounded-full overflow-hidden flex bg-muted"
+              data-ocid="vesting.progress_bar"
+            >
+              <div
+                className="h-full transition-all duration-700"
+                style={{
+                  width: `${claimedPct}%`,
+                  background: "oklch(0.55 0.18 200)",
+                }}
+                title={`Réclamé : ${formatOkpAmount(claimed)} OKP`}
+              />
+              <div
+                className="h-full transition-all duration-700"
+                style={{
+                  width: `${availablePct}%`,
+                  background: "oklch(0.75 0.18 85)",
+                }}
+                title={`Disponible : ${formatOkpAmount(available)} OKP`}
+              />
+            </div>
+            <div className="flex items-center gap-4 mt-2 text-xs">
+              <span className="flex items-center gap-1">
+                <span
+                  className="w-3 h-3 rounded-full inline-block"
+                  style={{ background: "oklch(0.55 0.18 200)" }}
+                />
+                Réclamé
+              </span>
+              <span className="flex items-center gap-1">
+                <span
+                  className="w-3 h-3 rounded-full inline-block"
+                  style={{ background: "oklch(0.75 0.18 85)" }}
+                />
+                Disponible
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-3 h-3 rounded-full inline-block bg-muted-foreground/30" />
+                Verrouillé
+              </span>
+            </div>
+          </div>
+
+          {/* Stats grid */}
+          <div
+            className="grid grid-cols-2 md:grid-cols-3 gap-4"
+            data-ocid="vesting.stats.panel"
+          >
+            {[
+              {
+                label: "Total bloqué",
+                value: `${formatOkpAmount(total)} OKP`,
+                icon: Lock,
+                color: "oklch(0.55 0.18 290)",
+              },
+              {
+                label: "Déjà réclamé",
+                value: `${formatOkpAmount(claimed)} OKP`,
+                icon: CheckCircle,
+                color: "oklch(0.55 0.18 200)",
+              },
+              {
+                label: "Disponible",
+                value: `${formatOkpAmount(available)} OKP`,
+                icon: Unlock,
+                color: "oklch(0.65 0.18 85)",
+              },
+              {
+                label: "Encore verrouillé",
+                value: `${formatOkpAmount(locked)} OKP`,
+                icon: Shield,
+                color: "oklch(0.55 0.18 25)",
+              },
+              {
+                label: "Libération mensuelle",
+                value: `~${formatOkpAmount(vestingStatus?.monthlyRelease ?? 5_555_556)} OKP/mois`,
+                icon: TrendingUp,
+                color: "oklch(0.55 0.18 160)",
+              },
+            ].map(({ label, value, icon: Icon, color }) => (
+              <div
+                key={label}
+                className="rounded-xl p-4 border bg-card/50 flex items-start gap-3"
+              >
+                <div
+                  className="rounded-lg p-1.5 mt-0.5"
+                  style={{ background: `${color}20` }}
+                >
+                  <Icon size={16} style={{ color }} />
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">{label}</p>
+                  <p className="text-sm font-semibold mt-0.5">{value}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Dates */}
+          {vestingStatus?.initialized && (
+            <div className="grid grid-cols-2 gap-4 pt-2 border-t">
+              <div className="text-sm">
+                <p className="text-muted-foreground text-xs mb-1">
+                  Fin du cliff
+                </p>
+                <p className="font-medium">
+                  {nanosToDate(vestingStatus.cliffEndTime)}
+                </p>
+              </div>
+              <div className="text-sm">
+                <p className="text-muted-foreground text-xs mb-1">
+                  Fin du vesting
+                </p>
+                <p className="font-medium">
+                  {nanosToDate(vestingStatus.vestingEndTime)}
+                </p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Claim button — beneficiary only */}
+      {isBeneficiary && available > 0 && (
+        <Card
+          className="border-emerald-200 bg-emerald-50/50 dark:bg-emerald-950/20"
+          data-ocid="vesting.claim.card"
+        >
+          <CardContent className="pt-6 flex items-center justify-between">
+            <div>
+              <p className="font-semibold text-emerald-800 dark:text-emerald-200">
+                Tokens disponibles à la réclamation
+              </p>
+              <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300 mt-1">
+                {formatOkpAmount(available)} OKP
+              </p>
+            </div>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              onClick={handleClaim}
+              disabled={claimMutation.isPending}
+              data-ocid="vesting.claim.button"
+            >
+              {claimMutation.isPending ? (
+                <Loader2 size={16} className="animate-spin mr-2" />
+              ) : (
+                <Unlock size={16} className="mr-2" />
+              )}
+              Réclamer {formatOkpAmount(available)} OKP
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Admin controls */}
+      {isAdmin && (
+        <Card className="border-dashed" data-ocid="vesting.admin.panel">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Shield size={16} className="text-primary" />
+              Contrôles administrateur
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!vestingStatus?.initialized ? (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Le vesting n'est pas encore initialisé. Entrez le principal du
+                  bénéficiaire pour démarrer.
+                </p>
+                <div className="flex gap-3">
+                  <Input
+                    placeholder="Principal du bénéficiaire (ex: aaaaa-aa...)"
+                    value={beneficiaryInput}
+                    onChange={(e) => setBeneficiaryInput(e.target.value)}
+                    className="font-mono text-xs"
+                    data-ocid="vesting.admin.beneficiary_input"
+                  />
+                  <Button
+                    onClick={handleInit}
+                    disabled={
+                      initMutation.isPending || !beneficiaryInput.trim()
+                    }
+                    data-ocid="vesting.admin.init_button"
+                  >
+                    {initMutation.isPending ? (
+                      <Loader2 size={14} className="animate-spin mr-1" />
+                    ) : null}
+                    Initialiser
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-300">
+                <CheckCircle size={16} />
+                Vesting initialisé le {nanosToDate(vestingStatus.startTime)}
+                {vestingStatus.beneficiary && (
+                  <span className="text-muted-foreground font-mono text-xs ml-2">
+                    · {vestingStatus.beneficiary.toString().slice(0, 20)}…
+                  </span>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </motion.div>
+  );
+}
+
 export default function OkapiSection() {
   const { identity } = useInternetIdentity();
 
@@ -919,7 +1293,7 @@ export default function OkapiSection() {
         {/* Tabs */}
         <Tabs defaultValue="overview" className="w-full">
           <TabsList
-            className="grid grid-cols-7 w-full max-w-4xl mx-auto mb-8"
+            className="grid grid-cols-8 w-full max-w-4xl mx-auto mb-8"
             data-ocid="okapi.tab"
           >
             <TabsTrigger value="overview" data-ocid="okapi.tab">
@@ -942,6 +1316,9 @@ export default function OkapiSection() {
             </TabsTrigger>
             <TabsTrigger value="governance" data-ocid="okapi.tab">
               <Landmark size={14} className="mr-1" /> Gouvernance
+            </TabsTrigger>
+            <TabsTrigger value="vesting" data-ocid="okapi.vesting.tab">
+              <Shield size={14} className="mr-1" /> Vesting Équipe
             </TabsTrigger>
           </TabsList>
 
@@ -2082,6 +2459,10 @@ export default function OkapiSection() {
 
           <TabsContent value="whitepaper">
             <WhitepaperTab />
+          </TabsContent>
+
+          <TabsContent value="vesting">
+            <VestingEquipeTab />
           </TabsContent>
 
           <TabsContent value="governance">

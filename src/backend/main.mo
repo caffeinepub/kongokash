@@ -181,6 +181,21 @@ actor {
     allocations : [OkpAllocation]; // Distribution initiale
   };
 
+
+  type TeamVestingStatus = {
+    initialized : Bool;
+    beneficiary : ?Principal;
+    totalAmount : Float;
+    claimedAmount : Float;
+    availableToClaim : Float;
+    lockedAmount : Float;
+    startTime : Int;
+    cliffEndTime : Int;
+    vestingEndTime : Int;
+    monthsElapsedSinceCliff : Nat;
+    monthlyRelease : Float;
+  };
+
   type UpdateProfileRequest = {
     displayName : Text;
     country : Text;
@@ -360,6 +375,20 @@ actor {
   var currentUserId : ?Principal = null;
   var userCreationTimestamps = Map.empty<Principal, Int>();
   var userFirstTransactionDone = Map.empty<Principal, Bool>(); // Track first transaction
+
+  // ── Vesting Équipe ──────────────────────────────────────────────────────────
+  let VESTING_TOTAL_AMOUNT : Float = 200_000_000.0;
+  let VESTING_CLIFF_MONTHS : Int  = 12;
+  let VESTING_TOTAL_MONTHS : Int  = 48;
+  let VESTING_RELEASE_MONTHS : Int = 36; // mois de libération après le cliff
+  let VESTING_MONTHLY_RELEASE : Float = 200_000_000.0 / 36.0;
+  let MONTH_NS : Int = 30 * 24 * 60 * 60 * 1_000_000_000;
+
+  var vestingStartTime    : Int       = 0;
+  var vestingClaimedAmount : Float    = 0.0;
+  var vestingBeneficiary  : ?Principal = null;
+  var vestingInitialized  : Bool      = false;
+
 
   type UserAdminView = {
     principal : Principal;
@@ -1364,7 +1393,7 @@ actor {
   func getInitialAllocations() : [OkpAllocation] {
     [
       { name = "Communauté"; percentage = 40.0; amount = OKP_TOTAL_SUPPLY * 0.40; description = "Récompenses et incentives communautaires"; locked = false },
-      { name = "Équipe";     percentage = 20.0; amount = OKP_TOTAL_SUPPLY * 0.20; description = "Blocage 2 ans (vesting)"; locked = true },
+      { name = "Équipe";     percentage = 20.0; amount = OKP_TOTAL_SUPPLY * 0.20; description = "Vesting 4 ans, cliff 12 mois — libération mensuelle progressive"; locked = true },
       { name = "Liquidité";  percentage = 15.0; amount = OKP_TOTAL_SUPPLY * 0.15; description = "Liquidité & partenaires stratégiques"; locked = false },
       { name = "Investisseurs"; percentage = 10.0; amount = OKP_TOTAL_SUPPLY * 0.10; description = "Tour de financement initial"; locked = false },
       { name = "Marketing";  percentage = 10.0; amount = OKP_TOTAL_SUPPLY * 0.10; description = "Adoption & croissance"; locked = false },
@@ -1963,5 +1992,112 @@ actor {
     accessControlState.userRoles.add(caller, #admin);
     accessControlState.adminAssigned := true;
   };
+  // ── Vesting Équipe : fonctions publiques ────────────────────────────────────
+
+  func computeVestingStatus() : TeamVestingStatus {
+    if (not vestingInitialized) {
+      return {
+        initialized = false;
+        beneficiary = null;
+        totalAmount = VESTING_TOTAL_AMOUNT;
+        claimedAmount = 0.0;
+        availableToClaim = 0.0;
+        lockedAmount = VESTING_TOTAL_AMOUNT;
+        startTime = 0;
+        cliffEndTime = 0;
+        vestingEndTime = 0;
+        monthsElapsedSinceCliff = 0;
+        monthlyRelease = VESTING_MONTHLY_RELEASE;
+      };
+    };
+    let now = Time.now();
+    let cliffEndTime  = vestingStartTime + VESTING_CLIFF_MONTHS * MONTH_NS;
+    let vestingEndTime = vestingStartTime + VESTING_TOTAL_MONTHS * MONTH_NS;
+    let monthsElapsed : Int = if (now <= cliffEndTime) 0
+                              else Int.min((now - cliffEndTime) / MONTH_NS, VESTING_RELEASE_MONTHS);
+    let monthsElapsedNat : Nat = Int.abs(monthsElapsed);
+    let vestedSoFar : Float = Float.min(
+      VESTING_TOTAL_AMOUNT,
+      Int.abs(monthsElapsed).toFloat() * VESTING_MONTHLY_RELEASE
+    );
+    let available : Float = Float.max(0.0, vestedSoFar - vestingClaimedAmount);
+    let locked : Float = Float.max(0.0, VESTING_TOTAL_AMOUNT - vestingClaimedAmount - available);
+    {
+      initialized = true;
+      beneficiary = vestingBeneficiary;
+      totalAmount = VESTING_TOTAL_AMOUNT;
+      claimedAmount = vestingClaimedAmount;
+      availableToClaim = available;
+      lockedAmount = locked;
+      startTime = vestingStartTime;
+      cliffEndTime;
+      vestingEndTime;
+      monthsElapsedSinceCliff = monthsElapsedNat;
+      monthlyRelease = VESTING_MONTHLY_RELEASE;
+    };
+  };
+
+  /// Initialise le vesting Équipe — admin seulement, appel unique
+  public shared ({ caller }) func initTeamVesting(beneficiary : Principal) : async TeamVestingStatus {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Non autorisé : seul un admin peut initialiser le vesting");
+    };
+    if (vestingInitialized) {
+      Runtime.trap("Le vesting Équipe est déjà initialisé");
+    };
+    vestingStartTime     := Time.now();
+    vestingBeneficiary   := ?beneficiary;
+    vestingInitialized   := true;
+    vestingClaimedAmount := 0.0;
+    computeVestingStatus()
+  };
+
+  /// Consulter l'état du vesting Équipe (public)
+  public query func getTeamVestingStatus() : async TeamVestingStatus {
+    computeVestingStatus()
+  };
+
+  /// Réclamer les tokens disponibles — bénéficiaire seulement
+  public shared ({ caller }) func claimTeamVesting() : async TeamVestingStatus {
+    if (not vestingInitialized) {
+      Runtime.trap("Le vesting n'est pas encore initialisé");
+    };
+    let ?bene = vestingBeneficiary else {
+      Runtime.trap("Aucun bénéficiaire défini");
+    };
+    if (caller != bene) {
+      Runtime.trap("Non autorisé : vous n'êtes pas le bénéficiaire du vesting Équipe");
+    };
+    let status = computeVestingStatus();
+    if (status.availableToClaim <= 0.0) {
+      Runtime.trap("Aucun token disponible pour le moment (cliff ou déjà réclamé)");
+    };
+    let amount = status.availableToClaim;
+    // Créditer le wallet du bénéficiaire
+    let currentBalance = switch (wallets.get(caller)) {
+      case (?w) { w };
+      case (null) { { cdf = 0.0; usd = 0.0; btc = 0.0; eth = 0.0; usdt = 0.0; okp = 0.0 } };
+    };
+    let updated = { currentBalance with okp = currentBalance.okp + amount };
+    wallets.add(caller, updated);
+    vestingClaimedAmount += amount;
+    totalOkpIssued       += amount;
+    // Enregistrer la transaction
+    let tx = createTransaction({
+      userId = caller;
+      txType = "reward";
+      asset = "OKP";
+      cryptoAmount = amount;
+      fiatAmount = 0.0;
+      fiatCurrency = "OKP";
+      paymentMethod = "Vesting Équipe";
+      status = "completed";
+      timestamp = Time.now();
+    });
+    transactions.add(tx);
+    computeVestingStatus()
+  };
+
+
 };
 

@@ -60,6 +60,21 @@ export interface OkpAllocation {
     amount: number;
     percentage: number;
 }
+
+export interface TeamVestingStatus {
+    initialized: boolean;
+    beneficiary: Principal | null;
+    totalAmount: number;
+    claimedAmount: number;
+    availableToClaim: number;
+    lockedAmount: number;
+    startTime: bigint;
+    cliffEndTime: bigint;
+    vestingEndTime: bigint;
+    monthsElapsedSinceCliff: bigint;
+    monthlyRelease: number;
+}
+
 export interface ReferralStats {
     activated: bigint;
     totalOkpEarned: number;
@@ -213,6 +228,9 @@ export interface backendInterface {
     getUserPortfolio(user: Principal): Promise<PortfolioValue>;
     getUserProfile(user: Principal): Promise<UserProfileWithReferral | null>;
     getWallet(): Promise<WalletBalance>;
+    claimTeamVesting(): Promise<TeamVestingStatus>;
+    getTeamVestingStatus(): Promise<TeamVestingStatus>;
+    initTeamVesting(beneficiary: Principal): Promise<TeamVestingStatus>;
     isAdminAssigned(): Promise<boolean>;
     isCallerAdmin(): Promise<boolean>;
     payMerchantOkp(merchant: Principal, okpAmount: number, convertToCdf: boolean): Promise<TransactionResult>;

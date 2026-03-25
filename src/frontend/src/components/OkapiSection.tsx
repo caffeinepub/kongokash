@@ -24,9 +24,11 @@ import {
   Coins,
   Flame,
   Gift,
+  Landmark,
   Loader2,
   Lock,
   Send,
+  Shield,
   ShoppingBag,
   TrendingUp,
   Unlock,
@@ -48,6 +50,7 @@ import {
   useTransferOkp,
   useUnstakeOkp,
 } from "../hooks/useOkpQueries";
+import { GovernanceSection } from "./GovernanceSection";
 
 const OKP_COLOR = "oklch(0.65 0.18 35)";
 const OKP_BG = "oklch(0.65 0.18 35 / 0.1)";
@@ -55,8 +58,8 @@ const OKP_BG = "oklch(0.65 0.18 35 / 0.1)";
 const OKAPI_ALLOCATIONS = [
   {
     name: "Communauté",
-    percentage: 40,
-    amount: 400_000_000,
+    percentage: 30,
+    amount: 300_000_000,
     description: "Récompenses, staking et engagement de la communauté",
     locked: false,
     color: "oklch(0.55 0.18 200)",
@@ -100,6 +103,15 @@ const OKAPI_ALLOCATIONS = [
     description: "Développement futur, audits et fonds d'urgence",
     locked: false,
     color: "oklch(0.55 0.10 240)",
+  },
+  {
+    name: "Gouvernement / Fonds Public",
+    percentage: 10,
+    amount: 100_000_000,
+    description:
+      "Soutien à l'écosystème public congolais — vesting 5 ans, multisig",
+    locked: true,
+    color: "oklch(0.55 0.18 265)",
   },
 ];
 
@@ -907,7 +919,7 @@ export default function OkapiSection() {
         {/* Tabs */}
         <Tabs defaultValue="overview" className="w-full">
           <TabsList
-            className="grid grid-cols-6 w-full max-w-3xl mx-auto mb-8"
+            className="grid grid-cols-7 w-full max-w-4xl mx-auto mb-8"
             data-ocid="okapi.tab"
           >
             <TabsTrigger value="overview" data-ocid="okapi.tab">
@@ -927,6 +939,9 @@ export default function OkapiSection() {
             </TabsTrigger>
             <TabsTrigger value="whitepaper" data-ocid="okapi.tab">
               <BookOpen size={14} className="mr-1" /> Livre Blanc
+            </TabsTrigger>
+            <TabsTrigger value="governance" data-ocid="okapi.tab">
+              <Landmark size={14} className="mr-1" /> Gouvernance
             </TabsTrigger>
           </TabsList>
 
@@ -2067,6 +2082,10 @@ export default function OkapiSection() {
 
           <TabsContent value="whitepaper">
             <WhitepaperTab />
+          </TabsContent>
+
+          <TabsContent value="governance">
+            <GovernanceSection />
           </TabsContent>
         </Tabs>
       </div>

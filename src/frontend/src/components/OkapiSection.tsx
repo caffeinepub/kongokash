@@ -113,7 +113,7 @@ const OKAPI_ALLOCATIONS = [
     percentage: 10,
     amount: 100_000_000,
     description:
-      "Soutien à l'écosystème public congolais — vesting 5 ans, multisig",
+      "Allocation dédiée à soutenir l'écosystème numérique congolais — vesting 5 ans, multisig 3 signataires",
     locked: true,
     color: "oklch(0.55 0.18 265)",
   },

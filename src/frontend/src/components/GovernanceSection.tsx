@@ -355,6 +355,45 @@ function VestingTab() {
         </CardContent>
       </Card>
 
+      {/* Fund description */}
+      <Card
+        style={{
+          border: `1px solid ${GOV_COLOR}22`,
+          background: `${GOV_COLOR}06`,
+        }}
+      >
+        <CardContent className="pt-5 space-y-3">
+          <p className="text-sm font-medium" style={{ color: GOV_COLOR }}>
+            À propos de ce fonds
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Allocation dédiée à soutenir l&apos;écosystème numérique congolais.
+            Ce fonds finance :
+          </p>
+          <ul className="text-sm text-muted-foreground space-y-1 list-none pl-0">
+            {[
+              "Le développement et le soutien de startups locales",
+              "L'infrastructure numérique (plateformes, outils, services)",
+              "La formation et l'éducation en technologies et blockchain",
+              "Des projets innovants favorisant l'adoption des cryptos et des solutions décentralisées",
+            ].map((item) => (
+              <li key={item} className="flex items-start gap-2">
+                <span style={{ color: GOLD, marginTop: 2 }}>▸</span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+          <p
+            className="text-xs text-muted-foreground pt-1 border-t"
+            style={{ borderColor: `${GOV_COLOR}22` }}
+          >
+            L&apos;objectif est de garantir une utilisation transparente,
+            sécurisée et durable des tokens réservés pour le développement
+            numérique du pays.
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Withdrawal history */}
       <Card>
         <CardHeader>

@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle, Loader2, XCircle } from "lucide-react";
+import { CheckCircle, Info, Loader2, XCircle } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -33,6 +33,14 @@ const PAYMENT_OPTIONS: Array<{
   },
   { id: "airtel", label: "Airtel Money", icon: "🔴", desc: "Mobile Money" },
   { id: "mpesa", label: "M-Pesa", icon: "🟢", desc: "Mobile Money" },
+];
+
+const QUICK_SELECT_CHIPS = [
+  { label: "₿ Bitcoin", value: "BTC" },
+  { label: "⟠ Ethereum", value: "ETH" },
+  { label: "₮ USDT", value: "USDT" },
+  { label: "∞ ICP", value: "ICP" },
+  { label: "🦌 OKAPI", value: "OKP" },
 ];
 
 export default function BuySellSection() {
@@ -173,15 +181,26 @@ export default function BuySellSection() {
               ))}
             </div>
 
-            <div className="flex gap-4 flex-wrap">
-              {["₿ Bitcoin", "⟠ Ethereum", "₮ USDT"].map((c) => (
-                <span
-                  key={c}
-                  className="px-4 py-2 rounded-full text-sm font-semibold text-white"
-                  style={{ background: "oklch(0.27 0.07 195)" }}
+            <div className="flex gap-3 flex-wrap">
+              {QUICK_SELECT_CHIPS.map((chip) => (
+                <button
+                  key={chip.value}
+                  type="button"
+                  onClick={() => setBuyAsset(chip.value)}
+                  className="px-4 py-2 rounded-full text-sm font-semibold text-white transition-all hover:opacity-80"
+                  style={{
+                    background:
+                      buyAsset === chip.value
+                        ? "oklch(0.77 0.13 85)"
+                        : "oklch(0.27 0.07 195)",
+                    boxShadow:
+                      buyAsset === chip.value
+                        ? "0 0 0 2px oklch(0.77 0.13 85 / 0.4)"
+                        : "none",
+                  }}
                 >
-                  {c}
-                </span>
+                  {chip.label}
+                </button>
               ))}
             </div>
           </motion.div>
@@ -195,6 +214,23 @@ export default function BuySellSection() {
           >
             <Card className="shadow-card-lg border" data-ocid="buysell.card">
               <CardContent className="p-6">
+                {/* CDF Bridge Info Banner */}
+                <div
+                  className="flex items-start gap-2 p-3 rounded-lg mb-5 text-sm"
+                  style={{
+                    background: "oklch(0.27 0.07 195 / 0.08)",
+                    border: "1px solid oklch(0.27 0.07 195 / 0.25)",
+                    color: "oklch(0.27 0.07 195)",
+                  }}
+                >
+                  <Info size={15} className="mt-0.5 flex-shrink-0" />
+                  <span>
+                    Le <strong>franc congolais (CDF)</strong> est votre monnaie
+                    de passage — échangez n'importe quelle crypto contre CDF,
+                    puis achetez <strong>OKAPI</strong>.
+                  </span>
+                </div>
+
                 <Tabs defaultValue="buy">
                   <TabsList className="grid w-full grid-cols-2 mb-6">
                     <TabsTrigger value="buy" data-ocid="buysell.tab">
@@ -217,6 +253,12 @@ export default function BuySellSection() {
                           <SelectItem value="BTC">₿ Bitcoin (BTC)</SelectItem>
                           <SelectItem value="ETH">⟠ Ethereum (ETH)</SelectItem>
                           <SelectItem value="USDT">₮ Tether (USDT)</SelectItem>
+                          <SelectItem value="ICP">
+                            ∞ Internet Computer (ICP)
+                          </SelectItem>
+                          <SelectItem value="OKP">
+                            🦌 Okapi Token (OKP)
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -377,6 +419,12 @@ export default function BuySellSection() {
                           <SelectItem value="BTC">₿ Bitcoin (BTC)</SelectItem>
                           <SelectItem value="ETH">⟠ Ethereum (ETH)</SelectItem>
                           <SelectItem value="USDT">₮ Tether (USDT)</SelectItem>
+                          <SelectItem value="ICP">
+                            ∞ Internet Computer (ICP)
+                          </SelectItem>
+                          <SelectItem value="OKP">
+                            🦌 Okapi Token (OKP)
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                     </div>

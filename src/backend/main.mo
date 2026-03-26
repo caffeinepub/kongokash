@@ -126,6 +126,8 @@ actor {
     sellRate : Float;
   };
 
+  // WalletBalance: stored in stable map — do NOT add new fields (breaks upgrade compatibility)
+  // Use separate stable maps for new assets (e.g. icpBalances)
   type WalletBalance = {
     cdf : Float;
     usd : Float;
@@ -133,6 +135,17 @@ actor {
     eth : Float;
     usdt : Float;
     okp : Float;
+  };
+
+  // Full wallet balance including newer assets (computed, not stored directly)
+  type WalletBalanceFull = {
+    cdf : Float;
+    usd : Float;
+    btc : Float;
+    eth : Float;
+    usdt : Float;
+    okp : Float;
+    icp : Float;
   };
 
   type UserProfile = {
@@ -144,7 +157,7 @@ actor {
   type TransactionResult = {
     success : Bool;
     message : Text;
-    newBalance : ?WalletBalance;
+    newBalance : ?WalletBalanceFull;
   };
 
   type PortfolioValue = {
@@ -413,6 +426,8 @@ actor {
   // TODO: rest of persistent state
   let profiles = Map.empty<Principal, UserProfileWithReferral>();
   let wallets = Map.empty<Principal, WalletBalance>();
+  // Separate stable map for ICP balances (added after initial deployment — new stable var, no migration needed)
+  let icpBalances = Map.empty<Principal, Float>();
   let exchangeRates = Map.empty<Text, ExchangeRate>();
   let transactions = List.empty<Transaction>();
   let stakes = Map.empty<Nat, StakeRecord>();
@@ -563,6 +578,20 @@ actor {
       case (?w) { w };
     };
   };
+  func getFullWallet(caller : Principal) : WalletBalanceFull {
+    let w = getCallerWallet(caller);
+    {
+      cdf = w.cdf;
+      usd = w.usd;
+      btc = w.btc;
+      eth = w.eth;
+      usdt = w.usdt;
+      okp = w.okp;
+      icp = switch (icpBalances.get(caller)) { case (?b) { b }; case (null) { 0.0 } };
+    };
+  };
+
+
 
   // Helper functions
   func arrayContains(array : [Principal], value : Principal) : Bool {
@@ -1120,9 +1149,8 @@ actor {
     mobileMoneyRequests.values().toArray().sort().reverse();
   };
 
-  public query ({ caller }) func getWallet() : async WalletBalance {
-    let wallet = getCallerWallet(caller);
-    wallet;
+  public query ({ caller }) func getWallet() : async WalletBalanceFull {
+    getFullWallet(caller);
   };
 
   public shared ({ caller }) func depositFiat(currency : Text, amount : Float) : async () {
@@ -1218,7 +1246,7 @@ actor {
       btc = if (request.asset == "BTC") { wallet.btc + cryptoAmount } else { wallet.btc };
       eth = if (request.asset == "ETH") { wallet.eth + cryptoAmount } else { wallet.eth };
       usdt = if (request.asset == "USDT") { wallet.usdt + cryptoAmount } else { wallet.usdt };
-      okp = wallet.okp;
+      okp = if (request.asset == "OKP") { wallet.okp + cryptoAmount } else { wallet.okp };
     };
 
     let transaction = createTransaction({
@@ -1234,6 +1262,11 @@ actor {
     });
 
     wallets.add(caller, updatedWallet);
+    // Handle ICP separately (stored in icpBalances, not wallets)
+    if (request.asset == "ICP") {
+      let prevIcp = switch (icpBalances.get(caller)) { case (?b) { b }; case (null) { 0.0 } };
+      icpBalances.add(caller, prevIcp + cryptoAmount);
+    };
     transactions.add(transaction);
 
     // Récompense achat : 25 OKP (soumis au multiplicateur déclinant)
@@ -1245,7 +1278,7 @@ actor {
     {
       success = true;
       message = "Purchase successful";
-      newBalance = ?updatedWallet;
+      newBalance = ?getFullWallet(caller);
     };
   };
 
@@ -1268,6 +1301,8 @@ actor {
       case ("BTC") { wallet.btc };
       case ("ETH") { wallet.eth };
       case ("USDT") { wallet.usdt };
+      case ("OKP") { wallet.okp };
+      case ("ICP") { switch (icpBalances.get(caller)) { case (?b) { b }; case (null) { 0.0 } } };
       case (_) { 0.0 };
     };
     if (cryptoBalance < request.cryptoAmount) {
@@ -1288,7 +1323,7 @@ actor {
       btc = if (request.asset == "BTC") { wallet.btc - request.cryptoAmount } else { wallet.btc };
       eth = if (request.asset == "ETH") { wallet.eth - request.cryptoAmount } else { wallet.eth };
       usdt = if (request.asset == "USDT") { wallet.usdt - request.cryptoAmount } else { wallet.usdt };
-      okp = wallet.okp;
+      okp = if (request.asset == "OKP") { wallet.okp - request.cryptoAmount } else { wallet.okp };
     };
 
     let transaction = createTransaction({
@@ -1304,6 +1339,11 @@ actor {
     });
 
     wallets.add(caller, updatedWallet);
+    // Handle ICP separately
+    if (request.asset == "ICP") {
+      let prevIcp = switch (icpBalances.get(caller)) { case (?b) { b }; case (null) { 0.0 } };
+      icpBalances.add(caller, prevIcp - request.cryptoAmount);
+    };
     transactions.add(transaction);
 
     // Récompense vente : 10 OKP (soumis au multiplicateur)
@@ -1315,7 +1355,7 @@ actor {
     {
       success = true;
       message = "Sale successful";
-      newBalance = ?updatedWallet;
+      newBalance = ?getFullWallet(caller);
     };
   };
 
@@ -1350,8 +1390,13 @@ actor {
     };
 
     let effectiveRate = getEffectiveOkpRate();
-    let totalCDF = wallet.cdf + (wallet.btc * btcToCdf) + (wallet.eth * ethToCdf) + (wallet.usdt * usdtToCdf) + (wallet.usd * 2480.0) + (wallet.okp * effectiveRate);
-    let totalUSD = wallet.usd + (wallet.btc * btcToUsd) + (wallet.eth * ethToUsd) + wallet.usdt + (wallet.cdf / 2480.0) + (wallet.okp * effectiveRate / 2480.0);
+    let icpToCdf = switch (rates.find(func(rate) { rate.pair == "ICP/CDF" })) {
+      case (?r) { r.buyRate };
+      case (null) { 11500.0 };
+    };
+    let icpBal = switch (icpBalances.get(caller)) { case (?b) { b }; case (null) { 0.0 } };
+    let totalCDF = wallet.cdf + (wallet.btc * btcToCdf) + (wallet.eth * ethToCdf) + (wallet.usdt * usdtToCdf) + (wallet.usd * 2480.0) + (wallet.okp * effectiveRate) + (icpBal * icpToCdf);
+    let totalUSD = wallet.usd + (wallet.btc * btcToUsd) + (wallet.eth * ethToUsd) + wallet.usdt + (wallet.cdf / 2480.0) + (wallet.okp * effectiveRate / 2480.0) + (icpBal * icpToCdf / 2480.0);
 
     {
       totalCDF;
@@ -1479,7 +1524,7 @@ actor {
     {
       success = true;
       message = "Transfer successful. " # burnAmount.toText() # " OKP burned.";
-      newBalance = ?updatedFromWallet;
+      newBalance = ?getFullWallet(caller);
     };
   };
 
@@ -1542,7 +1587,7 @@ actor {
       return {
         success = true;
         message = "Payment successful, merchant received " # cdfAmount.toText() # " CDF. " # burnAmount.toText() # " OKP burned.";
-        newBalance = ?updatedCallerWallet;
+        newBalance = ?getFullWallet(caller);
       };
     } else {
       let updatedCallerWallet = {
@@ -1570,7 +1615,7 @@ actor {
       return {
         success = true;
         message = "Payment successful, merchant received " # okpAmount.toText() # " OKP. " # burnAmount.toText() # " OKP burned.";
-        newBalance = ?updatedCallerWallet;
+        newBalance = ?getFullWallet(caller);
       };
     };
   };
@@ -1671,7 +1716,7 @@ actor {
     // Les récompenses de staking comptent aussi comme OKP émis
     totalOkpIssued += rewardAmount;
 
-    { success = true; message = "Unstaking successful! You received " # totalAmount.toText() # " OKP"; newBalance = ?updatedWallet };
+    { success = true; message = "Unstaking successful! You received " # totalAmount.toText() # " OKP"; newBalance = ?getFullWallet(caller) };
   };
 
   public query ({ caller }) func getStakes() : async [StakeRecord] {
@@ -1936,8 +1981,13 @@ actor {
     };
 
     let effectiveRate = getEffectiveOkpRate();
-    let totalCDF = wallet.cdf + (wallet.btc * btcToCdf) + (wallet.eth * ethToCdf) + (wallet.usdt * usdtToCdf) + (wallet.usd * 2480.0) + (wallet.okp * effectiveRate);
-    let totalUSD = wallet.usd + (wallet.btc * btcToUsd) + (wallet.eth * ethToUsd) + wallet.usdt + (wallet.cdf / 2480.0) + (wallet.okp * effectiveRate / 2480.0);
+    let icpToCdf = switch (rates.find(func(rate) { rate.pair == "ICP/CDF" })) {
+      case (?r) { r.buyRate };
+      case (null) { 11500.0 };
+    };
+    let icpBal = switch (icpBalances.get(caller)) { case (?b) { b }; case (null) { 0.0 } };
+    let totalCDF = wallet.cdf + (wallet.btc * btcToCdf) + (wallet.eth * ethToCdf) + (wallet.usdt * usdtToCdf) + (wallet.usd * 2480.0) + (wallet.okp * effectiveRate) + (icpBal * icpToCdf);
+    let totalUSD = wallet.usd + (wallet.btc * btcToUsd) + (wallet.eth * ethToUsd) + wallet.usdt + (wallet.cdf / 2480.0) + (wallet.okp * effectiveRate / 2480.0) + (icpBal * icpToCdf / 2480.0);
 
     {
       totalCDF;

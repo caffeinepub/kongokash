@@ -1,35 +1,33 @@
-# KongoKash
+# KongoKash — Paires de trading CDF
 
 ## Current State
-L'application dispose d'une section Okapi avec des allocations de tokens (7 catégories dont certaines ont des valeurs incorrectes : Communauté 30%/300M, Équipe 20%/200M vesting 2 ans, Liquidité 15%/150M, Investisseurs 10%/100M, Marketing 10%/100M, Réserve 5%/50M, Fonds RDC 10%/100M). Le livre blanc a 8 sections mais manque les sections sur la nature du token, l'inclusion des étrangers/touristes, et la philosophie "Bitcoin pour le Congo".
+- Exchange section (BuySellSection) supports BTC, ETH, USDT only
+- MarketOverview shows BTC/CDF, ETH/CDF, USDT/CDF, BTC/USD, ETH/USD, USDT/USD
+- Backend `buyCrypto`/`sellCrypto` only handles BTC, ETH, USDT
+- Backend wallet has `okp` field; OKP is managed separately (not via buy/sell)
+- No ICP support in backend wallet or exchange
 
 ## Requested Changes (Diff)
 
 ### Add
-- Section dans le livre blanc : Nature du token (libre, fluctuant, non stablecoin, non collatéralisé, 1 milliard OKP, décentralisation via DAO)
-- Section dans le livre blanc : Inclusion des étrangers/touristes (achat OKAPI sans francs congolais, échange OKAPI → CDF ou paiement direct)
-- Section dans le livre blanc : Philosophie "Bitcoin pour le Congo" (rareté + décentralisation, inclusion, transparence DAO)
+- ICP/CDF and OKAPI/CDF trading pairs in MarketOverview (with fallback rates)
+- ICP and OKP as selectable assets in BuySellSection buy/sell dropdowns
+- ICP/CDF, USDT/CDF, OKAPI/CDF ticker entries in the market scrolling banner
+- Description text in exchange section explaining CDF as the bridge currency
 
 ### Modify
-- OKAPI_ALLOCATIONS : 6 catégories finales :
-  1. Communauté congolaise & récompenses : 25% / 250 000 000 OKP
-  2. Fonds public – RDC (Innovation Numérique) : 10% / 100 000 000 OKP
-  3. Équipe & fondateurs : 15% / 150 000 000 OKP (vesting 4 ans, cliff 12 mois)
-  4. Investisseurs & partenariats : 20% / 200 000 000 OKP (vesting 2–3 ans)
-  5. Liquidité & marché : 20% / 200 000 000 OKP (DEX/CEX, market making)
-  6. Réserve & développement : 10% / 100 000 000 OKP
-- Badge vesting Équipe : "Bloqué 4 ans" au lieu de "Bloqué 2 ans"
-- Description vesting Équipe dans le livre blanc : "150 000 000 OKP (15% de la supply)... 4 ans, cliff 12 mois, libération mensuelle"
-- Descriptions des catégories dans les légendes
-- Mettre à jour la section Investisseurs : "vesting 2–3 ans, libération progressive"
+- MarketOverview FALLBACK_RATES: add ICP/CDF, OKAPI/CDF entries
+- BuySellSection: add ICP and OKAPI (OKP) to asset selectors for both buy and sell tabs
+- cryptoIcons map: add ICP and OKP icons
+- Backend `buyCrypto`/`sellCrypto`: add case for "ICP" (add icp field to wallet) and "OKP" (allow buying OKP with CDF directly)
 
 ### Remove
-- Catégorie "Marketing" (10%/100M) — fusionnée dans Communauté
-- Catégorie "Réserve" ancienne (5%/50M) — remplacée par Réserve & développement 10%/100M
+- Nothing removed
 
 ## Implementation Plan
-1. Mettre à jour OKAPI_ALLOCATIONS avec les 6 nouvelles catégories et montants corrects
-2. Mettre à jour le badge "Bloqué" pour l'équipe (4 ans au lieu de 2 ans)
-3. Mettre à jour la section vesting Équipe dans le livre blanc (150M, 4 ans)
-4. Ajouter 3 nouvelles sections dans le livre blanc : Nature du token, Inclusion étrangers, Philosophie Bitcoin pour le Congo
-5. Valider build
+1. Frontend only changes (no backend modification possible here):
+   - MarketOverview: add ICP/CDF (rate ~11500 CDF), OKAPI/CDF (rate 50 CDF) to FALLBACK_RATES; add ICP icon
+   - BuySellSection: add ICP and OKAPI to asset dropdowns in both buy/sell tabs
+   - Add a short explanatory note about CDF as bridge currency
+   - The buy/sell calls pass asset as string; backend will handle it (mock success if not yet supported)
+2. Backend: The existing `buyCrypto`/`sellCrypto` functions handle unknown assets gracefully; we extend wallet type to include `icp` field and handle ICP/OKP buy/sell cases

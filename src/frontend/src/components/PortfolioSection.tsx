@@ -49,6 +49,20 @@ export default function PortfolioSection() {
       color: "oklch(0.67 0.15 55)",
     },
     {
+      symbol: "ICP",
+      icon: "∞",
+      amount: (wallet as any)?.icp ?? 0,
+      valueCDF: ((wallet as any)?.icp ?? 0) * getRate("ICP/CDF"),
+      color: "oklch(0.55 0.18 290)",
+    },
+    {
+      symbol: "OKP",
+      icon: "🦌",
+      amount: wallet?.okp ?? 0,
+      valueCDF: (wallet?.okp ?? 0) * getRate("OKAPI/CDF"),
+      color: "oklch(0.60 0.16 45)",
+    },
+    {
       symbol: "CDF",
       icon: "FC",
       amount: wallet?.cdf ?? 0,
@@ -144,12 +158,12 @@ export default function PortfolioSection() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="font-display font-bold text-2xl">5 actifs</div>
+                <div className="font-display font-bold text-2xl">7 actifs</div>
                 <div
                   className="text-sm"
                   style={{ color: "oklch(0.20 0.01 250 / 0.7)" }}
                 >
-                  CDF, USD, BTC, ETH, USDT
+                  CDF, USD, BTC, ETH, USDT, ICP, OKP
                 </div>
               </CardContent>
             </Card>
@@ -163,7 +177,7 @@ export default function PortfolioSection() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid sm:grid-cols-5 gap-4">
+                  <div className="grid sm:grid-cols-7 gap-4">
                     {assets.map((asset, i) => (
                       <div
                         key={asset.symbol}

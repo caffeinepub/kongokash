@@ -34,6 +34,7 @@ export interface WalletBalance {
     btc: number;
     cdf: number;
     eth: number;
+    icp: number;
     okp: number;
     usd: number;
     usdt: number;

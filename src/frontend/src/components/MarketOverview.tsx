@@ -5,6 +5,8 @@ const FALLBACK_RATES = [
   { pair: "BTC/CDF", buyRate: 72500000, change: 2.4 },
   { pair: "ETH/CDF", buyRate: 4200000, change: 1.8 },
   { pair: "USDT/CDF", buyRate: 2850, change: 0.2 },
+  { pair: "ICP/CDF", buyRate: 11500, change: 3.2 },
+  { pair: "OKAPI/CDF", buyRate: 50, change: 1.5 },
   { pair: "BTC/USD", buyRate: 25400, change: -0.5 },
   { pair: "ETH/USD", buyRate: 1480, change: 1.1 },
   { pair: "USDT/USD", buyRate: 1.001, change: 0.01 },
@@ -25,6 +27,9 @@ const cryptoIcons: Record<string, string> = {
   BTC: "₿",
   ETH: "⟠",
   USDT: "₮",
+  ICP: "∞",
+  OKP: "🦌",
+  OKAPI: "🦌",
 };
 
 export default function MarketOverview() {

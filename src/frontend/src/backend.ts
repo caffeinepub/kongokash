@@ -322,6 +322,9 @@ export interface backendInterface {
      * / Profile Management
      */
     updateProfile(request: UpdateProfileRequest): Promise<void>;
+    getTreasuryBalance(): Promise<{ cdf: number; usd: number; okp: number; btc: number; eth: number; usdt: number; icp: number }>;
+    getTreasuryLedger(): Promise<Array<{ id: bigint; asset: string; amount: number; entryType: string; sourceTxId: [] | [bigint]; note: string; timestamp: bigint }>>;
+    withdrawFromTreasury(asset: string, amount: number, note: string): Promise<{ success: boolean; message: string }>;
 }
 import type { TransactionResult as _TransactionResult, UserAdminView as _UserAdminView, UserProfile as _UserProfile, UserProfileWithReferral as _UserProfileWithReferral, UserRole as _UserRole, WalletBalance as _WalletBalance } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
@@ -1162,6 +1165,18 @@ export class Backend implements backendInterface {
             const result = await this.actor.updateProfile(arg0);
             return result;
         }
+    }
+    async getTreasuryBalance(): Promise<{ cdf: number; usd: number; okp: number; btc: number; eth: number; usdt: number; icp: number }> {
+        const result = await (this.actor as any).getTreasuryBalance();
+        return { cdf: Number(result.cdf), usd: Number(result.usd), okp: Number(result.okp), btc: Number(result.btc), eth: Number(result.eth), usdt: Number(result.usdt), icp: Number(result.icp) };
+    }
+    async getTreasuryLedger(): Promise<Array<{ id: bigint; asset: string; amount: number; entryType: string; sourceTxId: [] | [bigint]; note: string; timestamp: bigint }>> {
+        const result = await (this.actor as any).getTreasuryLedger();
+        return result.map((e: any) => ({ id: e.id, asset: e.asset, amount: Number(e.amount), entryType: e.entryType, sourceTxId: e.sourceTxId, note: e.note, timestamp: e.timestamp }));
+    }
+    async withdrawFromTreasury(asset: string, amount: number, note: string): Promise<{ success: boolean; message: string }> {
+        const result = await (this.actor as any).withdrawFromTreasury(asset, amount, note);
+        return { success: result.success, message: result.message };
     }
 }
 function from_candid_TransactionResult_n3(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _TransactionResult): TransactionResult {

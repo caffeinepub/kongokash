@@ -10,7 +10,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle, Info, Loader2, XCircle } from "lucide-react";
+import {
+  ArrowRight,
+  CheckCircle,
+  Info,
+  Loader2,
+  Lock,
+  XCircle,
+} from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -450,6 +457,89 @@ export default function BuySellSection() {
                         Erreur lors de la transaction
                       </div>
                     )}
+
+                    {/* Transparency block */}
+                    <div
+                      className="rounded-xl p-4 space-y-3 border"
+                      style={{
+                        background: "oklch(0.52 0.12 160 / 0.06)",
+                        borderColor: "oklch(0.52 0.12 160 / 0.25)",
+                      }}
+                    >
+                      <div
+                        className="flex items-center gap-2 text-xs font-semibold"
+                        style={{ color: "oklch(0.52 0.12 160)" }}
+                      >
+                        <Lock size={12} />
+                        Transparence des frais
+                      </div>
+                      <div className="space-y-2 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="w-2 h-2 rounded-full flex-shrink-0"
+                            style={{ background: "oklch(0.77 0.13 85)" }}
+                          />
+                          <span className="text-muted-foreground">
+                            Ton achat :
+                          </span>
+                          <span className="font-semibold">
+                            {buyFiatAmount
+                              ? `${Number.parseFloat(buyFiatAmount).toLocaleString("fr-CD")} ${buyFiatCurrency}`
+                              : "— en attente"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <ArrowRight
+                            size={10}
+                            className="text-muted-foreground flex-shrink-0"
+                          />
+                          <span className="text-muted-foreground">
+                            Frais de trading (1%)
+                          </span>
+                          <ArrowRight
+                            size={10}
+                            className="flex-shrink-0"
+                            style={{ color: "oklch(0.52 0.12 160)" }}
+                          />
+                          <span
+                            className="font-semibold flex items-center gap-1"
+                            style={{ color: "oklch(0.52 0.12 160)" }}
+                          >
+                            <Lock size={10} />
+                            Trésorerie smart contract
+                          </span>
+                        </div>
+                        {buyFiatAmount &&
+                          Number.parseFloat(buyFiatAmount) > 0 && (
+                            <div className="flex items-center gap-2 pl-4">
+                              <span className="text-muted-foreground">
+                                soit
+                              </span>
+                              <span
+                                className="font-bold"
+                                style={{ color: "oklch(0.77 0.13 85)" }}
+                              >
+                                {(
+                                  Number.parseFloat(buyFiatAmount) * 0.01
+                                ).toLocaleString("fr-CD", {
+                                  maximumFractionDigits: 2,
+                                })}{" "}
+                                {buyFiatCurrency}
+                              </span>
+                              <span className="text-muted-foreground">
+                                → trésorerie
+                              </span>
+                            </div>
+                          )}
+                      </div>
+                      <p
+                        className="text-xs text-muted-foreground border-t pt-2"
+                        style={{ borderColor: "oklch(0.52 0.12 160 / 0.2)" }}
+                      >
+                        🔒 Aucun frais ne va à une personne — tout est géré par
+                        le smart contract
+                      </p>
+                    </div>
                   </TabsContent>
 
                   {/* Sell Tab */}

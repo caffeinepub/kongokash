@@ -423,6 +423,57 @@ actor {
   networkFees.add("BEP20", 2.0);
   networkFees.add("ERC20", 5.0);
 
+  // ── Trésorerie de la plateforme ────────────────────────────────────────────
+  type TreasuryEntry = {
+    id : Nat;
+    asset : Text;
+    amount : Float;
+    entryType : Text;  // "fee" | "withdrawal"
+    sourceTxId : ?Nat;
+    note : Text;
+    timestamp : Int;
+  };
+
+  var treasuryCDF : Float = 0.0;
+  var treasuryUSD : Float = 0.0;
+  var treasuryOKP : Float = 0.0;
+  var treasuryBTC : Float = 0.0;
+  var treasuryETH : Float = 0.0;
+  var treasuryUSDT : Float = 0.0;
+  var treasuryICP : Float = 0.0;
+  var treasuryLedger = Map.empty<Nat, TreasuryEntry>();
+  var treasuryLedgerId = 0;
+
+  func nextTreasuryId() : Nat {
+    treasuryLedgerId += 1;
+    treasuryLedgerId;
+  };
+
+  func addTreasuryFee(asset : Text, amount : Float, txId : Nat) {
+    switch (asset) {
+      case ("CDF") { treasuryCDF += amount };
+      case ("USD") { treasuryUSD += amount };
+      case ("OKP") { treasuryOKP += amount };
+      case ("BTC") { treasuryBTC += amount };
+      case ("ETH") { treasuryETH += amount };
+      case ("USDT") { treasuryUSDT += amount };
+      case ("ICP") { treasuryICP += amount };
+      case (_) {};
+    };
+    let entry : TreasuryEntry = {
+      id = nextTreasuryId();
+      asset;
+      amount;
+      entryType = "fee";
+      sourceTxId = ?txId;
+      note = "Frais trading 1%";
+      timestamp = Time.now();
+    };
+    treasuryLedger.add(entry.id, entry);
+  };
+
+
+
   func nextExternalTransferId() : Nat {
     externalTransferId += 1;
     externalTransferId;
@@ -1296,6 +1347,10 @@ actor {
     };
     transactions.add(transaction);
 
+    // Collecter 1% de frais dans la trésorerie (en fiatCurrency)
+    let tradingFee = request.fiatAmount * 0.01;
+    addTreasuryFee(request.fiatCurrency, tradingFee, transaction.id);
+
     // Récompense achat : 25 OKP (soumis au multiplicateur déclinant)
     awardOkp(caller, 25.0);
 
@@ -1372,6 +1427,10 @@ actor {
       icpBalances.add(caller, prevIcp - request.cryptoAmount);
     };
     transactions.add(transaction);
+
+    // Collecter 1% de frais dans la trésorerie (en fiatCurrency)
+    let tradingFeeSell = fiatAmount * 0.01;
+    addTreasuryFee(request.fiatCurrency, tradingFeeSell, transaction.id);
 
     // Récompense vente : 10 OKP (soumis au multiplicateur)
     awardOkp(caller, 10.0);
@@ -2261,5 +2320,275 @@ actor {
   };
 
 
-};
 
+  // ── Trésorerie — Fonctions publiques admin ──────────────────────────────────
+  public query ({ caller }) func getTreasuryBalance() : async {
+    cdf : Float; usd : Float; okp : Float; btc : Float; eth : Float; usdt : Float; icp : Float;
+  } {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can view treasury");
+    };
+    { cdf = treasuryCDF; usd = treasuryUSD; okp = treasuryOKP; btc = treasuryBTC; eth = treasuryETH; usdt = treasuryUSDT; icp = treasuryICP };
+  };
+
+  public query ({ caller }) func getTreasuryLedger() : async [TreasuryEntry] {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can view treasury ledger");
+    };
+    treasuryLedger.values().toArray().sort(func(a, b) { Int.compare(b.timestamp, a.timestamp) });
+  };
+
+  public shared ({ caller }) func withdrawFromTreasury(asset : Text, amount : Float, note : Text) : async { success : Bool; message : Text } {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can withdraw from treasury");
+    };
+    let available = switch (asset) {
+      case ("CDF") { treasuryCDF };
+      case ("USD") { treasuryUSD };
+      case ("OKP") { treasuryOKP };
+      case ("BTC") { treasuryBTC };
+      case ("ETH") { treasuryETH };
+      case ("USDT") { treasuryUSDT };
+      case ("ICP") { treasuryICP };
+      case (_) { return { success = false; message = "Actif non supporté" } };
+    };
+    if (amount > available) {
+      return { success = false; message = "Solde insuffisant dans la trésorerie" };
+    };
+    switch (asset) {
+      case ("CDF") { treasuryCDF -= amount };
+      case ("USD") { treasuryUSD -= amount };
+      case ("OKP") { treasuryOKP -= amount };
+      case ("BTC") { treasuryBTC -= amount };
+      case ("ETH") { treasuryETH -= amount };
+      case ("USDT") { treasuryUSDT -= amount };
+      case ("ICP") { treasuryICP -= amount };
+      case (_) {};
+    };
+    let entry : TreasuryEntry = {
+      id = nextTreasuryId();
+      asset;
+      amount;
+      entryType = "withdrawal";
+      sourceTxId = null;
+      note;
+      timestamp = Time.now();
+    };
+    treasuryLedger.add(entry.id, entry);
+    { success = true; message = "Retrait enregistré avec succès" };
+  };
+
+  // ── Système de Réservations ────────────────────────────────────────────────
+
+  type Structure = {
+    id : Nat;
+    name : Text;
+    description : Text;
+    category : Text; // "hotel" | "parc" | "structure"
+    priceOKP : Float;
+    priceCDF : Float;
+    location : Text;
+    capacity : Nat;
+    imageUrl : Text;
+    isActive : Bool;
+  };
+
+  type Reservation = {
+    id : Nat;
+    userId : Principal;
+    structureId : Nat;
+    structureName : Text;
+    checkIn : Text;
+    checkOut : Text;
+    guests : Nat;
+    paymentMethod : Text; // "okp" | "cdf"
+    totalAmount : Float;
+    status : Text; // "pending" | "confirmed" | "cancelled"
+    bookingCode : Text;
+    createdAt : Int;
+  };
+
+  var structures = Map.empty<Nat, Structure>();
+  var structureId = 0;
+  var reservations = Map.empty<Nat, Reservation>();
+  var reservationId = 0;
+
+  func nextStructureId() : Nat {
+    structureId += 1;
+    structureId;
+  };
+
+  func nextReservationId() : Nat {
+    reservationId += 1;
+    reservationId;
+  };
+
+  // Seed initial structures
+  do {
+    let h1 : Structure = { id = nextStructureId(); name = "Hôtel Okapi Palace"; description = "Hôtel 5 étoiles au cœur de Kinshasa, vue panoramique sur le fleuve Congo. Piscine, spa et restaurant gastronomique."; category = "hotel"; priceOKP = 500.0; priceCDF = 25000.0; location = "Kinshasa, RDC"; capacity = 120; imageUrl = ""; isActive = true };
+    structures.add(h1.id, h1);
+    let h2 : Structure = { id = nextStructureId(); name = "Hôtel Fleuve Congo"; description = "Établissement de prestige avec terrasse sur le fleuve Congo. Chambres climatisées, wifi haut débit, service 24h."; category = "hotel"; priceOKP = 350.0; priceCDF = 17500.0; location = "Kinshasa, RDC"; capacity = 80; imageUrl = ""; isActive = true };
+    structures.add(h2.id, h2);
+    let h3 : Structure = { id = nextStructureId(); name = "Résidence Kivu Lac"; description = "Lodge de luxe au bord du lac Kivu. Ambiance calme, cuisine locale, activités nautiques incluses."; category = "hotel"; priceOKP = 420.0; priceCDF = 21000.0; location = "Goma, Nord-Kivu"; capacity = 60; imageUrl = ""; isActive = true };
+    structures.add(h3.id, h3);
+    let p1 : Structure = { id = nextStructureId(); name = "Parc National des Virunga"; description = "Premier parc national d'Afrique. Trek gorilles de montagne, volcans Nyiragongo et Nyamulagira. Patrimoine UNESCO."; category = "parc"; priceOKP = 800.0; priceCDF = 40000.0; location = "Nord-Kivu, RDC"; capacity = 500; imageUrl = ""; isActive = true };
+    structures.add(p1.id, p1);
+    let p2 : Structure = { id = nextStructureId(); name = "Réserve de Faune à Okapis"; description = "Seul endroit au monde où observer l'okapi dans son habitat naturel. Classé patrimoine mondial UNESCO."; category = "parc"; priceOKP = 600.0; priceCDF = 30000.0; location = "Ituri, RDC"; capacity = 200; imageUrl = ""; isActive = true };
+    structures.add(p2.id, p2);
+    let p3 : Structure = { id = nextStructureId(); name = "Parc National d'Upemba"; description = "Biodiversité exceptionnelle : lions, éléphants, hippos. Paysages de savane et zones humides uniques."; category = "parc"; priceOKP = 450.0; priceCDF = 22500.0; location = "Haut-Katanga, RDC"; capacity = 300; imageUrl = ""; isActive = true };
+    structures.add(p3.id, p3);
+    let s1 : Structure = { id = nextStructureId(); name = "Musée National de Kinshasa"; description = "Découvrez 10 000 ans d'histoire congolaise. Collections d'art traditionnel, masques Kuba, sculptures Luba."; category = "structure"; priceOKP = 50.0; priceCDF = 2500.0; location = "Kinshasa, RDC"; capacity = 1000; imageUrl = ""; isActive = true };
+    structures.add(s1.id, s1);
+    let s2 : Structure = { id = nextStructureId(); name = "Centre Culturel Kongo"; description = "Espace dédié aux arts vivants, expositions et performances culturelles. Spectacles hebdomadaires de musique et danse."; category = "structure"; priceOKP = 80.0; priceCDF = 4000.0; location = "Kinshasa, RDC"; capacity = 400; imageUrl = ""; isActive = true };
+    structures.add(s2.id, s2);
+  };
+
+  public query func getStructures() : async [Structure] {
+    structures.values().toArray().filter(func(s) { s.isActive });
+  };
+
+  public query func getStructuresByCategory(category : Text) : async [Structure] {
+    structures.values().toArray().filter(func(s) { s.isActive and s.category == category });
+  };
+
+  public shared ({ caller }) func createReservation(
+    structureId_ : Nat,
+    checkIn : Text,
+    checkOut : Text,
+    guests : Nat,
+    paymentMethod : Text
+  ) : async { success : Bool; bookingCode : Text; message : Text } {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Connexion requise pour effectuer une réservation");
+    };
+    switch (structures.get(structureId_)) {
+      case (null) { return { success = false; bookingCode = ""; message = "Structure introuvable" } };
+      case (?s) {
+        if (not s.isActive) {
+          return { success = false; bookingCode = ""; message = "Cette structure n'est plus disponible" };
+        };
+        let basePrice = if (paymentMethod == "okp") { s.priceOKP } else { s.priceCDF };
+        // 10% discount for OKP payment
+        let totalAmount = if (paymentMethod == "okp") { basePrice * guests.toFloat() * 0.90 } else { basePrice * guests.toFloat() };
+        // Verify user has enough balance
+        let wallet = switch (wallets.get(caller)) {
+          case (null) { return { success = false; bookingCode = ""; message = "Portefeuille non trouvé" } };
+          case (?w) { w };
+        };
+        if (paymentMethod == "okp" and wallet.okp < totalAmount) {
+          return { success = false; bookingCode = ""; message = "Solde OKP insuffisant" };
+        };
+        if (paymentMethod == "cdf" and wallet.cdf < totalAmount) {
+          return { success = false; bookingCode = ""; message = "Solde CDF insuffisant" };
+        };
+        // Deduct from wallet
+        let updatedWallet = if (paymentMethod == "okp") {
+          { wallet with okp = wallet.okp - totalAmount }
+        } else {
+          { wallet with cdf = wallet.cdf - totalAmount }
+        };
+        wallets.add(caller, updatedWallet);
+        // Add 1% to treasury
+        let fee = totalAmount * 0.01;
+        let feeAsset = if (paymentMethod == "okp") { "OKP" } else { "CDF" };
+        let rId = nextReservationId();
+        addTreasuryFee(feeAsset, fee, rId);
+        // Generate booking code
+        let code = "KK-" # rId.toText() # "-" # (rId * 7 % 100).toText();
+        let reservation : Reservation = {
+          id = rId;
+          userId = caller;
+          structureId = structureId_;
+          structureName = s.name;
+          checkIn;
+          checkOut;
+          guests;
+          paymentMethod;
+          totalAmount;
+          status = "confirmed";
+          bookingCode = code;
+          createdAt = Time.now();
+        };
+        reservations.add(rId, reservation);
+        { success = true; bookingCode = code; message = "Réservation confirmée !" };
+      };
+    };
+  };
+
+  public query ({ caller }) func getMyReservations() : async [Reservation] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Connexion requise");
+    };
+    reservations.values().toArray().filter(func(r) { r.userId == caller });
+  };
+
+  public shared ({ caller }) func cancelReservation(id : Nat) : async { success : Bool; message : Text } {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Connexion requise");
+    };
+    switch (reservations.get(id)) {
+      case (null) { return { success = false; message = "Réservation introuvable" } };
+      case (?r) {
+        if (r.userId != caller) {
+          return { success = false; message = "Vous ne pouvez annuler que vos propres réservations" };
+        };
+        if (r.status == "cancelled") {
+          return { success = false; message = "Déjà annulée" };
+        };
+        // Refund 90% to user
+        let refund = r.totalAmount * 0.90;
+        let wallet = switch (wallets.get(caller)) {
+          case (null) { return { success = false; message = "Portefeuille introuvable" } };
+          case (?w) { w };
+        };
+        let updatedWallet = if (r.paymentMethod == "okp") {
+          { wallet with okp = wallet.okp + refund }
+        } else {
+          { wallet with cdf = wallet.cdf + refund }
+        };
+        wallets.add(caller, updatedWallet);
+        reservations.add(id, { r with status = "cancelled" });
+        { success = true; message = "Réservation annulée. Remboursement de 90% effectué." };
+      };
+    };
+  };
+
+  public query ({ caller }) func adminGetAllReservations() : async [Reservation] {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Accès admin requis");
+    };
+    reservations.values().toArray().sort(func(a, b) { Int.compare(b.createdAt, a.createdAt) });
+  };
+
+  public shared ({ caller }) func adminAddStructure(
+    name : Text,
+    description : Text,
+    category : Text,
+    priceOKP : Float,
+    priceCDF : Float,
+    location : Text,
+    capacity : Nat
+  ) : async { success : Bool; id : Nat } {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Accès admin requis");
+    };
+    let id = nextStructureId();
+    let s : Structure = { id; name; description; category; priceOKP; priceCDF; location; capacity; imageUrl = ""; isActive = true };
+    structures.add(id, s);
+    { success = true; id };
+  };
+
+  public shared ({ caller }) func adminUpdateStructureStatus(id : Nat, isActive : Bool) : async { success : Bool } {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Accès admin requis");
+    };
+    switch (structures.get(id)) {
+      case (null) { return { success = false } };
+      case (?s) {
+        structures.add(id, { s with isActive });
+        { success = true };
+      };
+    };
+  };
+
+};

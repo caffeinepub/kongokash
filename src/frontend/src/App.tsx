@@ -11,8 +11,10 @@ import MarketOverview from "./components/MarketOverview";
 import MobileMoneySection from "./components/MobileMoneySection";
 import Navbar from "./components/Navbar";
 import OkapiSection from "./components/OkapiSection";
+import ReservationsSection from "./components/ReservationsSection";
 import { useActor } from "./hooks/useActor";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
+import { ReservationNotifProvider } from "./hooks/useReservationNotifications";
 
 export default function App() {
   const { identity } = useInternetIdentity();
@@ -39,32 +41,35 @@ export default function App() {
 
   if (adminAssigned === false) {
     return (
-      <>
+      <ReservationNotifProvider>
         <Navbar onSectionClick={scrollToSection} isAdmin={false} />
         <FirstAdminSetup />
         <Toaster richColors position="top-right" />
-      </>
+      </ReservationNotifProvider>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <Navbar onSectionClick={scrollToSection} isAdmin={isAdmin} />
-      <main className="flex-1">
-        <HeroSection
-          onGetStarted={() => scrollToSection("buysell")}
-          onViewMarkets={() => scrollToSection("market")}
-        />
-        <MarketOverview />
-        <Dashboard />
-        <OkapiSection />
-        <BuySellSection />
-        <MobileMoneySection />
-        <BanquesSection />
-        {isAdmin && identity && <AdminDashboard />}
-      </main>
-      <Footer />
-      <Toaster richColors position="top-right" />
-    </div>
+    <ReservationNotifProvider>
+      <div className="min-h-screen flex flex-col">
+        <Navbar onSectionClick={scrollToSection} isAdmin={isAdmin} />
+        <main className="flex-1">
+          <HeroSection
+            onGetStarted={() => scrollToSection("buysell")}
+            onViewMarkets={() => scrollToSection("market")}
+          />
+          <MarketOverview />
+          <ReservationsSection />
+          <Dashboard />
+          <OkapiSection />
+          <BuySellSection />
+          <MobileMoneySection />
+          <BanquesSection />
+          {isAdmin && identity && <AdminDashboard />}
+        </main>
+        <Footer />
+        <Toaster richColors position="top-right" />
+      </div>
+    </ReservationNotifProvider>
   );
 }

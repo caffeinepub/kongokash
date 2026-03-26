@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { ArrowRight, TrendingUp } from "lucide-react";
+import { ArrowRight, Lock, TrendingUp } from "lucide-react";
 import { motion } from "motion/react";
 
 interface HeroSectionProps {
@@ -98,6 +98,17 @@ export default function HeroSection({
                   0%
                 </div>
                 <div className="text-white/50 text-sm">Dépôt Mobile Money</div>
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <Lock size={18} style={{ color: "oklch(0.77 0.13 85)" }} />
+                  <div className="font-display font-bold text-2xl text-white">
+                    On-Chain
+                  </div>
+                </div>
+                <div className="text-white/50 text-sm">
+                  Trésorerie transparente
+                </div>
               </div>
             </div>
 

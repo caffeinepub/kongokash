@@ -261,43 +261,52 @@ function WhitepaperTab() {
 
   const roadmap = [
     {
-      phase: "Q1 2025",
-      title: "Pré-lancement",
+      phase: "2025–2026",
+      title: "Développement & Beta",
       items: [
-        "KYC léger (nom + téléphone)",
-        "Intégration Equity BCDC",
-        "Token OKP + staking",
-        "Récompenses automatiques",
+        "Développement et tests de la plateforme",
+        "KYC léger et avancé (nom, téléphone, pièce d'identité)",
+        "Intégration Equity BCDC, Airtel Money, M-Pesa",
+        "Token OKP + staking + récompenses automatiques",
+        "Construction de la communauté",
+        "Audit de sécurité des smart contracts",
       ],
       done: true,
     },
     {
-      phase: "Q2 2025",
-      title: "Lancement",
+      phase: "2027",
+      title: "Lancement Officiel",
       items: [
-        "Paiements mobiles (M-Pesa, Airtel Money)",
-        "Réseau de marchands partenaires",
-        "Application mobile",
+        "Lancement public de KongoKash",
+        "Paires de trading actives : BTC/CDF, ETH/CDF, USDT/CDF, ICP/CDF, OKP/CDF",
+        "Token OKP live sur Internet Computer",
+        "Paiements mobiles (M-Pesa, Airtel Money) opérationnels",
+        "Wallet non-custodial disponible",
+        "Réseau initial de marchands partenaires",
       ],
       done: false,
     },
     {
-      phase: "Q3 2025",
-      title: "Expansion",
+      phase: "2028",
+      title: "Intégration Tourisme & Expansion",
       items: [
-        "Intégration DEX",
-        "Gouvernance OKP (vote)",
-        "Nouvelles banques partenaires",
+        "Intégration tourisme : parcs (Virunga, Réserve Okapi), hôtels",
+        "Expansion paiements marchands (restaurants, commerces, services)",
+        "Intégration ckBTC / ckETH sur Internet Computer",
+        "Application mobile native (iOS & Android)",
+        "Expansion régionale : Congo-Brazzaville, Cameroun",
       ],
       done: false,
     },
     {
-      phase: "Q4 2025+",
-      title: "Croissance régionale",
+      phase: "2029",
+      title: "Gouvernance DAO Complète",
       items: [
-        "Multi-pays : Congo-Brazzaville, Cameroun",
-        "Échange fiat-to-OKP direct",
-        "Listing sur exchanges",
+        "Gouvernance DAO entièrement décentralisée",
+        "Module de vote OKP pour décisions stratégiques",
+        "Listing sur exchanges décentralisés (DEX)",
+        "Expansion internationale et multi-pays",
+        "Activation complète du Fonds pour l'Innovation Numérique en RDC",
       ],
       done: false,
     },
@@ -361,8 +370,8 @@ function WhitepaperTab() {
             décentralisée pour les populations congolaises et africaines en
             général, en proposant une interface entièrement en français,
             culturellement adaptée, sécurisée et à faibles coûts. Le lancement
-            est prévu en 2025, avec une expansion régionale vers le
-            Congo-Brazzaville et le Cameroun dès 2026.
+            officiel est prévu en 2027, avec une intégration tourisme en 2028 et
+            la gouvernance DAO complète en 2029.
           </p>
         </CardContent>
       </Card>
@@ -625,10 +634,111 @@ function WhitepaperTab() {
         </CardContent>
       </Card>
 
-      {/* Section 7 — Roadmap */}
+      {/* Section 7 — Cas d'Usage Concrets au Lancement */}
       <Card>
         <CardHeader>
-          <CardTitle style={{ color: OKP_COLOR }}>7. Roadmap</CardTitle>
+          <CardTitle style={{ color: OKP_COLOR }}>
+            7. Cas d&apos;Usage Concrets — Dès le Lancement
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm">
+          <p className="text-muted-foreground leading-relaxed">
+            Voici des exemples précis d'utilisation d'Okapi (OKP) accessibles
+            dès le lancement en 2027, conçus pour répondre aux besoins
+            quotidiens des Congolais et des visiteurs.
+          </p>
+          <div className="grid sm:grid-cols-2 gap-4">
+            {[
+              {
+                icon: "🌿",
+                title: "Parcs Touristiques",
+                color: "oklch(0.50 0.18 155)",
+                items: [
+                  "Entrée au Parc National des Virunga en OKP",
+                  "Location de guides et hébergements éco à la Réserve Okapi",
+                  "Activités de safari et randonnée payables en OKP",
+                  "Réduction de 10% pour paiement en OKP",
+                ],
+              },
+              {
+                icon: "🏨",
+                title: "Hôtels Partenaires",
+                color: "oklch(0.55 0.18 45)",
+                items: [
+                  "Règlement de séjours hôteliers sans change de devises",
+                  "Paiement du room service et extras en OKP",
+                  "Programme de fidélité : cashback en OKP sur chaque séjour",
+                  "Réservation en ligne avant arrivée en RDC",
+                ],
+              },
+              {
+                icon: "📱",
+                title: "Recharge Mobile Money",
+                color: "oklch(0.55 0.18 265)",
+                items: [
+                  "Recharge Airtel Money directement via KongoKash",
+                  "Recharge M-Pesa en CDF depuis son solde OKP",
+                  "Conversion automatique OKP → CDF pour recharge",
+                  "Frais ultra-faibles (0% dépôt, max 0.5% retrait)",
+                ],
+              },
+              {
+                icon: "💡",
+                title: "Services Digitaux Locaux",
+                color: "oklch(0.55 0.18 200)",
+                items: [
+                  "Paiement de factures d'électricité (SNEL) via KongoKash",
+                  "Achat de forfaits internet mobile (Airtel, Vodacom, Orange)",
+                  "Paiement de services numériques locaux",
+                  "Transfert d'argent entre Congolais sans frais bancaires",
+                ],
+              },
+            ].map((cat) => (
+              <div
+                key={cat.title}
+                className="p-4 rounded-xl border bg-card hover:shadow-md transition-shadow"
+                style={{ borderColor: `${cat.color}44` }}
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <div
+                    className="w-9 h-9 rounded-lg flex items-center justify-center text-xl"
+                    style={{ background: `${cat.color}22` }}
+                  >
+                    {cat.icon}
+                  </div>
+                  <h4
+                    className="font-semibold text-sm"
+                    style={{ color: cat.color }}
+                  >
+                    {cat.title}
+                  </h4>
+                </div>
+                <ul className="space-y-1.5">
+                  {cat.items.map((item) => (
+                    <li
+                      key={item}
+                      className="text-xs text-muted-foreground flex items-start gap-1.5"
+                    >
+                      <span
+                        className="mt-0.5 flex-shrink-0"
+                        style={{ color: cat.color }}
+                      >
+                        •
+                      </span>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Section 8 — Roadmap */}
+      <Card>
+        <CardHeader>
+          <CardTitle style={{ color: OKP_COLOR }}>8. Roadmap</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid sm:grid-cols-2 gap-4">
@@ -681,10 +791,10 @@ function WhitepaperTab() {
         </CardContent>
       </Card>
 
-      {/* Section 8 — FAQ */}
+      {/* Section 9 — FAQ */}
       <Card>
         <CardHeader>
-          <CardTitle style={{ color: OKP_COLOR }}>8. FAQ</CardTitle>
+          <CardTitle style={{ color: OKP_COLOR }}>9. FAQ</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           {faqs.map((faq, faqIndex) => (
@@ -719,11 +829,11 @@ function WhitepaperTab() {
         </CardContent>
       </Card>
 
-      {/* Section 9 — Nature du Token */}
+      {/* Section 10 — Nature du Token */}
       <Card>
         <CardHeader>
           <CardTitle style={{ color: OKP_COLOR }}>
-            9. Nature du Token OKP
+            10. Nature du Token OKP
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 text-sm">
@@ -831,64 +941,391 @@ function WhitepaperTab() {
         </CardContent>
       </Card>
 
-      {/* Section 10 — Inclusion des Étrangers & Touristes */}
+      {/* Section 11b — Sécurité & Audit */}
       <Card>
         <CardHeader>
           <CardTitle style={{ color: OKP_COLOR }}>
-            10. Inclusion des Étrangers & Touristes
+            11. Sécurité & Infrastructure de Confiance
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm">
+          <p className="text-muted-foreground leading-relaxed">
+            La sécurité des fonds et des données des utilisateurs est une
+            priorité absolue de KongoKash. Plusieurs niveaux de protection sont
+            mis en place pour garantir une plateforme fiable et résistante aux
+            attaques.
+          </p>
+          <div className="grid sm:grid-cols-3 gap-4">
+            <div
+              className="p-4 rounded-xl border"
+              style={{ background: OKP_BG, borderColor: `${OKP_COLOR}44` }}
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <div
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-white"
+                  style={{ background: OKP_COLOR }}
+                >
+                  <Shield size={16} />
+                </div>
+                <h4
+                  className="font-semibold text-sm"
+                  style={{ color: OKP_COLOR }}
+                >
+                  Audit Smart Contract
+                </h4>
+              </div>
+              <ul className="space-y-1.5 text-xs text-muted-foreground">
+                <li className="flex items-start gap-1.5">
+                  <span style={{ color: OKP_COLOR }}>•</span>
+                  <span>
+                    Audit de sécurité complet prévu avant le lancement mainnet
+                    (2027)
+                  </span>
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span style={{ color: OKP_COLOR }}>•</span>
+                  <span>Audit réalisé par une firme indépendante reconnue</span>
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span style={{ color: OKP_COLOR }}>•</span>
+                  <span>Rapport d'audit public et accessible à tous</span>
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span style={{ color: OKP_COLOR }}>•</span>
+                  <span>
+                    Smart contracts immuables après déploiement et audit
+                  </span>
+                </li>
+              </ul>
+            </div>
+            <div className="p-4 rounded-xl border bg-card">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white bg-blue-500">
+                  <Lock size={16} />
+                </div>
+                <h4 className="font-semibold text-sm text-blue-600">
+                  Multisignature Institutionnel
+                </h4>
+              </div>
+              <ul className="space-y-1.5 text-xs text-muted-foreground">
+                <li className="flex items-start gap-1.5">
+                  <span className="text-blue-500">•</span>
+                  <span>
+                    3 signatures requises pour tout retrait du Fonds public
+                  </span>
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span className="text-blue-500">•</span>
+                  <span>
+                    Rôles institutionnels permanents (non liés à des individus)
+                  </span>
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span className="text-blue-500">•</span>
+                  <span>
+                    Remplacement de signataire validé par les autres rôles
+                  </span>
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span className="text-blue-500">•</span>
+                  <span>
+                    Fonds toujours dans le smart contract — aucun transfert
+                    direct
+                  </span>
+                </li>
+              </ul>
+            </div>
+            <div className="p-4 rounded-xl border bg-card">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white bg-green-600">
+                  <Zap size={16} />
+                </div>
+                <h4 className="font-semibold text-sm text-green-600">
+                  Wallet Non-Custodial
+                </h4>
+              </div>
+              <ul className="space-y-1.5 text-xs text-muted-foreground">
+                <li className="flex items-start gap-1.5">
+                  <span className="text-green-500">•</span>
+                  <span>Seed phrase 12/24 mots générée localement</span>
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span className="text-green-500">•</span>
+                  <span>
+                    Clé privée chiffrée AES-256 stockée uniquement sur
+                    l'appareil
+                  </span>
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span className="text-green-500">•</span>
+                  <span>
+                    Accès biométrique (empreinte, Face ID) — aucun mot de passe
+                  </span>
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span className="text-green-500">•</span>
+                  <span>
+                    Aucun accès admin aux wallets — zéro stockage serveur
+                  </span>
+                </li>
+              </ul>
+            </div>
+          </div>
+          <div
+            className="p-3 rounded-lg border text-xs text-muted-foreground"
+            style={{ background: OKP_BG, borderColor: `${OKP_COLOR}44` }}
+          >
+            🔒 <strong>Hébergement sur Internet Computer Protocol (ICP)</strong>{" "}
+            : Le code et les données sont déployés sur des canisters (smart
+            contracts) distribués sur un réseau mondial de nœuds — sans serveur
+            central qui puisse être coupé, piraté ou modifié unilatéralement.
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Section 12 — Inclusion des Étrangers & Touristes */}
+      <Card>
+        <CardHeader>
+          <CardTitle style={{ color: OKP_COLOR }}>
+            12. Inclusion des Étrangers & Touristes
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 text-sm">
           <p className="text-muted-foreground leading-relaxed">
             KongoKash est conçu pour être accessible à{" "}
             <strong>toute personne</strong>, qu'elle soit congolaise ou
-            étrangère, résidente ou touriste. L'objectif est de faciliter les
-            paiements et de stimuler l'adoption du token dans l'économie locale.
+            étrangère, résidente ou touriste. La RDC accueille chaque année des
+            milliers de visiteurs — touristes, expatriés, hommes d'affaires.
+            Okapi (OKP) leur offre un accès simplifié à l'économie locale, sans
+            change de devises.
           </p>
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div
-              className="p-4 rounded-lg border"
-              style={{ background: OKP_BG, borderColor: `${OKP_COLOR}44` }}
+
+          {/* Axe stratégique tourisme */}
+          <div
+            className="p-4 rounded-xl border"
+            style={{ background: OKP_BG, borderColor: `${OKP_COLOR}44` }}
+          >
+            <h4
+              className="font-semibold mb-3 flex items-center gap-2"
+              style={{ color: OKP_COLOR }}
             >
+              ✈️ Axe stratégique : Adoption par le Tourisme
+            </h4>
+            <p className="text-muted-foreground text-xs leading-relaxed mb-3">
+              Les touristes étrangers représentent un vecteur d'adoption
+              puissant. En achetant des OKP avant même d'arriver en RDC, ils
+              deviennent des ambassadeurs du token et stimulent l'économie
+              locale.
+            </p>
+            <div className="grid sm:grid-cols-3 gap-3">
+              {[
+                {
+                  step: "1",
+                  title: "Avant l'arrivée",
+                  desc: "Achat d'OKP en ligne depuis l'étranger, depuis n'importe quelle devise (EUR, USD, GBP...)",
+                  icon: "🌍",
+                },
+                {
+                  step: "2",
+                  title: "À l'arrivée",
+                  desc: "Paiement direct avec OKP — zéro change de devises, zéro file d'attente au bureau de change",
+                  icon: "🏨",
+                },
+                {
+                  step: "3",
+                  title: "Sur place",
+                  desc: "Réductions chez les marchands partenaires, accès facilité aux sites touristiques",
+                  icon: "🎟️",
+                },
+              ].map((item) => (
+                <div
+                  key={item.step}
+                  className="p-3 rounded-lg bg-card border text-center"
+                >
+                  <div className="text-2xl mb-1">{item.icon}</div>
+                  <div className="font-semibold text-xs mb-1">{item.title}</div>
+                  <p className="text-xs text-muted-foreground">{item.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div className="p-4 rounded-lg border bg-card">
               <h4 className="font-semibold mb-2" style={{ color: OKP_COLOR }}>
-                Pour les visiteurs sans CDF
+                🦏 Sites touristiques partenaires (2028)
               </h4>
-              <ul className="space-y-2 text-muted-foreground list-disc list-inside">
-                <li>Achat d'OKAPI directement avec des devises étrangères</li>
-                <li>Échange OKAPI → Francs Congolais pour achats locaux</li>
-                <li>
-                  Paiement direct avec OKAPI chez les marchands partenaires
+              <ul className="space-y-1.5 text-muted-foreground text-xs">
+                <li className="flex items-start gap-2">
+                  <span style={{ color: OKP_COLOR }}>•</span>
+                  <span>
+                    <strong>Parc National des Virunga</strong> — Entrées,
+                    guides, hébergements
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span style={{ color: OKP_COLOR }}>•</span>
+                  <span>
+                    <strong>Réserve de Faune à Okapis</strong> — Accès et
+                    activités écotouristiques
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span style={{ color: OKP_COLOR }}>•</span>
+                  <span>
+                    <strong>Hôtels partenaires</strong> — Paiement des séjours
+                    en OKP avec réduction
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span style={{ color: OKP_COLOR }}>•</span>
+                  <span>
+                    <strong>Restaurants & Commerces</strong> — Paiement direct
+                    chez les marchands acceptant OKP
+                  </span>
                 </li>
               </ul>
             </div>
             <div className="p-4 rounded-lg border bg-card">
               <h4 className="font-semibold mb-2">
-                Avantages pour l'économie locale
+                🎁 Avantages exclusifs pour les touristes
               </h4>
-              <ul className="space-y-2 text-muted-foreground list-disc list-inside">
-                <li>Afflux de valeur via les touristes et visiteurs</li>
-                <li>Réduction de la dépendance au change informel</li>
-                <li>Adoption accélérée du token dans l'économie réelle</li>
-                <li>Intégration des paiements crypto dans le commerce local</li>
+              <ul className="space-y-1.5 text-muted-foreground text-xs">
+                <li className="flex items-start gap-2">
+                  <CheckCircle
+                    size={12}
+                    className="mt-0.5 flex-shrink-0 text-green-500"
+                  />
+                  <span>
+                    Réductions de 5–15% chez les marchands partenaires
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle
+                    size={12}
+                    className="mt-0.5 flex-shrink-0 text-green-500"
+                  />
+                  <span>Zéro frais de change — paiement direct sans CDF</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle
+                    size={12}
+                    className="mt-0.5 flex-shrink-0 text-green-500"
+                  />
+                  <span>
+                    Échange OKP → CDF instantané si besoin de cash local
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle
+                    size={12}
+                    className="mt-0.5 flex-shrink-0 text-green-500"
+                  />
+                  <span>
+                    Afflux de valeur vers l'économie locale — réduction du
+                    change informel
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle
+                    size={12}
+                    className="mt-0.5 flex-shrink-0 text-green-500"
+                  />
+                  <span>
+                    Disponible sur mobile — aucun matériel spécial requis
+                  </span>
+                </li>
               </ul>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Section 11 — Philosophie "Bitcoin pour le Congo" */}
+      {/* Section 13 — Philosophie "Bitcoin pour le Congo" */}
       <Card>
         <CardHeader>
           <CardTitle style={{ color: OKP_COLOR }}>
-            11. Philosophie — Bitcoin pour le Congo
+            13. Philosophie — Bitcoin pour le Congo
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 text-sm">
           <p className="text-muted-foreground leading-relaxed">
             Okapi (OKP) s'inspire du modèle de <strong>Bitcoin</strong> —
             rareté, décentralisation, résistance à la censure — et l'adapte aux
-            réalités et aux besoins du peuple congolais.
+            réalités et aux besoins du peuple congolais. Okapi{" "}
+            <strong>ne remplace pas Bitcoin</strong>, il le{" "}
+            <strong>complète</strong> en résolvant les problèmes pratiques du
+            quotidien en RDC.
           </p>
+
+          {/* Comparison Table */}
+          <div className="overflow-x-auto rounded-xl border">
+            <table className="w-full text-xs">
+              <thead>
+                <tr style={{ background: OKP_BG }}>
+                  <th className="text-left p-3 font-semibold">Critère</th>
+                  <th
+                    className="text-left p-3 font-semibold"
+                    style={{ color: OKP_COLOR }}
+                  >
+                    🦌 Okapi (OKP)
+                  </th>
+                  <th className="text-left p-3 font-semibold text-amber-600">
+                    ₿ Bitcoin (BTC)
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  {
+                    criteria: "Objectif principal",
+                    okp: "Utilité locale quotidienne en RDC",
+                    btc: "Réserve de valeur mondiale",
+                  },
+                  {
+                    criteria: "Intégration mobile money",
+                    okp: "✅ Airtel Money, M-Pesa, CDF",
+                    btc: "❌ Aucune intégration native",
+                  },
+                  {
+                    criteria: "Frais de transaction",
+                    okp: "Très faibles (< 0.5%)",
+                    btc: "Variables, parfois élevés pour petits montants",
+                  },
+                  {
+                    criteria: "Paiements locaux",
+                    okp: "✅ Marchands, tourisme, services",
+                    btc: "❌ Peu adapté aux micro-paiements CDF",
+                  },
+                  {
+                    criteria: "Gouvernance",
+                    okp: "DAO communautaire + multisig institutionnel",
+                    btc: "Consensus des mineurs (proof-of-work)",
+                  },
+                  {
+                    criteria: "Adapté au Congo",
+                    okp: "✅ Conçu pour l'économie congolaise",
+                    btc: "Universel, non spécialisé",
+                  },
+                  {
+                    criteria: "Complémentarité",
+                    okp: "Axe local & adoption quotidienne",
+                    btc: "Réserve de valeur à long terme",
+                  },
+                ].map((row, i) => (
+                  <tr
+                    key={row.criteria}
+                    className={i % 2 === 0 ? "bg-muted/20" : ""}
+                  >
+                    <td className="p-3 font-medium">{row.criteria}</td>
+                    <td className="p-3 text-muted-foreground">{row.okp}</td>
+                    <td className="p-3 text-muted-foreground">{row.btc}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
           <div className="grid sm:grid-cols-2 gap-3">
             {[
               {
@@ -950,11 +1387,11 @@ function WhitepaperTab() {
         </CardContent>
       </Card>
 
-      {/* Section 12 — Pourquoi KongoKash n'est pas un Ponzi */}
+      {/* Section 14 — Pourquoi KongoKash n'est pas un Ponzi */}
       <Card>
         <CardHeader>
           <CardTitle style={{ color: OKP_COLOR }}>
-            12. Comment ça marche vraiment — Pourquoi KongoKash n'est pas un
+            14. Comment ça marche vraiment — Pourquoi KongoKash n'est pas un
             Ponzi
           </CardTitle>
         </CardHeader>
@@ -2277,6 +2714,119 @@ export default function OkapiSection() {
                 </Card>
               </motion.div>
             </div>
+
+            {/* Revenue Flow Panel */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="mt-6"
+            >
+              <Card className="shadow-card">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <TrendingUp
+                      size={18}
+                      style={{ color: "oklch(0.77 0.13 85)" }}
+                    />
+                    Flux des revenus de la plateforme
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground">
+                    Comment les frais de trading alimentent l'écosystème — 100%
+                    transparent et vérifiable on-chain
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    {[
+                      {
+                        icon: Users,
+                        title: "Utilisateur achète / vend OKP",
+                        desc: "Chaque échange de crypto ou d'OKP sur KongoKash",
+                        color: "oklch(0.52 0.12 160)",
+                        bg: "oklch(0.52 0.12 160 / 0.08)",
+                      },
+                      {
+                        icon: Lock,
+                        title: "Trésorerie Smart Contract",
+                        desc: "1% de frais prélevé automatiquement — aucune personne n'y accède seule",
+                        color: "oklch(0.77 0.13 85)",
+                        bg: "oklch(0.77 0.13 85 / 0.08)",
+                      },
+                      {
+                        icon: Shield,
+                        title: "Multi-sig Admin",
+                        desc: "Retrait uniquement avec validation multi-signatures",
+                        color: "oklch(0.55 0.18 290)",
+                        bg: "oklch(0.55 0.18 290 / 0.08)",
+                      },
+                      {
+                        icon: Coins,
+                        title: "Développement · Équipe · Partenariats",
+                        desc: "Fonds utilisés pour faire croître KongoKash et l'écosystème OKP",
+                        color: "oklch(0.52 0.12 160)",
+                        bg: "oklch(0.52 0.12 160 / 0.08)",
+                      },
+                    ].map((step, i, arr) => (
+                      <div
+                        key={step.title}
+                        className="flex sm:flex-col items-center gap-2 flex-1"
+                      >
+                        <div
+                          className="rounded-xl p-4 border flex flex-col items-center text-center gap-2 flex-1 w-full"
+                          style={{
+                            background: step.bg,
+                            borderColor: `${step.color}30`,
+                          }}
+                        >
+                          <div
+                            className="rounded-full p-2"
+                            style={{ background: `${step.color}20` }}
+                          >
+                            <step.icon
+                              size={18}
+                              style={{ color: step.color }}
+                            />
+                          </div>
+                          <p
+                            className="text-xs font-semibold leading-tight"
+                            style={{ color: step.color }}
+                          >
+                            {step.title}
+                          </p>
+                          <p className="text-xs text-muted-foreground leading-tight">
+                            {step.desc}
+                          </p>
+                        </div>
+                        {i < arr.length - 1 && (
+                          <div className="flex sm:flex-col items-center gap-0.5 flex-shrink-0">
+                            <div className="w-4 h-px sm:w-px sm:h-4 bg-muted-foreground/30" />
+                            <ArrowRight
+                              size={14}
+                              className="sm:hidden text-muted-foreground"
+                            />
+                            <div
+                              className="hidden sm:block text-muted-foreground"
+                              style={{ fontSize: 12 }}
+                            >
+                              ↓
+                            </div>
+                            <div className="w-4 h-px sm:w-px sm:h-4 bg-muted-foreground/30" />
+                            <span className="text-xs font-bold text-muted-foreground hidden">
+                              1%
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground text-center mt-4 border-t pt-3">
+                    🔒 Tous les mouvements de fonds sont publics et traçables
+                    on-chain — aucun tiers ne contrôle la trésorerie
+                  </p>
+                </CardContent>
+              </Card>
+            </motion.div>
           </TabsContent>
 
           {/* ── Onglet 2 : Staking ── */}

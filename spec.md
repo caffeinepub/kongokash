@@ -1,42 +1,36 @@
-# KongoKash
+# KongoKash — Super-App Phase 2
 
 ## Current State
-- Transactions stored with fields: id, userId, txType, asset, cryptoAmount, fiatAmount, fiatCurrency, paymentMethod, status, timestamp
-- Status values used: "completed", "pending"
-- No external transfer network concept (TRC20, BEP20, ERC20)
-- Admin dashboard transactions tab shows basic status (completed/en attente) — no network, no address
-- No per-network fee configuration in admin settings
-- TransactionHistory component handles completed/pending/failed display
+- ReservationsSection.tsx: hotels, parcs, vols avec paiement OKP/CDF, codes uniques, tickets numériques
+- Dashboard.tsx: onglet 'Réservations 🎫' existant (liste et annulation)
+- NotificationCenter.tsx: système de notifications existant (basique)
+- AdminDashboard.tsx: onglets Partenaires et Billets pour gestion admin
+- Pas de système de validation anti-fraude des réservations
+- Pas de support client intégré
+- Notifications pas liées aux événements de réservation
 
 ## Requested Changes (Diff)
 
 ### Add
-- Backend: `ExternalTransfer` type with fields: id, userId, asset, amount, toAddress, network (TRC20|BEP20|ERC20), networkFee, status (pending|confirmed|failed), timestamp
-- Backend: stable var `externalTransfers` map and `externalTransferId` counter
-- Backend: `networkFees` stable var — configurable fee per network (TRC20, BEP20, ERC20)
-- Backend: `submitExternalTransfer(asset, amount, toAddress, network)` — user function
-- Backend: `updateExternalTransferStatus(id, status)` — admin only
-- Backend: `getMyExternalTransfers()` — user query
-- Backend: `getAllExternalTransfers()` — admin query
-- Backend: `setNetworkFee(network, fee)` — admin only
-- Backend: `getNetworkFees()` — public query
-- Frontend: `ExternalTransferModal` component — network selector (TRC20 recommended), address input, warning banner, fee display
-- Frontend: `ExternalTransferHistory` component — list with status badges (pending/confirmé/échoué)
-- Frontend: Admin dashboard Transactions tab — add columns: Réseau, Adresse for external transfers
-- Frontend: Admin dashboard Settings tab — network fee configuration card (TRC20, BEP20, ERC20 fees)
-- Frontend: Admin dashboard — external transfers table with status update action
+- **Validation anti-fraude** : statuts de réservation (En attente → Confirmée → Annulée/Remboursée), QR code de vérification, token de validation unique par réservation, délai de paiement (30 min), limite de réservations par utilisateur/jour
+- **Historique complet dans Dashboard** : filtres par statut/type/date, détail de chaque réservation avec badge statut coloré, montant, date, établissement
+- **Notifications liées aux réservations** : notification automatique à la création (confirmation en attente), à la confirmation admin (réservation confirmée), au paiement (reçu de paiement), à l'annulation (remboursement en cours). Toasts temps réel + centre de notifications
+- **Support client minimum** : bouton "Contacter le support" dans Dashboard, formulaire de demande (sujet + message), liste des demandes avec statut (Ouvert/En cours/Résolu), admin peut répondre et fermer les tickets dans AdminDashboard
 
 ### Modify
-- Admin transactions tab: add external transfers section with network, address, status columns
-- Admin settings tab: add network fees configuration card
-- PortfolioSection or Dashboard: expose the external transfer action button ("Transfert Externe")
+- ReservationsSection.tsx : ajouter logique de validation (état pending, confirmation requise, limites anti-fraude)
+- Dashboard.tsx : enrichir l'onglet Réservations avec historique filtrable et statuts
+- NotificationCenter.tsx : brancher les événements de réservation sur les notifications
+- AdminDashboard.tsx : ajouter onglet Support pour gérer les tickets clients
 
 ### Remove
-- Nothing removed
+- Rien à supprimer
 
 ## Implementation Plan
-1. Add `ExternalTransfer` type, `networkFees` var, and all backend functions to main.mo
-2. Update backend.d.ts bindings
-3. Create ExternalTransferModal component (network select, address input, warning, fee)
-4. Add external transfers history to Dashboard/TransactionHistory
-5. Update AdminDashboard: add external transfers table + network fee settings card
+1. Enrichir le state des réservations avec statuts, tokens de validation, timestamps
+2. Ajouter logique anti-fraude : délai paiement 30 min, limite 5 réservations/jour/utilisateur, validation unique par code
+3. Créer composant SupportSection.tsx (formulaire ticket + liste tickets utilisateur)
+4. Mettre à jour Dashboard.tsx : historique réservations filtrable + onglet Support
+5. Mettre à jour NotificationCenter.tsx : notifications auto pour événements réservation
+6. Mettre à jour AdminDashboard.tsx : onglet Support pour répondre aux tickets
+7. Valider build

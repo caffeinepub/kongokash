@@ -118,6 +118,26 @@ export interface Transaction {
     fiatCurrency: string;
     cryptoAmount: number;
 }
+
+export interface TreasuryEntry {
+    id: bigint;
+    asset: string;
+    amount: number;
+    entryType: string;
+    sourceTxId: [] | [bigint];
+    note: string;
+    timestamp: bigint;
+}
+
+export interface TreasuryBalance {
+    cdf: number;
+    usd: number;
+    okp: number;
+    btc: number;
+    eth: number;
+    usdt: number;
+    icp: number;
+}
 export interface ExternalTransfer {
     id: bigint;
     status: string;  // "pending" | "confirmed" | "failed"
@@ -273,6 +293,9 @@ export interface backendInterface {
     getNetworkFees(): Promise<Array<[string, number]>>;
     transferOkp(to: Principal, amount: number): Promise<TransactionResult>;
     unstakeOkp(stakeId: bigint): Promise<TransactionResult>;
+    getTreasuryBalance(): Promise<TreasuryBalance>;
+    getTreasuryLedger(): Promise<Array<TreasuryEntry>>;
+    withdrawFromTreasury(asset: string, amount: number, note: string): Promise<{ success: boolean; message: string }>;
     /**
      * / Profile Management
      */

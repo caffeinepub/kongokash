@@ -4,10 +4,23 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ArrowDownLeft, ArrowUpRight, Bell, Clock } from "lucide-react";
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  Bell,
+  CheckCircle2,
+  Clock,
+  CreditCard,
+  Hotel,
+  X,
+} from "lucide-react";
 import { useState } from "react";
 import type { Transaction } from "../backend";
 import { useNotifications } from "../hooks/useNotifications";
+import {
+  type ReservationNotif,
+  useReservationNotifications,
+} from "../hooks/useReservationNotifications";
 
 const TX_LABELS: Record<string, string> = {
   buy: "Achat",
@@ -87,8 +100,88 @@ function NotifRow({ tx }: { tx: Transaction }) {
   );
 }
 
+function reservationNotifStyle(type: string): {
+  icon: React.ReactNode;
+  bg: string;
+  color: string;
+} {
+  switch (type) {
+    case "reservation_confirmed":
+      return {
+        icon: (
+          <CheckCircle2 size={13} style={{ color: "oklch(0.65 0.15 145)" }} />
+        ),
+        bg: "oklch(0.52 0.12 145 / 0.18)",
+        color: "oklch(0.65 0.15 145)",
+      };
+    case "payment_received":
+      return {
+        icon: (
+          <CreditCard size={13} style={{ color: "oklch(0.52 0.12 160)" }} />
+        ),
+        bg: "oklch(0.52 0.12 160 / 0.18)",
+        color: "oklch(0.52 0.12 160)",
+      };
+    case "reservation_cancelled":
+      return {
+        icon: <X size={13} style={{ color: "oklch(0.55 0.18 25)" }} />,
+        bg: "oklch(0.52 0.12 25 / 0.18)",
+        color: "oklch(0.55 0.18 25)",
+      };
+    default:
+      return {
+        icon: <Hotel size={13} style={{ color: "oklch(0.77 0.13 85)" }} />,
+        bg: "oklch(0.77 0.13 85 / 0.18)",
+        color: "oklch(0.77 0.13 85)",
+      };
+  }
+}
+
+function ReservationNotifRow({ notif }: { notif: ReservationNotif }) {
+  const s = reservationNotifStyle(notif.type);
+  const timeAgo = (() => {
+    const diff = Math.floor((Date.now() - notif.timestamp) / 1000);
+    if (diff < 60) return "à l'instant";
+    if (diff < 3600) return `il y a ${Math.floor(diff / 60)} min`;
+    return `il y a ${Math.floor(diff / 3600)}h`;
+  })();
+  return (
+    <div className="flex items-start gap-2.5 px-3 py-2.5 hover:bg-muted/40 transition-colors rounded-lg">
+      <div
+        className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
+        style={{ background: s.bg }}
+      >
+        {s.icon}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p
+          className="text-sm font-medium leading-tight"
+          style={{ color: s.color }}
+        >
+          {notif.title}
+        </p>
+        <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
+          {notif.message}
+        </p>
+        <p className="text-xs text-muted-foreground/60 mt-0.5">{timeAgo}</p>
+      </div>
+      {!notif.read && (
+        <div
+          className="w-1.5 h-1.5 rounded-full mt-2 shrink-0"
+          style={{ background: "oklch(0.77 0.13 85)" }}
+        />
+      )}
+    </div>
+  );
+}
+
 export default function NotificationCenter() {
   const { unreadCount, notifications, markAllRead } = useNotifications();
+  const {
+    reservationNotifs,
+    unreadReservationCount,
+    markReservationNotifsRead,
+  } = useReservationNotifications();
   const [open, setOpen] = useState(false);
 
   const handleOpen = (val: boolean) => {
@@ -97,6 +190,7 @@ export default function NotificationCenter() {
 
   const handleMarkAllRead = () => {
     markAllRead();
+    markReservationNotifsRead();
   };
 
   return (
@@ -109,13 +203,15 @@ export default function NotificationCenter() {
           aria-label="Notifications"
         >
           <Bell size={18} />
-          {unreadCount > 0 && (
+          {unreadCount + unreadReservationCount > 0 && (
             <span
               className="absolute top-1 right-1 w-4 h-4 rounded-full flex items-center justify-center text-white text-[10px] font-bold leading-none"
               style={{ background: "oklch(0.55 0.22 27)" }}
               data-ocid="notifications.toast"
             >
-              {unreadCount > 9 ? "9+" : unreadCount}
+              {unreadCount + unreadReservationCount > 9
+                ? "9+"
+                : unreadCount + unreadReservationCount}
             </span>
           )}
         </button>
@@ -149,7 +245,7 @@ export default function NotificationCenter() {
 
         {/* List */}
         <ScrollArea className="max-h-[340px]">
-          {notifications.length === 0 ? (
+          {notifications.length === 0 && reservationNotifs.length === 0 ? (
             <div
               className="flex flex-col items-center justify-center py-10 text-muted-foreground"
               data-ocid="notifications.empty_state"
@@ -162,6 +258,9 @@ export default function NotificationCenter() {
             </div>
           ) : (
             <div className="p-1.5 space-y-0.5">
+              {reservationNotifs.map((n) => (
+                <ReservationNotifRow key={n.id} notif={n} />
+              ))}
               {notifications.map((tx) => (
                 <NotifRow key={tx.id.toString()} tx={tx} />
               ))}

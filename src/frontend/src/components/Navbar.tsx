@@ -33,7 +33,9 @@ export default function Navbar({
   const navLinks = [
     { label: "Accueil", id: "hero" },
     { label: "Échange", id: "buysell" },
+    { label: "Réservations", id: "reservations" },
     { label: "Portefeuille", id: "dashboard" },
+    { label: "Okapi", id: "okapi" },
     { label: "Banques", id: "banques" },
     { label: "Support", id: "footer" },
   ];

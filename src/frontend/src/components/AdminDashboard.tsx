@@ -26,14 +26,17 @@ import {
   AlertTriangle,
   ArrowUpRight,
   BarChart3,
+  Building2,
   CheckCircle,
   CheckCircle2,
   Coins,
   Flame,
   GitMerge,
+  Headphones,
   History,
   Loader2,
   Network,
+  Plane,
   RefreshCw,
   Settings,
   Shield,
@@ -42,6 +45,7 @@ import {
   ThumbsUp,
   TrendingUp,
   Users,
+  Vault,
   Vote,
   XCircle,
 } from "lucide-react";
@@ -56,6 +60,8 @@ import {
   useSetNetworkFee,
   useUpdateExternalTransferStatus,
 } from "../hooks/useQueries";
+import { AdminSupportTab } from "./SupportSection";
+import { TreasuryTab } from "./TreasuryTab";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -834,7 +840,7 @@ export default function AdminDashboard() {
 
         <Tabs defaultValue="overview" className="space-y-6">
           <TabsList
-            className="grid grid-cols-6 w-full"
+            className="grid grid-cols-10 w-full"
             style={{
               background: "oklch(0.15 0.03 220)",
               border: "1px solid oklch(0.25 0.04 220)",
@@ -871,6 +877,26 @@ export default function AdminDashboard() {
                 value: "gouvernance",
                 label: "Gouvernance",
                 icon: <Shield size={14} />,
+              },
+              {
+                value: "tresorerie",
+                label: "Trésorerie",
+                icon: <Vault size={14} />,
+              },
+              {
+                value: "partenaires",
+                label: "Partenaires",
+                icon: <Building2 size={14} />,
+              },
+              {
+                value: "billets",
+                label: "Billets ✈️",
+                icon: <Plane size={14} />,
+              },
+              {
+                value: "support",
+                label: "Support 🎧",
+                icon: <Headphones size={14} />,
               },
             ].map((tab) => (
               <TabsTrigger
@@ -2073,6 +2099,26 @@ export default function AdminDashboard() {
           <TabsContent value="gouvernance" data-ocid="admin.gouvernance.panel">
             <GouvernanceTab />
           </TabsContent>
+
+          {/* ── Tab 7: Trésorerie ────────────────────────────────────────────── */}
+          <TabsContent value="tresorerie" data-ocid="admin.treasury.panel">
+            <TreasuryTab />
+          </TabsContent>
+
+          {/* ── Tab 8: Partenaires ──────────────────────────────────────────── */}
+          <TabsContent value="partenaires" data-ocid="admin.partenaires.panel">
+            <PartenairesTab actor={actor} isFetching={isFetching} />
+          </TabsContent>
+
+          {/* ── Tab 9: Billets ──────────────────────────────────────────── */}
+          <TabsContent value="billets" data-ocid="admin.billets.panel">
+            <BilletsTab />
+          </TabsContent>
+
+          {/* ── Tab 10: Support ──────────────────────────────────────────── */}
+          <TabsContent value="support" data-ocid="admin.support.panel">
+            <AdminSupportTab />
+          </TabsContent>
         </Tabs>
       </div>
     </section>
@@ -2650,6 +2696,810 @@ function GouvernanceTab() {
           <div className="text-center py-8" data-ocid="gouvernance.empty_state">
             <History size={36} className="mx-auto opacity-20 text-white mb-2" />
             <p className="text-white/40 text-sm">Aucune proposition passée.</p>
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+}
+
+// ─── Partenaires Admin Tab ───────────────────────────────────────────────────
+
+interface StructureLocal {
+  id: bigint;
+  name: string;
+  description: string;
+  category: string;
+  priceOKP: number;
+  priceCDF: number;
+  location: string;
+  capacity: bigint;
+  imageUrl: string;
+  isActive: boolean;
+}
+
+interface ReservationLocal {
+  id: bigint;
+  structureName: string;
+  checkIn: string;
+  checkOut: string;
+  guests: bigint;
+  paymentMethod: string;
+  totalAmount: number;
+  status: string;
+  bookingCode: string;
+  createdAt: bigint;
+}
+
+interface PartenairesTabProps {
+  actor: any;
+  isFetching: boolean;
+}
+
+function PartenairesTab({ actor, isFetching }: PartenairesTabProps) {
+  const queryClient = useQueryClient();
+  const [addName, setAddName] = useState("");
+  const [addDesc, setAddDesc] = useState("");
+  const [addCategory, setAddCategory] = useState("hotel");
+  const [addPriceOKP, setAddPriceOKP] = useState("");
+  const [addPriceCDF, setAddPriceCDF] = useState("");
+  const [addLocation, setAddLocation] = useState("");
+  const [addCapacity, setAddCapacity] = useState("10");
+
+  const { data: structures = [], isLoading: structuresLoading } = useQuery<
+    StructureLocal[]
+  >({
+    queryKey: ["adminStructures"],
+    queryFn: async () => {
+      if (!actor) return [];
+      try {
+        return (await (actor as any).getStructures()) as StructureLocal[];
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!actor && !isFetching,
+  });
+
+  const { data: reservations = [], isLoading: reservationsLoading } = useQuery<
+    ReservationLocal[]
+  >({
+    queryKey: ["adminAllReservations"],
+    queryFn: async () => {
+      if (!actor) return [];
+      try {
+        return (await (
+          actor as any
+        ).adminGetAllReservations()) as ReservationLocal[];
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!actor && !isFetching,
+  });
+
+  const addStructure = useMutation({
+    mutationFn: async () => {
+      if (!actor) throw new Error("Actor non disponible");
+      return (actor as any).adminAddStructure(
+        addName,
+        addDesc,
+        addCategory,
+        Number(addPriceOKP),
+        Number(addPriceCDF),
+        addLocation,
+        BigInt(addCapacity),
+      ) as Promise<{ success: boolean; id: bigint }>;
+    },
+    onSuccess: (data) => {
+      if (data.success) {
+        queryClient.invalidateQueries({ queryKey: ["adminStructures"] });
+        queryClient.invalidateQueries({ queryKey: ["structures"] });
+        setAddName("");
+        setAddDesc("");
+        setAddPriceOKP("");
+        setAddPriceCDF("");
+        setAddLocation("");
+      }
+    },
+  });
+
+  const toggleStatus = useMutation({
+    mutationFn: async ({ id, isActive }: { id: bigint; isActive: boolean }) => {
+      if (!actor) throw new Error("Actor non disponible");
+      return (actor as any).adminUpdateStructureStatus(
+        id,
+        isActive,
+      ) as Promise<{ success: boolean }>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["adminStructures"] });
+      queryClient.invalidateQueries({ queryKey: ["structures"] });
+    },
+  });
+
+  function statusBadge(status: string) {
+    switch (status) {
+      case "confirmed":
+        return (
+          <span
+            className="px-2 py-0.5 rounded-full text-xs"
+            style={{
+              background: "oklch(0.30 0.10 145/0.3)",
+              color: "oklch(0.70 0.15 145)",
+            }}
+          >
+            Confirmé
+          </span>
+        );
+      case "cancelled":
+        return (
+          <span
+            className="px-2 py-0.5 rounded-full text-xs"
+            style={{
+              background: "oklch(0.30 0.10 20/0.3)",
+              color: "oklch(0.65 0.15 20)",
+            }}
+          >
+            Annulé
+          </span>
+        );
+      default:
+        return (
+          <span
+            className="px-2 py-0.5 rounded-full text-xs"
+            style={{
+              background: "oklch(0.30 0.10 85/0.3)",
+              color: "oklch(0.77 0.13 85)",
+            }}
+          >
+            En attente
+          </span>
+        );
+    }
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className="space-y-8"
+    >
+      {/* Add Structure */}
+      <Card
+        style={{
+          background: "oklch(0.15 0.03 220)",
+          border: "1px solid oklch(0.25 0.04 220)",
+        }}
+      >
+        <CardHeader>
+          <CardTitle className="text-white flex items-center gap-2">
+            <Building2 size={16} style={{ color: "oklch(0.77 0.13 85)" }} />
+            Ajouter une structure partenaire
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <Label className="text-white/70 text-xs">Nom</Label>
+              <Input
+                value={addName}
+                onChange={(e) => setAddName(e.target.value)}
+                placeholder="Hôtel XYZ"
+                className="bg-white/5 border-white/20 text-white"
+                data-ocid="partenaires.input"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-white/70 text-xs">Catégorie</Label>
+              <Select value={addCategory} onValueChange={setAddCategory}>
+                <SelectTrigger
+                  className="bg-white/5 border-white/20 text-white"
+                  data-ocid="partenaires.select"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent style={{ background: "oklch(0.18 0.04 220)" }}>
+                  <SelectItem value="hotel" className="text-white">
+                    🏨 Hôtel
+                  </SelectItem>
+                  <SelectItem value="parc" className="text-white">
+                    🌿 Parc National
+                  </SelectItem>
+                  <SelectItem value="structure" className="text-white">
+                    🏛️ Structure
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1 sm:col-span-2">
+              <Label className="text-white/70 text-xs">Description</Label>
+              <Input
+                value={addDesc}
+                onChange={(e) => setAddDesc(e.target.value)}
+                placeholder="Description..."
+                className="bg-white/5 border-white/20 text-white"
+                data-ocid="partenaires.input"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-white/70 text-xs">Prix OKP / nuit</Label>
+              <Input
+                type="number"
+                value={addPriceOKP}
+                onChange={(e) => setAddPriceOKP(e.target.value)}
+                placeholder="1500"
+                className="bg-white/5 border-white/20 text-white"
+                data-ocid="partenaires.input"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-white/70 text-xs">Prix CDF / nuit</Label>
+              <Input
+                type="number"
+                value={addPriceCDF}
+                onChange={(e) => setAddPriceCDF(e.target.value)}
+                placeholder="75000"
+                className="bg-white/5 border-white/20 text-white"
+                data-ocid="partenaires.input"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-white/70 text-xs">Localisation</Label>
+              <Input
+                value={addLocation}
+                onChange={(e) => setAddLocation(e.target.value)}
+                placeholder="Kinshasa, RDC"
+                className="bg-white/5 border-white/20 text-white"
+                data-ocid="partenaires.input"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-white/70 text-xs">
+                Capacité (personnes)
+              </Label>
+              <Input
+                type="number"
+                value={addCapacity}
+                onChange={(e) => setAddCapacity(e.target.value)}
+                className="bg-white/5 border-white/20 text-white"
+                data-ocid="partenaires.input"
+              />
+            </div>
+          </div>
+          <Button
+            className="mt-4"
+            onClick={() => addStructure.mutate()}
+            disabled={addStructure.isPending || !addName || !addPriceOKP}
+            style={{ background: "oklch(0.52 0.12 160)" }}
+            data-ocid="partenaires.submit_button"
+          >
+            {addStructure.isPending ? (
+              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+            ) : null}
+            Ajouter la structure
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Structures Table */}
+      <Card
+        style={{
+          background: "oklch(0.15 0.03 220)",
+          border: "1px solid oklch(0.25 0.04 220)",
+        }}
+      >
+        <CardHeader>
+          <CardTitle className="text-white flex items-center gap-2">
+            <Building2 size={16} style={{ color: "oklch(0.60 0.15 195)" }} />
+            Structures partenaires ({structures.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {structuresLoading ? (
+            <div
+              className="flex justify-center py-8"
+              data-ocid="partenaires.loading_state"
+            >
+              <Loader2 className="animate-spin text-white/40" />
+            </div>
+          ) : structures.length === 0 ? (
+            <div
+              className="text-center py-8 text-white/40"
+              data-ocid="partenaires.empty_state"
+            >
+              Aucune structure enregistrée
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow style={{ borderColor: "oklch(0.25 0.04 220)" }}>
+                    <TableHead className="text-white/60">Nom</TableHead>
+                    <TableHead className="text-white/60">Catégorie</TableHead>
+                    <TableHead className="text-white/60">
+                      Localisation
+                    </TableHead>
+                    <TableHead className="text-white/60">Prix OKP</TableHead>
+                    <TableHead className="text-white/60">Statut</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {structures.map((s, idx) => (
+                    <TableRow
+                      key={String(s.id)}
+                      style={{ borderColor: "oklch(0.22 0.04 220)" }}
+                      data-ocid={`partenaires.row.${idx + 1}`}
+                    >
+                      <TableCell className="text-white font-medium">
+                        {s.name}
+                      </TableCell>
+                      <TableCell className="text-white/70 capitalize">
+                        {s.category}
+                      </TableCell>
+                      <TableCell className="text-white/70">
+                        {s.location}
+                      </TableCell>
+                      <TableCell style={{ color: "oklch(0.77 0.13 85)" }}>
+                        {s.priceOKP.toLocaleString("fr-FR")} OKP
+                      </TableCell>
+                      <TableCell>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            toggleStatus.mutate({
+                              id: s.id,
+                              isActive: !s.isActive,
+                            })
+                          }
+                          className="px-3 py-1 rounded-full text-xs font-semibold transition-colors"
+                          style={
+                            s.isActive
+                              ? {
+                                  background: "oklch(0.30 0.10 145/0.3)",
+                                  color: "oklch(0.70 0.15 145)",
+                                }
+                              : {
+                                  background: "oklch(0.30 0.06 220/0.3)",
+                                  color: "oklch(0.55 0.04 220)",
+                                }
+                          }
+                          data-ocid={`partenaires.toggle.${idx + 1}`}
+                        >
+                          {s.isActive ? "Actif" : "Inactif"}
+                        </button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Reservations Table */}
+      <Card
+        style={{
+          background: "oklch(0.15 0.03 220)",
+          border: "1px solid oklch(0.25 0.04 220)",
+        }}
+      >
+        <CardHeader>
+          <CardTitle className="text-white flex items-center gap-2">
+            <Activity size={16} style={{ color: "oklch(0.60 0.15 195)" }} />
+            Toutes les réservations ({reservations.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {reservationsLoading ? (
+            <div
+              className="flex justify-center py-8"
+              data-ocid="partenaires.loading_state"
+            >
+              <Loader2 className="animate-spin text-white/40" />
+            </div>
+          ) : reservations.length === 0 ? (
+            <div
+              className="text-center py-8 text-white/40"
+              data-ocid="partenaires.empty_state"
+            >
+              Aucune réservation
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow style={{ borderColor: "oklch(0.25 0.04 220)" }}>
+                    <TableHead className="text-white/60">Code</TableHead>
+                    <TableHead className="text-white/60">Structure</TableHead>
+                    <TableHead className="text-white/60">Dates</TableHead>
+                    <TableHead className="text-white/60">Pers.</TableHead>
+                    <TableHead className="text-white/60">Montant</TableHead>
+                    <TableHead className="text-white/60">Statut</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {reservations.map((r, idx) => (
+                    <TableRow
+                      key={String(r.id)}
+                      style={{ borderColor: "oklch(0.22 0.04 220)" }}
+                      data-ocid={`partenaires.row.${idx + 1}`}
+                    >
+                      <TableCell
+                        className="font-mono text-xs"
+                        style={{ color: "oklch(0.77 0.13 85)" }}
+                      >
+                        #{r.bookingCode}
+                      </TableCell>
+                      <TableCell className="text-white">
+                        {r.structureName}
+                      </TableCell>
+                      <TableCell className="text-white/70 text-xs">
+                        {r.checkIn} → {r.checkOut}
+                      </TableCell>
+                      <TableCell className="text-white/70">
+                        {Number(r.guests)}
+                      </TableCell>
+                      <TableCell className="text-white/80">
+                        {r.totalAmount.toLocaleString("fr-FR")}{" "}
+                        {r.paymentMethod.toUpperCase()}
+                      </TableCell>
+                      <TableCell>{statusBadge(r.status)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+}
+
+// ─── Billets Tab ─────────────────────────────────────────────────────────────
+
+const STATIC_FLIGHT_BOOKINGS = [
+  {
+    code: "KK-F4821",
+    passenger: "Jean-Pierre Mbambu",
+    vol: "Kinshasa → Bruxelles",
+    airline: "Brussels Airlines",
+    date: "2027-03-15",
+    statut: "confirmed",
+    paiement: "28000 OKP",
+  },
+  {
+    code: "KK-F2930",
+    passenger: "Marie Lukusa",
+    vol: "Kinshasa → Nairobi",
+    airline: "Kenya Airways",
+    date: "2027-03-18",
+    statut: "confirmed",
+    paiement: "10600 OKP",
+  },
+  {
+    code: "KK-F7741",
+    passenger: "Pierre Ntumba",
+    vol: "Lubumbashi → Kinshasa",
+    airline: "CAA Congo",
+    date: "2027-03-20",
+    statut: "pending",
+    paiement: "160000 FC",
+  },
+  {
+    code: "KK-F5512",
+    passenger: "Amina Banza",
+    vol: "Kinshasa → Addis-Abéba",
+    airline: "Ethiopian Airlines",
+    date: "2027-03-22",
+    statut: "confirmed",
+    paiement: "12400 OKP",
+  },
+  {
+    code: "KK-F8803",
+    passenger: "David Tshiombo",
+    vol: "Goma → Kinshasa",
+    airline: "CAA Congo",
+    date: "2027-03-25",
+    statut: "failed",
+    paiement: "190000 FC",
+  },
+];
+
+const AIRLINE_PARTNERS = [
+  {
+    name: "CAA Congo",
+    code: "CAA",
+    routes: "Kinshasa ↔ Lubumbashi, Goma, Bukavu, Kisangani",
+    status: "Actif",
+  },
+  {
+    name: "Ethiopian Airlines",
+    code: "ET",
+    routes: "Kinshasa ↔ Addis-Abéba",
+    status: "Actif",
+  },
+  {
+    name: "Kenya Airways",
+    code: "KQ",
+    routes: "Kinshasa ↔ Nairobi",
+    status: "Actif",
+  },
+  {
+    name: "Brussels Airlines",
+    code: "SN",
+    routes: "Kinshasa ↔ Bruxelles, Paris",
+    status: "Actif",
+  },
+];
+
+function BilletsTab() {
+  const [newAirline, setNewAirline] = useState("");
+  const [newRoute, setNewRoute] = useState("");
+  const [partners, setPartners] = useState(AIRLINE_PARTNERS);
+
+  function statusBadgeLocal(status: string) {
+    const map: Record<string, { label: string; style: React.CSSProperties }> = {
+      confirmed: {
+        label: "Confirmé",
+        style: {
+          background: "oklch(0.30 0.10 145 / 0.3)",
+          color: "oklch(0.70 0.15 145)",
+        },
+      },
+      pending: {
+        label: "En attente",
+        style: {
+          background: "oklch(0.30 0.10 85 / 0.3)",
+          color: "oklch(0.77 0.13 85)",
+        },
+      },
+      failed: {
+        label: "Échoué",
+        style: {
+          background: "oklch(0.30 0.10 20 / 0.3)",
+          color: "oklch(0.65 0.15 20)",
+        },
+      },
+    };
+    const info = map[status] ?? map.pending;
+    return (
+      <span
+        className="px-2 py-0.5 rounded-full text-xs font-semibold"
+        style={info.style}
+      >
+        {info.label}
+      </span>
+    );
+  }
+
+  function handleAddAirline() {
+    if (!newAirline.trim() || !newRoute.trim()) return;
+    setPartners((prev) => [
+      ...prev,
+      {
+        name: newAirline,
+        code: newAirline.slice(0, 3).toUpperCase(),
+        routes: newRoute,
+        status: "Actif",
+      },
+    ]);
+    setNewAirline("");
+    setNewRoute("");
+    toast.success("Partenaire aérien ajouté");
+  }
+
+  function handleRemoveAirline(idx: number) {
+    setPartners((prev) => prev.filter((_, i) => i !== idx));
+    toast.success("Partenaire supprimé");
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-6"
+    >
+      {/* Flight Bookings Table */}
+      <Card
+        style={{
+          background: "oklch(0.15 0.03 220)",
+          border: "1px solid oklch(0.25 0.04 220)",
+        }}
+      >
+        <CardHeader>
+          <CardTitle
+            className="text-base flex items-center gap-2"
+            style={{ color: "oklch(0.92 0.04 80)" }}
+          >
+            <Plane size={16} style={{ color: "oklch(0.60 0.15 250)" }} />
+            Réservations de vols
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0 overflow-x-auto">
+          <Table>
+            <TableHeader style={{ background: "oklch(0.15 0.03 220)" }}>
+              <TableRow style={{ borderColor: "oklch(0.25 0.04 220)" }}>
+                <TableHead className="text-white/60">Code</TableHead>
+                <TableHead className="text-white/60">Passager</TableHead>
+                <TableHead className="text-white/60">Vol</TableHead>
+                <TableHead className="text-white/60">Compagnie</TableHead>
+                <TableHead className="text-white/60">Date</TableHead>
+                <TableHead className="text-white/60">Statut</TableHead>
+                <TableHead className="text-white/60">Paiement</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {STATIC_FLIGHT_BOOKINGS.map((b) => (
+                <TableRow
+                  key={b.code}
+                  style={{ borderColor: "oklch(0.22 0.04 220)" }}
+                >
+                  <TableCell
+                    className="font-mono text-xs font-bold"
+                    style={{ color: "oklch(0.77 0.13 85)" }}
+                  >
+                    {b.code}
+                  </TableCell>
+                  <TableCell className="text-white/80 text-sm">
+                    {b.passenger}
+                  </TableCell>
+                  <TableCell className="text-white/80 text-sm">
+                    {b.vol}
+                  </TableCell>
+                  <TableCell className="text-white/60 text-sm">
+                    {b.airline}
+                  </TableCell>
+                  <TableCell className="text-white/60 text-sm">
+                    {b.date}
+                  </TableCell>
+                  <TableCell>{statusBadgeLocal(b.statut)}</TableCell>
+                  <TableCell
+                    className="font-mono text-sm"
+                    style={{ color: "oklch(0.70 0.12 145)" }}
+                  >
+                    {b.paiement}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Airline Partners Management */}
+      <Card
+        style={{
+          background: "oklch(0.15 0.03 220)",
+          border: "1px solid oklch(0.25 0.04 220)",
+        }}
+      >
+        <CardHeader>
+          <CardTitle
+            className="text-base flex items-center gap-2"
+            style={{ color: "oklch(0.92 0.04 80)" }}
+          >
+            <Building2 size={16} style={{ color: "oklch(0.60 0.15 195)" }} />
+            Gestion des partenaires aériens
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Add new partner */}
+          <div
+            className="rounded-xl p-4 space-y-3"
+            style={{
+              background: "oklch(0.18 0.04 220)",
+              border: "1px solid oklch(0.28 0.05 220)",
+            }}
+          >
+            <p
+              className="text-sm font-medium"
+              style={{ color: "oklch(0.75 0.04 220)" }}
+            >
+              Ajouter une compagnie partenaire
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label
+                  className="text-xs"
+                  style={{ color: "oklch(0.60 0.03 220)" }}
+                >
+                  Nom de la compagnie
+                </Label>
+                <Input
+                  value={newAirline}
+                  onChange={(e) => setNewAirline(e.target.value)}
+                  placeholder="ex: Air Congo"
+                  className="bg-transparent border-white/20 text-white text-sm"
+                  data-ocid="admin.input"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label
+                  className="text-xs"
+                  style={{ color: "oklch(0.60 0.03 220)" }}
+                >
+                  Routes desservies
+                </Label>
+                <Input
+                  value={newRoute}
+                  onChange={(e) => setNewRoute(e.target.value)}
+                  placeholder="ex: KIN ↔ LBB"
+                  className="bg-transparent border-white/20 text-white text-sm"
+                  data-ocid="admin.input"
+                />
+              </div>
+            </div>
+            <Button
+              size="sm"
+              onClick={handleAddAirline}
+              style={{ background: "oklch(0.52 0.12 195)" }}
+              data-ocid="admin.primary_button"
+            >
+              Ajouter le partenaire
+            </Button>
+          </div>
+
+          {/* Partners list */}
+          <div className="space-y-2" data-ocid="admin.list">
+            {partners.map((p, idx) => (
+              <div
+                key={p.name}
+                className="rounded-lg p-3 flex items-center justify-between"
+                style={{
+                  background: "oklch(0.18 0.04 220)",
+                  border: "1px solid oklch(0.26 0.05 220)",
+                }}
+                data-ocid={`admin.item.${idx + 1}`}
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="font-bold text-sm font-mono px-2 py-0.5 rounded"
+                      style={{
+                        background: "oklch(0.60 0.15 250 / 0.2)",
+                        color: "oklch(0.60 0.15 250)",
+                      }}
+                    >
+                      {p.code}
+                    </span>
+                    <span
+                      className="font-medium text-sm"
+                      style={{ color: "oklch(0.85 0.04 220)" }}
+                    >
+                      {p.name}
+                    </span>
+                    <span
+                      className="px-1.5 py-0.5 rounded-full text-xs"
+                      style={{
+                        background: "oklch(0.35 0.10 145 / 0.3)",
+                        color: "oklch(0.70 0.15 145)",
+                      }}
+                    >
+                      {p.status}
+                    </span>
+                  </div>
+                  <p
+                    className="text-xs mt-0.5"
+                    style={{ color: "oklch(0.55 0.04 220)" }}
+                  >
+                    {p.routes}
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleRemoveAirline(idx)}
+                  style={{ color: "oklch(0.65 0.15 20)" }}
+                  data-ocid={`admin.delete_button.${idx + 1}`}
+                >
+                  Supprimer
+                </Button>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>

@@ -15,6 +15,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowDownLeft,
   ArrowUpRight,
+  Building2,
   Gift,
   Headphones,
   History,
@@ -46,6 +47,7 @@ import ExternalTransferModal, {
   ExternalTransferHistory,
 } from "./ExternalTransferModal";
 import NonCustodialWallet from "./NonCustodialWallet";
+import PartnerDashboard from "./PartnerDashboard";
 import ReferralSection, { ApplyReferralCard } from "./ReferralSection";
 import SupportSection from "./SupportSection";
 import TransactionHistory from "./TransactionHistory";
@@ -254,6 +256,13 @@ export default function Dashboard() {
               data-ocid="dashboard.tab"
             >
               <Headphones size={14} /> Support 🎧
+            </TabsTrigger>
+            <TabsTrigger
+              value="partner"
+              className="flex items-center gap-2"
+              data-ocid="dashboard.tab"
+            >
+              <Building2 size={14} /> Espace Partenaire 🏢
             </TabsTrigger>
           </TabsList>
 
@@ -1002,6 +1011,9 @@ export default function Dashboard() {
           {/* ─── Tab 4: Support ─── */}
           <TabsContent value="support">
             <SupportSection />
+          </TabsContent>
+          <TabsContent value="partner">
+            <PartnerDashboard />
           </TabsContent>
         </Tabs>
       </div>

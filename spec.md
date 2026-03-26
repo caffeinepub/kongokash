@@ -1,31 +1,32 @@
-# KongoKash — Escrow Payment System
+# KongoKash — UX Simple pour Partenaires
 
 ## Current State
-Reservations module exists with hotels, parks, airlines. Payments go directly to the platform on booking. No escrow, no dispute mechanism.
+Dashboard utilisateur avec onglets : Wallet Sécurisé, Réservations, Tickets, Support, Notifications.
+NotificationCenter existe avec notifications localStorage.
+Escrow system en place avec statuts de réservations.
+Aucune vue dédiée pour partenaires (hôtels, parcs) : vue simple paiements reçus + réservations + retrait.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Escrow smart contract logic in Motoko: lock funds on booking, release on check-in confirmation or auto-release X hours before service
-- Dispute system: user or partner can open a dispute, admin arbitrates
-- Refund logic: full refund if cancelled before auto-release window; partial/full refund on dispute resolution
-- Frontend escrow status UI: shows fund state (Bloqué / Libéré / Remboursé / Litige)
-- Check-in confirmation button for partners
-- Dispute form for users
-- Admin dispute management panel
+- PartnerDashboard.tsx : interface simple non-custodial pour partenaires
+  - Onglet "Réservations" : liste des réservations reçues (client, dates, montant, statut)
+  - Onglet "Paiements" : historique des paiements reçus depuis l'escrow (libération de fonds)
+  - Bouton "Retirer" proéminent : déclenche un retrait vers adresse externe du wallet partenaire
+  - Onglet "Notifications" : Paiement reçu, Réservation confirmée, Libération des fonds — avec badges
+- Intégrer PartnerDashboard dans App.tsx ou Dashboard.tsx pour les utilisateurs avec rôle partenaire
+- Améliorer NotificationCenter : ajouter types spécifiques (paiement_recu, reservation_confirmee, liberation_fonds)
 
 ### Modify
-- Reservation flow: payment now creates an escrow entry instead of direct transfer
-- Dashboard → Réservations: add escrow status badge and dispute/refund actions
-- Admin Dashboard: add Litiges tab
+- Dashboard.tsx : détecter le rôle partenaire et afficher PartnerDashboard à la place de la vue standard, ou ajouter un onglet "Espace Partenaire"
+- NotificationCenter/useReservationNotifications : ajouter les 3 types de notifications partenaires
 
 ### Remove
-- Nothing removed
+- Rien
 
 ## Implementation Plan
-1. Add escrow types and state to Motoko backend: EscrowEntry { reservationId, amount, currency, status, releaseTime, userId, partnerId }
-2. Add backend functions: createEscrow, confirmCheckin, autoRelease, openDispute, resolveDispute (admin), refundEscrow
-3. Frontend: EscrowStatusBadge component
-4. Frontend: update reservation booking flow to show escrow explanation
-5. Frontend: Dashboard → Réservations → escrow status + Ouvrir un litige button
-6. Frontend: Admin → Litiges tab with resolve/refund actions
+1. Créer PartnerDashboard.tsx avec 3 onglets simples : Réservations, Paiements, Notifications
+2. Données simulées réalistes (réservations reçues, paiements libérés par escrow)
+3. Bouton "Retirer" avec modal simple (adresse de destination, montant)
+4. Notifications avec badges colorés pour chaque type d'événement
+5. Intégrer dans Dashboard.tsx comme nouvel onglet "Espace Partenaire 🏢"

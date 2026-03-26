@@ -40,6 +40,7 @@ import {
   RefreshCw,
   Settings,
   Shield,
+  ShieldAlert,
   Smartphone,
   ThumbsDown,
   ThumbsUp,
@@ -55,11 +56,19 @@ import { toast } from "sonner";
 import { UserRole } from "../backend";
 import { useActor } from "../hooks/useActor";
 import {
+  getEnhancedPartnerStatus,
+  usePartnerOwnershipTransfer,
+} from "../hooks/usePartnerOwnershipTransfer";
+import { getPartnerWalletStatus } from "../hooks/usePartnerWallet";
+import {
   useAllExternalTransfers,
   useNetworkFees,
   useSetNetworkFee,
   useUpdateExternalTransferStatus,
 } from "../hooks/useQueries";
+import { UrgencesInstitutionnellesTab } from "./InstitutionalMultiSigWallet";
+import { PartnerOwnershipTransferModal } from "./PartnerOwnershipTransferModal";
+import { PartnerWalletDialog } from "./PartnerWalletSetup";
 import { AdminSupportTab } from "./SupportSection";
 import { TreasuryTab } from "./TreasuryTab";
 
@@ -897,6 +906,11 @@ export default function AdminDashboard() {
                 value: "support",
                 label: "Support 🎧",
                 icon: <Headphones size={14} />,
+              },
+              {
+                value: "urgences",
+                label: "Urgences 🆘",
+                icon: <ShieldAlert size={14} />,
               },
             ].map((tab) => (
               <TabsTrigger
@@ -2119,6 +2133,11 @@ export default function AdminDashboard() {
           <TabsContent value="support" data-ocid="admin.support.panel">
             <AdminSupportTab />
           </TabsContent>
+
+          {/* ── Tab 11: Urgences Institutionnelles ──────────────────────── */}
+          <TabsContent value="urgences" data-ocid="admin.urgences.panel">
+            <UrgencesInstitutionnellesTab />
+          </TabsContent>
         </Tabs>
       </div>
     </section>
@@ -2703,6 +2722,265 @@ function GouvernanceTab() {
   );
 }
 
+// ─── TransfertsEnCoursCard ───────────────────────────────────────────────────
+
+function TransfertsEnCoursCard({
+  onViewTransfer,
+}: {
+  onViewTransfer: (partnerId: string, partnerName: string) => void;
+}) {
+  const { getTransfers } = usePartnerOwnershipTransfer();
+  const transfers = getTransfers();
+
+  const statusLabel = (
+    s: "en_transfert" | "nouveau_wallet" | "complete",
+  ): React.ReactNode => {
+    const map = {
+      en_transfert: {
+        label: "Gelé 🔴",
+        bg: "oklch(0.28 0.10 20/0.4)",
+        color: "oklch(0.70 0.15 20)",
+      },
+      nouveau_wallet: {
+        label: "En Transfert 🟡",
+        bg: "oklch(0.28 0.10 85/0.4)",
+        color: "oklch(0.77 0.13 85)",
+      },
+      complete: {
+        label: "Terminé ✅",
+        bg: "oklch(0.25 0.08 145/0.4)",
+        color: "oklch(0.70 0.15 145)",
+      },
+    };
+    const info = map[s];
+    return (
+      <span
+        className="px-2 py-0.5 rounded-full text-xs font-semibold"
+        style={{ background: info.bg, color: info.color }}
+      >
+        {info.label}
+      </span>
+    );
+  };
+
+  return (
+    <Card
+      style={{
+        background: "oklch(0.15 0.03 220)",
+        border: "1px solid oklch(0.25 0.04 220)",
+      }}
+    >
+      <CardHeader>
+        <CardTitle className="text-white flex items-center gap-2 text-base">
+          <RefreshCw size={16} style={{ color: "oklch(0.77 0.13 85)" }} />
+          Transferts de propriété en cours ({transfers.length})
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {transfers.length === 0 ? (
+          <p
+            className="text-white/40 text-sm text-center py-6"
+            data-ocid="partenaires.empty_state"
+          >
+            Aucun transfert en cours
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow style={{ borderColor: "oklch(0.25 0.04 220)" }}>
+                  <TableHead className="text-white/60">Partenaire</TableHead>
+                  <TableHead className="text-white/60">Ancien prop.</TableHead>
+                  <TableHead className="text-white/60">Nouveau prop.</TableHead>
+                  <TableHead className="text-white/60">Date</TableHead>
+                  <TableHead className="text-white/60">Statut</TableHead>
+                  <TableHead className="text-white/60">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {transfers.map((t, idx) => (
+                  <TableRow
+                    key={t.partnerId}
+                    style={{ borderColor: "oklch(0.22 0.04 220)" }}
+                    data-ocid={`partenaires.row.${idx + 1}`}
+                  >
+                    <TableCell className="text-white font-medium text-sm">
+                      {t.partnerName}
+                    </TableCell>
+                    <TableCell className="text-white/70 text-sm">
+                      {t.oldOwnerName}
+                    </TableCell>
+                    <TableCell className="text-white/70 text-sm">
+                      {t.newOwnerName}
+                    </TableCell>
+                    <TableCell className="text-white/50 text-xs">
+                      {new Date(t.requestDate).toLocaleDateString("fr-FR")}
+                    </TableCell>
+                    <TableCell>{statusLabel(t.status)}</TableCell>
+                    <TableCell>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onViewTransfer(t.partnerId, t.partnerName)
+                        }
+                        className="px-2 py-1 rounded-lg text-xs font-medium"
+                        style={{
+                          background: "oklch(0.22 0.06 195 / 0.3)",
+                          color: "oklch(0.70 0.12 195)",
+                          border: "1px solid oklch(0.40 0.10 195 / 0.4)",
+                        }}
+                        data-ocid={`partenaires.button.${idx + 1}`}
+                      >
+                        Continuer
+                      </button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── EnhancedWalletCell ──────────────────────────────────────────────────────
+// Shows wallet status badge + action buttons based on enhanced status.
+
+interface EnhancedWalletCellProps {
+  partnerId: string;
+  partnerName: string;
+  onConfigure: () => void;
+  onTransfer: () => void;
+}
+
+function EnhancedWalletCell({
+  partnerId,
+  onConfigure,
+  onTransfer,
+}: EnhancedWalletCellProps) {
+  const status = getEnhancedPartnerStatus(partnerId);
+
+  if (status === "none") {
+    return (
+      <button
+        type="button"
+        onClick={onConfigure}
+        className="px-2 py-1 rounded-lg text-xs font-semibold"
+        style={{
+          background: "oklch(0.30 0.08 50/0.4)",
+          color: "oklch(0.77 0.13 50)",
+          border: "1px solid oklch(0.45 0.10 50/0.5)",
+        }}
+        data-ocid="partenaires.open_modal_button"
+      >
+        Configurer
+      </button>
+    );
+  }
+
+  if (status === "active") {
+    return (
+      <div className="flex items-center gap-2 flex-wrap">
+        <span
+          className="px-2 py-0.5 rounded-full text-xs font-semibold"
+          style={{
+            background: "oklch(0.25 0.08 145/0.4)",
+            color: "oklch(0.70 0.15 145)",
+          }}
+        >
+          Actif 🟢
+        </span>
+        <button
+          type="button"
+          onClick={onTransfer}
+          className="px-2 py-1 rounded-lg text-xs font-medium"
+          style={{
+            background: "transparent",
+            color: "oklch(0.65 0.10 220)",
+            border: "1px solid oklch(0.35 0.06 220)",
+          }}
+          data-ocid="partenaires.open_modal_button"
+        >
+          Transférer Propriété
+        </button>
+      </div>
+    );
+  }
+
+  if (status === "gelé") {
+    return (
+      <div className="flex items-center gap-2">
+        <span
+          className="px-2 py-0.5 rounded-full text-xs font-semibold"
+          style={{
+            background: "oklch(0.28 0.10 20/0.4)",
+            color: "oklch(0.70 0.15 20)",
+          }}
+        >
+          Gelé 🔴
+        </span>
+        <button
+          type="button"
+          onClick={onTransfer}
+          className="px-2 py-1 rounded-lg text-xs font-medium"
+          style={{
+            background: "oklch(0.30 0.10 85/0.3)",
+            color: "oklch(0.77 0.13 85)",
+            border: "1px solid oklch(0.45 0.12 85/0.5)",
+          }}
+          data-ocid="partenaires.open_modal_button"
+        >
+          Voir Transfert
+        </button>
+      </div>
+    );
+  }
+
+  if (status === "en_transfert") {
+    return (
+      <div className="flex items-center gap-2">
+        <span
+          className="px-2 py-0.5 rounded-full text-xs font-semibold"
+          style={{
+            background: "oklch(0.28 0.10 85/0.4)",
+            color: "oklch(0.77 0.13 85)",
+          }}
+        >
+          En Transfert 🟡
+        </span>
+        <button
+          type="button"
+          onClick={onTransfer}
+          className="px-2 py-1 rounded-lg text-xs font-medium"
+          style={{
+            background: "oklch(0.30 0.10 85/0.3)",
+            color: "oklch(0.77 0.13 85)",
+            border: "1px solid oklch(0.45 0.12 85/0.5)",
+          }}
+          data-ocid="partenaires.open_modal_button"
+        >
+          Voir Transfert
+        </button>
+      </div>
+    );
+  }
+
+  // complete
+  return (
+    <span
+      className="px-2 py-0.5 rounded-full text-xs font-semibold"
+      style={{
+        background: "oklch(0.25 0.08 145/0.4)",
+        color: "oklch(0.70 0.15 145)",
+      }}
+    >
+      Actif 🟢
+    </span>
+  );
+}
+
 // ─── Partenaires Admin Tab ───────────────────────────────────────────────────
 
 interface StructureLocal {
@@ -2738,6 +3016,19 @@ interface PartenairesTabProps {
 
 function PartenairesTab({ actor, isFetching }: PartenairesTabProps) {
   const queryClient = useQueryClient();
+  const [walletDialogPartner, setWalletDialogPartner] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [transferModalPartner, setTransferModalPartner] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const ownershipTransfer = usePartnerOwnershipTransfer();
+  const [_refreshKey, setRefreshKey] = useState(0);
+  function refreshStatus() {
+    setRefreshKey((k) => k + 1);
+  }
   const [addName, setAddName] = useState("");
   const [addDesc, setAddDesc] = useState("");
   const [addCategory, setAddCategory] = useState("hotel");
@@ -2860,302 +3151,357 @@ function PartenairesTab({ actor, isFetching }: PartenairesTabProps) {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
-      className="space-y-8"
-    >
-      {/* Add Structure */}
-      <Card
-        style={{
-          background: "oklch(0.15 0.03 220)",
-          border: "1px solid oklch(0.25 0.04 220)",
-        }}
+    <>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="space-y-8"
       >
-        <CardHeader>
-          <CardTitle className="text-white flex items-center gap-2">
-            <Building2 size={16} style={{ color: "oklch(0.77 0.13 85)" }} />
-            Ajouter une structure partenaire
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <Label className="text-white/70 text-xs">Nom</Label>
-              <Input
-                value={addName}
-                onChange={(e) => setAddName(e.target.value)}
-                placeholder="Hôtel XYZ"
-                className="bg-white/5 border-white/20 text-white"
-                data-ocid="partenaires.input"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-white/70 text-xs">Catégorie</Label>
-              <Select value={addCategory} onValueChange={setAddCategory}>
-                <SelectTrigger
+        {/* Add Structure */}
+        <Card
+          style={{
+            background: "oklch(0.15 0.03 220)",
+            border: "1px solid oklch(0.25 0.04 220)",
+          }}
+        >
+          <CardHeader>
+            <CardTitle className="text-white flex items-center gap-2">
+              <Building2 size={16} style={{ color: "oklch(0.77 0.13 85)" }} />
+              Ajouter une structure partenaire
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label className="text-white/70 text-xs">Nom</Label>
+                <Input
+                  value={addName}
+                  onChange={(e) => setAddName(e.target.value)}
+                  placeholder="Hôtel XYZ"
                   className="bg-white/5 border-white/20 text-white"
-                  data-ocid="partenaires.select"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent style={{ background: "oklch(0.18 0.04 220)" }}>
-                  <SelectItem value="hotel" className="text-white">
-                    🏨 Hôtel
-                  </SelectItem>
-                  <SelectItem value="parc" className="text-white">
-                    🌿 Parc National
-                  </SelectItem>
-                  <SelectItem value="structure" className="text-white">
-                    🏛️ Structure
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+                  data-ocid="partenaires.input"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-white/70 text-xs">Catégorie</Label>
+                <Select value={addCategory} onValueChange={setAddCategory}>
+                  <SelectTrigger
+                    className="bg-white/5 border-white/20 text-white"
+                    data-ocid="partenaires.select"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent style={{ background: "oklch(0.18 0.04 220)" }}>
+                    <SelectItem value="hotel" className="text-white">
+                      🏨 Hôtel
+                    </SelectItem>
+                    <SelectItem value="parc" className="text-white">
+                      🌿 Parc National
+                    </SelectItem>
+                    <SelectItem value="structure" className="text-white">
+                      🏛️ Structure
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1 sm:col-span-2">
+                <Label className="text-white/70 text-xs">Description</Label>
+                <Input
+                  value={addDesc}
+                  onChange={(e) => setAddDesc(e.target.value)}
+                  placeholder="Description..."
+                  className="bg-white/5 border-white/20 text-white"
+                  data-ocid="partenaires.input"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-white/70 text-xs">Prix OKP / nuit</Label>
+                <Input
+                  type="number"
+                  value={addPriceOKP}
+                  onChange={(e) => setAddPriceOKP(e.target.value)}
+                  placeholder="1500"
+                  className="bg-white/5 border-white/20 text-white"
+                  data-ocid="partenaires.input"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-white/70 text-xs">Prix CDF / nuit</Label>
+                <Input
+                  type="number"
+                  value={addPriceCDF}
+                  onChange={(e) => setAddPriceCDF(e.target.value)}
+                  placeholder="75000"
+                  className="bg-white/5 border-white/20 text-white"
+                  data-ocid="partenaires.input"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-white/70 text-xs">Localisation</Label>
+                <Input
+                  value={addLocation}
+                  onChange={(e) => setAddLocation(e.target.value)}
+                  placeholder="Kinshasa, RDC"
+                  className="bg-white/5 border-white/20 text-white"
+                  data-ocid="partenaires.input"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-white/70 text-xs">
+                  Capacité (personnes)
+                </Label>
+                <Input
+                  type="number"
+                  value={addCapacity}
+                  onChange={(e) => setAddCapacity(e.target.value)}
+                  className="bg-white/5 border-white/20 text-white"
+                  data-ocid="partenaires.input"
+                />
+              </div>
             </div>
-            <div className="space-y-1 sm:col-span-2">
-              <Label className="text-white/70 text-xs">Description</Label>
-              <Input
-                value={addDesc}
-                onChange={(e) => setAddDesc(e.target.value)}
-                placeholder="Description..."
-                className="bg-white/5 border-white/20 text-white"
-                data-ocid="partenaires.input"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-white/70 text-xs">Prix OKP / nuit</Label>
-              <Input
-                type="number"
-                value={addPriceOKP}
-                onChange={(e) => setAddPriceOKP(e.target.value)}
-                placeholder="1500"
-                className="bg-white/5 border-white/20 text-white"
-                data-ocid="partenaires.input"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-white/70 text-xs">Prix CDF / nuit</Label>
-              <Input
-                type="number"
-                value={addPriceCDF}
-                onChange={(e) => setAddPriceCDF(e.target.value)}
-                placeholder="75000"
-                className="bg-white/5 border-white/20 text-white"
-                data-ocid="partenaires.input"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-white/70 text-xs">Localisation</Label>
-              <Input
-                value={addLocation}
-                onChange={(e) => setAddLocation(e.target.value)}
-                placeholder="Kinshasa, RDC"
-                className="bg-white/5 border-white/20 text-white"
-                data-ocid="partenaires.input"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-white/70 text-xs">
-                Capacité (personnes)
-              </Label>
-              <Input
-                type="number"
-                value={addCapacity}
-                onChange={(e) => setAddCapacity(e.target.value)}
-                className="bg-white/5 border-white/20 text-white"
-                data-ocid="partenaires.input"
-              />
-            </div>
-          </div>
-          <Button
-            className="mt-4"
-            onClick={() => addStructure.mutate()}
-            disabled={addStructure.isPending || !addName || !addPriceOKP}
-            style={{ background: "oklch(0.52 0.12 160)" }}
-            data-ocid="partenaires.submit_button"
-          >
-            {addStructure.isPending ? (
-              <Loader2 className="w-4 h-4 animate-spin mr-2" />
-            ) : null}
-            Ajouter la structure
-          </Button>
-        </CardContent>
-      </Card>
+            <Button
+              className="mt-4"
+              onClick={() => addStructure.mutate()}
+              disabled={addStructure.isPending || !addName || !addPriceOKP}
+              style={{ background: "oklch(0.52 0.12 160)" }}
+              data-ocid="partenaires.submit_button"
+            >
+              {addStructure.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : null}
+              Ajouter la structure
+            </Button>
+          </CardContent>
+        </Card>
 
-      {/* Structures Table */}
-      <Card
-        style={{
-          background: "oklch(0.15 0.03 220)",
-          border: "1px solid oklch(0.25 0.04 220)",
-        }}
-      >
-        <CardHeader>
-          <CardTitle className="text-white flex items-center gap-2">
-            <Building2 size={16} style={{ color: "oklch(0.60 0.15 195)" }} />
-            Structures partenaires ({structures.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {structuresLoading ? (
-            <div
-              className="flex justify-center py-8"
-              data-ocid="partenaires.loading_state"
-            >
-              <Loader2 className="animate-spin text-white/40" />
-            </div>
-          ) : structures.length === 0 ? (
-            <div
-              className="text-center py-8 text-white/40"
-              data-ocid="partenaires.empty_state"
-            >
-              Aucune structure enregistrée
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow style={{ borderColor: "oklch(0.25 0.04 220)" }}>
-                    <TableHead className="text-white/60">Nom</TableHead>
-                    <TableHead className="text-white/60">Catégorie</TableHead>
-                    <TableHead className="text-white/60">
-                      Localisation
-                    </TableHead>
-                    <TableHead className="text-white/60">Prix OKP</TableHead>
-                    <TableHead className="text-white/60">Statut</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {structures.map((s, idx) => (
-                    <TableRow
-                      key={String(s.id)}
-                      style={{ borderColor: "oklch(0.22 0.04 220)" }}
-                      data-ocid={`partenaires.row.${idx + 1}`}
-                    >
-                      <TableCell className="text-white font-medium">
-                        {s.name}
-                      </TableCell>
-                      <TableCell className="text-white/70 capitalize">
-                        {s.category}
-                      </TableCell>
-                      <TableCell className="text-white/70">
-                        {s.location}
-                      </TableCell>
-                      <TableCell style={{ color: "oklch(0.77 0.13 85)" }}>
-                        {s.priceOKP.toLocaleString("fr-FR")} OKP
-                      </TableCell>
-                      <TableCell>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            toggleStatus.mutate({
-                              id: s.id,
-                              isActive: !s.isActive,
-                            })
-                          }
-                          className="px-3 py-1 rounded-full text-xs font-semibold transition-colors"
-                          style={
-                            s.isActive
-                              ? {
-                                  background: "oklch(0.30 0.10 145/0.3)",
-                                  color: "oklch(0.70 0.15 145)",
-                                }
-                              : {
-                                  background: "oklch(0.30 0.06 220/0.3)",
-                                  color: "oklch(0.55 0.04 220)",
-                                }
-                          }
-                          data-ocid={`partenaires.toggle.${idx + 1}`}
-                        >
-                          {s.isActive ? "Actif" : "Inactif"}
-                        </button>
-                      </TableCell>
+        {/* Structures Table */}
+        <Card
+          style={{
+            background: "oklch(0.15 0.03 220)",
+            border: "1px solid oklch(0.25 0.04 220)",
+          }}
+        >
+          <CardHeader>
+            <CardTitle className="text-white flex items-center gap-2">
+              <Building2 size={16} style={{ color: "oklch(0.60 0.15 195)" }} />
+              Structures partenaires ({structures.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {structuresLoading ? (
+              <div
+                className="flex justify-center py-8"
+                data-ocid="partenaires.loading_state"
+              >
+                <Loader2 className="animate-spin text-white/40" />
+              </div>
+            ) : structures.length === 0 ? (
+              <div
+                className="text-center py-8 text-white/40"
+                data-ocid="partenaires.empty_state"
+              >
+                Aucune structure enregistrée
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow style={{ borderColor: "oklch(0.25 0.04 220)" }}>
+                      <TableHead className="text-white/60">Nom</TableHead>
+                      <TableHead className="text-white/60">Catégorie</TableHead>
+                      <TableHead className="text-white/60">
+                        Localisation
+                      </TableHead>
+                      <TableHead className="text-white/60">Prix OKP</TableHead>
+                      <TableHead className="text-white/60">Statut</TableHead>
+                      <TableHead className="text-white/60">Wallet</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Reservations Table */}
-      <Card
-        style={{
-          background: "oklch(0.15 0.03 220)",
-          border: "1px solid oklch(0.25 0.04 220)",
-        }}
-      >
-        <CardHeader>
-          <CardTitle className="text-white flex items-center gap-2">
-            <Activity size={16} style={{ color: "oklch(0.60 0.15 195)" }} />
-            Toutes les réservations ({reservations.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {reservationsLoading ? (
-            <div
-              className="flex justify-center py-8"
-              data-ocid="partenaires.loading_state"
-            >
-              <Loader2 className="animate-spin text-white/40" />
-            </div>
-          ) : reservations.length === 0 ? (
-            <div
-              className="text-center py-8 text-white/40"
-              data-ocid="partenaires.empty_state"
-            >
-              Aucune réservation
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow style={{ borderColor: "oklch(0.25 0.04 220)" }}>
-                    <TableHead className="text-white/60">Code</TableHead>
-                    <TableHead className="text-white/60">Structure</TableHead>
-                    <TableHead className="text-white/60">Dates</TableHead>
-                    <TableHead className="text-white/60">Pers.</TableHead>
-                    <TableHead className="text-white/60">Montant</TableHead>
-                    <TableHead className="text-white/60">Statut</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {reservations.map((r, idx) => (
-                    <TableRow
-                      key={String(r.id)}
-                      style={{ borderColor: "oklch(0.22 0.04 220)" }}
-                      data-ocid={`partenaires.row.${idx + 1}`}
-                    >
-                      <TableCell
-                        className="font-mono text-xs"
-                        style={{ color: "oklch(0.77 0.13 85)" }}
+                  </TableHeader>
+                  <TableBody>
+                    {structures.map((s, idx) => (
+                      <TableRow
+                        key={String(s.id)}
+                        style={{ borderColor: "oklch(0.22 0.04 220)" }}
+                        data-ocid={`partenaires.row.${idx + 1}`}
                       >
-                        #{r.bookingCode}
-                      </TableCell>
-                      <TableCell className="text-white">
-                        {r.structureName}
-                      </TableCell>
-                      <TableCell className="text-white/70 text-xs">
-                        {r.checkIn} → {r.checkOut}
-                      </TableCell>
-                      <TableCell className="text-white/70">
-                        {Number(r.guests)}
-                      </TableCell>
-                      <TableCell className="text-white/80">
-                        {r.totalAmount.toLocaleString("fr-FR")}{" "}
-                        {r.paymentMethod.toUpperCase()}
-                      </TableCell>
-                      <TableCell>{statusBadge(r.status)}</TableCell>
+                        <TableCell className="text-white font-medium">
+                          {s.name}
+                        </TableCell>
+                        <TableCell className="text-white/70 capitalize">
+                          {s.category}
+                        </TableCell>
+                        <TableCell className="text-white/70">
+                          {s.location}
+                        </TableCell>
+                        <TableCell style={{ color: "oklch(0.77 0.13 85)" }}>
+                          {s.priceOKP.toLocaleString("fr-FR")} OKP
+                        </TableCell>
+                        <TableCell>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              toggleStatus.mutate({
+                                id: s.id,
+                                isActive: !s.isActive,
+                              })
+                            }
+                            className="px-3 py-1 rounded-full text-xs font-semibold transition-colors"
+                            style={
+                              s.isActive
+                                ? {
+                                    background: "oklch(0.30 0.10 145/0.3)",
+                                    color: "oklch(0.70 0.15 145)",
+                                  }
+                                : {
+                                    background: "oklch(0.30 0.06 220/0.3)",
+                                    color: "oklch(0.55 0.04 220)",
+                                  }
+                            }
+                            data-ocid={`partenaires.toggle.${idx + 1}`}
+                          >
+                            {s.isActive ? "Actif" : "Inactif"}
+                          </button>
+                        </TableCell>
+                        <TableCell>
+                          <EnhancedWalletCell
+                            partnerId={`struct_${String(s.id)}`}
+                            partnerName={s.name}
+                            onConfigure={() =>
+                              setWalletDialogPartner({
+                                id: `struct_${String(s.id)}`,
+                                name: s.name,
+                              })
+                            }
+                            onTransfer={() =>
+                              setTransferModalPartner({
+                                id: `struct_${String(s.id)}`,
+                                name: s.name,
+                              })
+                            }
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Reservations Table */}
+        <Card
+          style={{
+            background: "oklch(0.15 0.03 220)",
+            border: "1px solid oklch(0.25 0.04 220)",
+          }}
+        >
+          <CardHeader>
+            <CardTitle className="text-white flex items-center gap-2">
+              <Activity size={16} style={{ color: "oklch(0.60 0.15 195)" }} />
+              Toutes les réservations ({reservations.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {reservationsLoading ? (
+              <div
+                className="flex justify-center py-8"
+                data-ocid="partenaires.loading_state"
+              >
+                <Loader2 className="animate-spin text-white/40" />
+              </div>
+            ) : reservations.length === 0 ? (
+              <div
+                className="text-center py-8 text-white/40"
+                data-ocid="partenaires.empty_state"
+              >
+                Aucune réservation
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow style={{ borderColor: "oklch(0.25 0.04 220)" }}>
+                      <TableHead className="text-white/60">Code</TableHead>
+                      <TableHead className="text-white/60">Structure</TableHead>
+                      <TableHead className="text-white/60">Dates</TableHead>
+                      <TableHead className="text-white/60">Pers.</TableHead>
+                      <TableHead className="text-white/60">Montant</TableHead>
+                      <TableHead className="text-white/60">Statut</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {reservations.map((r, idx) => (
+                      <TableRow
+                        key={String(r.id)}
+                        style={{ borderColor: "oklch(0.22 0.04 220)" }}
+                        data-ocid={`partenaires.row.${idx + 1}`}
+                      >
+                        <TableCell
+                          className="font-mono text-xs"
+                          style={{ color: "oklch(0.77 0.13 85)" }}
+                        >
+                          #{r.bookingCode}
+                        </TableCell>
+                        <TableCell className="text-white">
+                          {r.structureName}
+                        </TableCell>
+                        <TableCell className="text-white/70 text-xs">
+                          {r.checkIn} → {r.checkOut}
+                        </TableCell>
+                        <TableCell className="text-white/70">
+                          {Number(r.guests)}
+                        </TableCell>
+                        <TableCell className="text-white/80">
+                          {r.totalAmount.toLocaleString("fr-FR")}{" "}
+                          {r.paymentMethod.toUpperCase()}
+                        </TableCell>
+                        <TableCell>{statusBadge(r.status)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Transferts en cours */}
+        <TransfertsEnCoursCard
+          onViewTransfer={(pid, pname) =>
+            setTransferModalPartner({ id: pid, name: pname })
+          }
+        />
+      </motion.div>
+      {walletDialogPartner && (
+        <PartnerWalletDialog
+          partnerId={walletDialogPartner.id}
+          partnerName={walletDialogPartner.name}
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) setWalletDialogPartner(null);
+          }}
+        />
+      )}
+      {transferModalPartner && (
+        <PartnerOwnershipTransferModal
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) {
+              setTransferModalPartner(null);
+              refreshStatus();
+            }
+          }}
+          partnerId={transferModalPartner.id}
+          partnerName={transferModalPartner.name}
+          existingTransfer={ownershipTransfer.getTransfer(
+            transferModalPartner.id,
           )}
-        </CardContent>
-      </Card>
-    </motion.div>
+          onTransferComplete={refreshStatus}
+        />
+      )}
+    </>
   );
 }
 
@@ -3237,6 +3583,15 @@ const AIRLINE_PARTNERS = [
 ];
 
 function BilletsTab() {
+  const [airlineWalletDialog, setAirlineWalletDialog] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [airlineTransferModal, setAirlineTransferModal] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const ownershipTransferBillets = usePartnerOwnershipTransfer();
   const [newAirline, setNewAirline] = useState("");
   const [newRoute, setNewRoute] = useState("");
   const [partners, setPartners] = useState(AIRLINE_PARTNERS);
@@ -3298,211 +3653,252 @@ function BilletsTab() {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="space-y-6"
-    >
-      {/* Flight Bookings Table */}
-      <Card
-        style={{
-          background: "oklch(0.15 0.03 220)",
-          border: "1px solid oklch(0.25 0.04 220)",
-        }}
+    <>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="space-y-6"
       >
-        <CardHeader>
-          <CardTitle
-            className="text-base flex items-center gap-2"
-            style={{ color: "oklch(0.92 0.04 80)" }}
-          >
-            <Plane size={16} style={{ color: "oklch(0.60 0.15 250)" }} />
-            Réservations de vols
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0 overflow-x-auto">
-          <Table>
-            <TableHeader style={{ background: "oklch(0.15 0.03 220)" }}>
-              <TableRow style={{ borderColor: "oklch(0.25 0.04 220)" }}>
-                <TableHead className="text-white/60">Code</TableHead>
-                <TableHead className="text-white/60">Passager</TableHead>
-                <TableHead className="text-white/60">Vol</TableHead>
-                <TableHead className="text-white/60">Compagnie</TableHead>
-                <TableHead className="text-white/60">Date</TableHead>
-                <TableHead className="text-white/60">Statut</TableHead>
-                <TableHead className="text-white/60">Paiement</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {STATIC_FLIGHT_BOOKINGS.map((b) => (
-                <TableRow
-                  key={b.code}
-                  style={{ borderColor: "oklch(0.22 0.04 220)" }}
-                >
-                  <TableCell
-                    className="font-mono text-xs font-bold"
-                    style={{ color: "oklch(0.77 0.13 85)" }}
-                  >
-                    {b.code}
-                  </TableCell>
-                  <TableCell className="text-white/80 text-sm">
-                    {b.passenger}
-                  </TableCell>
-                  <TableCell className="text-white/80 text-sm">
-                    {b.vol}
-                  </TableCell>
-                  <TableCell className="text-white/60 text-sm">
-                    {b.airline}
-                  </TableCell>
-                  <TableCell className="text-white/60 text-sm">
-                    {b.date}
-                  </TableCell>
-                  <TableCell>{statusBadgeLocal(b.statut)}</TableCell>
-                  <TableCell
-                    className="font-mono text-sm"
-                    style={{ color: "oklch(0.70 0.12 145)" }}
-                  >
-                    {b.paiement}
-                  </TableCell>
+        {/* Flight Bookings Table */}
+        <Card
+          style={{
+            background: "oklch(0.15 0.03 220)",
+            border: "1px solid oklch(0.25 0.04 220)",
+          }}
+        >
+          <CardHeader>
+            <CardTitle
+              className="text-base flex items-center gap-2"
+              style={{ color: "oklch(0.92 0.04 80)" }}
+            >
+              <Plane size={16} style={{ color: "oklch(0.60 0.15 250)" }} />
+              Réservations de vols
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0 overflow-x-auto">
+            <Table>
+              <TableHeader style={{ background: "oklch(0.15 0.03 220)" }}>
+                <TableRow style={{ borderColor: "oklch(0.25 0.04 220)" }}>
+                  <TableHead className="text-white/60">Code</TableHead>
+                  <TableHead className="text-white/60">Passager</TableHead>
+                  <TableHead className="text-white/60">Vol</TableHead>
+                  <TableHead className="text-white/60">Compagnie</TableHead>
+                  <TableHead className="text-white/60">Date</TableHead>
+                  <TableHead className="text-white/60">Statut</TableHead>
+                  <TableHead className="text-white/60">Paiement</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      {/* Airline Partners Management */}
-      <Card
-        style={{
-          background: "oklch(0.15 0.03 220)",
-          border: "1px solid oklch(0.25 0.04 220)",
-        }}
-      >
-        <CardHeader>
-          <CardTitle
-            className="text-base flex items-center gap-2"
-            style={{ color: "oklch(0.92 0.04 80)" }}
-          >
-            <Building2 size={16} style={{ color: "oklch(0.60 0.15 195)" }} />
-            Gestion des partenaires aériens
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Add new partner */}
-          <div
-            className="rounded-xl p-4 space-y-3"
-            style={{
-              background: "oklch(0.18 0.04 220)",
-              border: "1px solid oklch(0.28 0.05 220)",
-            }}
-          >
-            <p
-              className="text-sm font-medium"
-              style={{ color: "oklch(0.75 0.04 220)" }}
-            >
-              Ajouter une compagnie partenaire
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label
-                  className="text-xs"
-                  style={{ color: "oklch(0.60 0.03 220)" }}
-                >
-                  Nom de la compagnie
-                </Label>
-                <Input
-                  value={newAirline}
-                  onChange={(e) => setNewAirline(e.target.value)}
-                  placeholder="ex: Air Congo"
-                  className="bg-transparent border-white/20 text-white text-sm"
-                  data-ocid="admin.input"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label
-                  className="text-xs"
-                  style={{ color: "oklch(0.60 0.03 220)" }}
-                >
-                  Routes desservies
-                </Label>
-                <Input
-                  value={newRoute}
-                  onChange={(e) => setNewRoute(e.target.value)}
-                  placeholder="ex: KIN ↔ LBB"
-                  className="bg-transparent border-white/20 text-white text-sm"
-                  data-ocid="admin.input"
-                />
-              </div>
-            </div>
-            <Button
-              size="sm"
-              onClick={handleAddAirline}
-              style={{ background: "oklch(0.52 0.12 195)" }}
-              data-ocid="admin.primary_button"
-            >
-              Ajouter le partenaire
-            </Button>
-          </div>
-
-          {/* Partners list */}
-          <div className="space-y-2" data-ocid="admin.list">
-            {partners.map((p, idx) => (
-              <div
-                key={p.name}
-                className="rounded-lg p-3 flex items-center justify-between"
-                style={{
-                  background: "oklch(0.18 0.04 220)",
-                  border: "1px solid oklch(0.26 0.05 220)",
-                }}
-                data-ocid={`admin.item.${idx + 1}`}
-              >
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="font-bold text-sm font-mono px-2 py-0.5 rounded"
-                      style={{
-                        background: "oklch(0.60 0.15 250 / 0.2)",
-                        color: "oklch(0.60 0.15 250)",
-                      }}
-                    >
-                      {p.code}
-                    </span>
-                    <span
-                      className="font-medium text-sm"
-                      style={{ color: "oklch(0.85 0.04 220)" }}
-                    >
-                      {p.name}
-                    </span>
-                    <span
-                      className="px-1.5 py-0.5 rounded-full text-xs"
-                      style={{
-                        background: "oklch(0.35 0.10 145 / 0.3)",
-                        color: "oklch(0.70 0.15 145)",
-                      }}
-                    >
-                      {p.status}
-                    </span>
-                  </div>
-                  <p
-                    className="text-xs mt-0.5"
-                    style={{ color: "oklch(0.55 0.04 220)" }}
+              </TableHeader>
+              <TableBody>
+                {STATIC_FLIGHT_BOOKINGS.map((b) => (
+                  <TableRow
+                    key={b.code}
+                    style={{ borderColor: "oklch(0.22 0.04 220)" }}
                   >
-                    {p.routes}
-                  </p>
+                    <TableCell
+                      className="font-mono text-xs font-bold"
+                      style={{ color: "oklch(0.77 0.13 85)" }}
+                    >
+                      {b.code}
+                    </TableCell>
+                    <TableCell className="text-white/80 text-sm">
+                      {b.passenger}
+                    </TableCell>
+                    <TableCell className="text-white/80 text-sm">
+                      {b.vol}
+                    </TableCell>
+                    <TableCell className="text-white/60 text-sm">
+                      {b.airline}
+                    </TableCell>
+                    <TableCell className="text-white/60 text-sm">
+                      {b.date}
+                    </TableCell>
+                    <TableCell>{statusBadgeLocal(b.statut)}</TableCell>
+                    <TableCell
+                      className="font-mono text-sm"
+                      style={{ color: "oklch(0.70 0.12 145)" }}
+                    >
+                      {b.paiement}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        {/* Airline Partners Management */}
+        <Card
+          style={{
+            background: "oklch(0.15 0.03 220)",
+            border: "1px solid oklch(0.25 0.04 220)",
+          }}
+        >
+          <CardHeader>
+            <CardTitle
+              className="text-base flex items-center gap-2"
+              style={{ color: "oklch(0.92 0.04 80)" }}
+            >
+              <Building2 size={16} style={{ color: "oklch(0.60 0.15 195)" }} />
+              Gestion des partenaires aériens
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Add new partner */}
+            <div
+              className="rounded-xl p-4 space-y-3"
+              style={{
+                background: "oklch(0.18 0.04 220)",
+                border: "1px solid oklch(0.28 0.05 220)",
+              }}
+            >
+              <p
+                className="text-sm font-medium"
+                style={{ color: "oklch(0.75 0.04 220)" }}
+              >
+                Ajouter une compagnie partenaire
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label
+                    className="text-xs"
+                    style={{ color: "oklch(0.60 0.03 220)" }}
+                  >
+                    Nom de la compagnie
+                  </Label>
+                  <Input
+                    value={newAirline}
+                    onChange={(e) => setNewAirline(e.target.value)}
+                    placeholder="ex: Air Congo"
+                    className="bg-transparent border-white/20 text-white text-sm"
+                    data-ocid="admin.input"
+                  />
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleRemoveAirline(idx)}
-                  style={{ color: "oklch(0.65 0.15 20)" }}
-                  data-ocid={`admin.delete_button.${idx + 1}`}
-                >
-                  Supprimer
-                </Button>
+                <div className="space-y-1">
+                  <Label
+                    className="text-xs"
+                    style={{ color: "oklch(0.60 0.03 220)" }}
+                  >
+                    Routes desservies
+                  </Label>
+                  <Input
+                    value={newRoute}
+                    onChange={(e) => setNewRoute(e.target.value)}
+                    placeholder="ex: KIN ↔ LBB"
+                    className="bg-transparent border-white/20 text-white text-sm"
+                    data-ocid="admin.input"
+                  />
+                </div>
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    </motion.div>
+              <Button
+                size="sm"
+                onClick={handleAddAirline}
+                style={{ background: "oklch(0.52 0.12 195)" }}
+                data-ocid="admin.primary_button"
+              >
+                Ajouter le partenaire
+              </Button>
+            </div>
+
+            {/* Partners list */}
+            <div className="space-y-2" data-ocid="admin.list">
+              {partners.map((p, idx) => (
+                <div
+                  key={p.name}
+                  className="rounded-lg p-3 flex items-center justify-between"
+                  style={{
+                    background: "oklch(0.18 0.04 220)",
+                    border: "1px solid oklch(0.26 0.05 220)",
+                  }}
+                  data-ocid={`admin.item.${idx + 1}`}
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="font-bold text-sm font-mono px-2 py-0.5 rounded"
+                        style={{
+                          background: "oklch(0.60 0.15 250 / 0.2)",
+                          color: "oklch(0.60 0.15 250)",
+                        }}
+                      >
+                        {p.code}
+                      </span>
+                      <span
+                        className="font-medium text-sm"
+                        style={{ color: "oklch(0.85 0.04 220)" }}
+                      >
+                        {p.name}
+                      </span>
+                      <span
+                        className="px-1.5 py-0.5 rounded-full text-xs"
+                        style={{
+                          background: "oklch(0.35 0.10 145 / 0.3)",
+                          color: "oklch(0.70 0.15 145)",
+                        }}
+                      >
+                        {p.status}
+                      </span>
+                    </div>
+                    <p
+                      className="text-xs mt-0.5"
+                      style={{ color: "oklch(0.55 0.04 220)" }}
+                    >
+                      {p.routes}
+                    </p>
+                  </div>
+                  <EnhancedWalletCell
+                    partnerId={`airline_${p.code}`}
+                    partnerName={p.name}
+                    onConfigure={() =>
+                      setAirlineWalletDialog({
+                        id: `airline_${p.code}`,
+                        name: p.name,
+                      })
+                    }
+                    onTransfer={() =>
+                      setAirlineTransferModal({
+                        id: `airline_${p.code}`,
+                        name: p.name,
+                      })
+                    }
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleRemoveAirline(idx)}
+                    style={{ color: "oklch(0.65 0.15 20)" }}
+                    data-ocid={`admin.delete_button.${idx + 1}`}
+                  >
+                    Supprimer
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+      {airlineWalletDialog && (
+        <PartnerWalletDialog
+          partnerId={airlineWalletDialog.id}
+          partnerName={airlineWalletDialog.name}
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) setAirlineWalletDialog(null);
+          }}
+        />
+      )}
+      {airlineTransferModal && (
+        <PartnerOwnershipTransferModal
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) setAirlineTransferModal(null);
+          }}
+          partnerId={airlineTransferModal.id}
+          partnerName={airlineTransferModal.name}
+          existingTransfer={ownershipTransferBillets.getTransfer(
+            airlineTransferModal.id,
+          )}
+        />
+      )}
+    </>
   );
 }

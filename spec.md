@@ -1,32 +1,33 @@
-# KongoKash — UX Simple pour Partenaires
+# KongoKash — Passerelles de Retrait Partenaires
 
 ## Current State
-Dashboard utilisateur avec onglets : Wallet Sécurisé, Réservations, Tickets, Support, Notifications.
-NotificationCenter existe avec notifications localStorage.
-Escrow system en place avec statuts de réservations.
-Aucune vue dédiée pour partenaires (hôtels, parcs) : vue simple paiements reçus + réservations + retrait.
+Les partenaires (hôtels, parcs, musées, compagnies aériennes) reçoivent des paiements via l'escrow smart contract. Ils ont un espace partenaire dans le Dashboard avec un bouton "Retirer les fonds". Cependant, il n'existe pas de passerelles de conversion structurées (crypto → Mobile Money, crypto → CDF/USD).
 
 ## Requested Changes (Diff)
 
 ### Add
-- PartnerDashboard.tsx : interface simple non-custodial pour partenaires
-  - Onglet "Réservations" : liste des réservations reçues (client, dates, montant, statut)
-  - Onglet "Paiements" : historique des paiements reçus depuis l'escrow (libération de fonds)
-  - Bouton "Retirer" proéminent : déclenche un retrait vers adresse externe du wallet partenaire
-  - Onglet "Notifications" : Paiement reçu, Réservation confirmée, Libération des fonds — avec badges
-- Intégrer PartnerDashboard dans App.tsx ou Dashboard.tsx pour les utilisateurs avec rôle partenaire
-- Améliorer NotificationCenter : ajouter types spécifiques (paiement_recu, reservation_confirmee, liberation_fonds)
+- Page/onglet "Passerelle de Retrait" dans l'Espace Partenaire
+- 3 méthodes de retrait :
+  1. Crypto → Airtel Money (avec numéro de téléphone)
+  2. Crypto → M-Pesa (avec numéro de téléphone)
+  3. Crypto → CDF ou USD (virement bancaire)
+- Formulaire de retrait avec : sélection de l'actif (OKP, USDT, CDF, etc.), montant, méthode, numéro ou RIB
+- Affichage en temps réel du taux de conversion + frais (max 0.5%)
+- Statut de traitement : En attente → En cours → Complété / Échoué
+- Historique des retraits partenaire
+- Bannière "Option future : Intégration bancaire & carte" (teaser)
+- Dashboard Admin : onglet "Retraits Partenaires" pour valider/rejeter les demandes
 
 ### Modify
-- Dashboard.tsx : détecter le rôle partenaire et afficher PartnerDashboard à la place de la vue standard, ou ajouter un onglet "Espace Partenaire"
-- NotificationCenter/useReservationNotifications : ajouter les 3 types de notifications partenaires
+- Bouton "Retirer les fonds" dans l'espace partenaire → redirige vers la nouvelle passerelle
 
 ### Remove
 - Rien
 
 ## Implementation Plan
-1. Créer PartnerDashboard.tsx avec 3 onglets simples : Réservations, Paiements, Notifications
-2. Données simulées réalistes (réservations reçues, paiements libérés par escrow)
-3. Bouton "Retirer" avec modal simple (adresse de destination, montant)
-4. Notifications avec badges colorés pour chaque type d'événement
-5. Intégrer dans Dashboard.tsx comme nouvel onglet "Espace Partenaire 🏢"
+1. Ajouter un composant `WithdrawalGateway` dans l'espace partenaire
+2. Formulaire : asset selector, montant, méthode (Airtel / M-Pesa / Bancaire), coordonnées
+3. Calcul temps réel : montant converti en CDF/USD selon les taux actuels, frais 0.5% affichés
+4. Soumission → statut "En attente" visible dans historique
+5. Admin Dashboard → onglet "Retraits 💸" : liste des demandes avec boutons Approuver/Rejeter
+6. Notification automatique au partenaire à chaque changement de statut

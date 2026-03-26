@@ -24,6 +24,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
   AlertTriangle,
+  ArrowDownLeft,
   ArrowUpRight,
   BarChart3,
   Building2,
@@ -73,6 +74,7 @@ import { PartnerOwnershipTransferModal } from "./PartnerOwnershipTransferModal";
 import { PartnerWalletDialog } from "./PartnerWalletSetup";
 import { AdminSupportTab } from "./SupportSection";
 import { TreasuryTab } from "./TreasuryTab";
+import type { WithdrawalRequest } from "./WithdrawalGateway";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -554,6 +556,189 @@ function NetworkFeesAdminCard() {
 }
 
 // ─── Main Component ──────────────────────────────────────────────────────────
+// Retraits Admin Tab
+function RetraitsAdminTab() {
+  const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>(() => {
+    return JSON.parse(localStorage.getItem("partnerWithdrawals") ?? "[]");
+  });
+  const [filter, setFilter] = useState<"all" | WithdrawalRequest["status"]>(
+    "all",
+  );
+
+  const filtered =
+    filter === "all"
+      ? withdrawals
+      : withdrawals.filter((w) => w.status === filter);
+
+  const updateStatus = (id: string, status: WithdrawalRequest["status"]) => {
+    setWithdrawals((prev) => {
+      const updated = prev.map((w) =>
+        w.id === id ? { ...w, status, updatedAt: new Date().toISOString() } : w,
+      );
+      localStorage.setItem("partnerWithdrawals", JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const methodLabel: Record<WithdrawalRequest["method"], string> = {
+    airtel: "Airtel Money",
+    mpesa: "M-Pesa",
+    bancaire: "Virement Bancaire",
+  };
+
+  const statusConfig: Record<
+    WithdrawalRequest["status"],
+    { label: string; cls: string }
+  > = {
+    pending: {
+      label: "En attente",
+      cls: "bg-yellow-100 text-yellow-800 border-yellow-300",
+    },
+    processing: {
+      label: "En cours",
+      cls: "bg-blue-100 text-blue-800 border-blue-300",
+    },
+    completed: {
+      label: "Completed",
+      cls: "bg-green-100 text-green-800 border-green-300",
+    },
+    failed: { label: "Echoue", cls: "bg-red-100 text-red-800 border-red-300" },
+  };
+
+  const filters: {
+    value: "all" | WithdrawalRequest["status"];
+    label: string;
+  }[] = [
+    { value: "all", label: "Tous" },
+    { value: "pending", label: "En attente" },
+    { value: "processing", label: "En cours" },
+    { value: "completed", label: "Completes" },
+    { value: "failed", label: "Echoues" },
+  ];
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h3 className="text-xl font-bold text-white flex items-center gap-2">
+            <ArrowDownLeft size={22} className="text-amber-400" />
+            Demandes de retrait partenaires
+          </h3>
+          <p className="text-white/50 text-sm mt-0.5">
+            Approuvez ou rejetez les retraits vers Mobile Money et virements
+            bancaires
+          </p>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          {filters.map((f) => (
+            <button
+              key={f.value}
+              type="button"
+              onClick={() => setFilter(f.value)}
+              data-ocid="admin.retraits.filter"
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                filter === f.value
+                  ? "bg-amber-500 text-white"
+                  : "bg-white/10 text-white/60 hover:bg-white/20"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div
+          className="text-center py-16 text-white/40"
+          data-ocid="admin.retraits.empty_state"
+        >
+          <ArrowDownLeft size={40} className="mx-auto mb-3 opacity-40" />
+          <p>Aucune demande de retrait</p>
+        </div>
+      ) : (
+        <div className="space-y-3" data-ocid="admin.retraits.list">
+          {filtered.map((w, idx) => {
+            const cfg = statusConfig[w.status];
+            return (
+              <motion.div
+                key={w.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.05 }}
+                data-ocid={`admin.retraits.item.${idx + 1}`}
+              >
+                <Card
+                  style={{
+                    background: "oklch(0.18 0.03 220)",
+                    border: "1px solid oklch(0.28 0.04 220)",
+                  }}
+                >
+                  <CardContent className="p-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-start gap-4">
+                        <div className="p-2.5 rounded-xl bg-amber-500/20">
+                          <ArrowDownLeft size={18} className="text-amber-400" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-white">
+                              {w.amount.toLocaleString()} {w.asset}
+                            </span>
+                            <code className="text-[10px] bg-white/10 px-2 py-0.5 rounded text-white/60">
+                              {w.id}
+                            </code>
+                            <span
+                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${cfg.cls}`}
+                            >
+                              {cfg.label}
+                            </span>
+                          </div>
+                          <p className="text-sm text-white/60 mt-1">
+                            {methodLabel[w.method]} &middot;{" "}
+                            <span className="text-white/80 font-medium">
+                              {w.destination}
+                            </span>
+                          </p>
+                          <p className="text-xs text-white/40 mt-0.5">
+                            {w.partnerName} &middot;{" "}
+                            {new Date(w.createdAt).toLocaleString("fr-FR")}
+                          </p>
+                        </div>
+                      </div>
+                      {w.status === "pending" && (
+                        <div className="flex gap-2 shrink-0">
+                          <Button
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700 text-white font-semibold"
+                            onClick={() => updateStatus(w.id, "completed")}
+                            data-ocid={`admin.retraits.approve_button.${idx + 1}`}
+                          >
+                            Approuver
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-red-400/40 text-red-400 hover:bg-red-400/10"
+                            onClick={() => updateStatus(w.id, "failed")}
+                            data-ocid={`admin.retraits.reject_button.${idx + 1}`}
+                          >
+                            Rejeter
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminDashboard() {
   const { actor, isFetching } = useActor();
   const queryClient = useQueryClient();
@@ -851,7 +1036,7 @@ export default function AdminDashboard() {
 
         <Tabs defaultValue="overview" className="space-y-6">
           <TabsList
-            className="grid grid-cols-11 w-full"
+            className="grid grid-cols-12 w-full"
             style={{
               background: "oklch(0.15 0.03 220)",
               border: "1px solid oklch(0.25 0.04 220)",
@@ -918,6 +1103,11 @@ export default function AdminDashboard() {
                 value: "litiges",
                 label: "Litiges 🔴",
                 icon: <Scale size={14} />,
+              },
+              {
+                value: "retraits",
+                label: "Retraits 💸",
+                icon: <ArrowDownLeft size={14} />,
               },
             ].map((tab) => (
               <TabsTrigger
@@ -2149,6 +2339,10 @@ export default function AdminDashboard() {
           {/* ── Tab 12: Litiges Escrow ───────────────────────────────────── */}
           <TabsContent value="litiges" data-ocid="admin.litiges.panel">
             <EscrowDisputeTab />
+          </TabsContent>
+
+          <TabsContent value="retraits" data-ocid="admin.retraits.panel">
+            <RetraitsAdminTab />
           </TabsContent>
         </Tabs>
       </div>

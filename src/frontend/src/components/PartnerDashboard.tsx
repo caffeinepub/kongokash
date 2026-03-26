@@ -29,6 +29,7 @@ import {
 import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
+import WithdrawalGateway, { WithdrawalHistory } from "./WithdrawalGateway";
 
 // ─── Mock Data ─────────────────────────────────────────────────────────────────
 
@@ -246,125 +247,10 @@ function NotifIcon({ type }: { type: NotifType }) {
   return <Unlock size={20} className="text-amber-500" />;
 }
 
-// ─── Withdraw Modal ─────────────────────────────────────────────────────────────
-
-function WithdrawModal({ totalBalance }: { totalBalance: number }) {
-  const [amount, setAmount] = useState("");
-  const [address, setAddress] = useState("");
-  const [open, setOpen] = useState(false);
-
-  const handleWithdraw = () => {
-    const num = Number.parseFloat(amount);
-    if (!num || num <= 0 || num > totalBalance) {
-      toast.error("Montant invalide ou supérieur au solde disponible.");
-      return;
-    }
-    if (!address.trim()) {
-      toast.error("Veuillez saisir une adresse de destination.");
-      return;
-    }
-    toast.success(
-      `Retrait de ${num.toLocaleString()} OKP 🦌 initié vers ${address.slice(0, 12)}...`,
-    );
-    setOpen(false);
-    setAmount("");
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button
-          size="lg"
-          className="bg-green-600 hover:bg-green-700 text-white font-bold px-8 py-6 text-base shadow-lg"
-          data-ocid="partner.withdraw_button"
-        >
-          <ArrowDownLeft size={20} className="mr-2" />
-          Retirer les fonds
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-md" data-ocid="partner.withdraw_modal">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-bold flex items-center gap-2">
-            <ArrowDownLeft size={22} className="text-green-600" />
-            Retirer les fonds
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-5 py-2">
-          {/* Balance display */}
-          <div className="bg-muted rounded-xl p-4 text-center">
-            <p className="text-sm text-muted-foreground mb-1">
-              Solde disponible
-            </p>
-            <p className="text-3xl font-bold text-primary">
-              {totalBalance.toLocaleString()} OKP 🦌
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="withdraw-amount" className="font-semibold">
-              Montant à retirer (OKP)
-            </Label>
-            <Input
-              id="withdraw-amount"
-              type="number"
-              placeholder={`Max: ${totalBalance.toLocaleString()}`}
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              data-ocid="partner.withdraw_amount_input"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="withdraw-address" className="font-semibold">
-              Adresse de destination
-            </Label>
-            <Input
-              id="withdraw-address"
-              placeholder="Principal ICP ou adresse wallet..."
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              data-ocid="partner.withdraw_address_input"
-            />
-          </div>
-
-          {/* Warning */}
-          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-3">
-            <AlertTriangle
-              size={18}
-              className="text-amber-600 mt-0.5 shrink-0"
-            />
-            <p className="text-sm text-amber-800 font-medium">
-              Vérifiez l'adresse soigneusement — ce transfert est{" "}
-              <strong>irréversible</strong>.
-            </p>
-          </div>
-        </div>
-
-        <DialogFooter className="gap-2">
-          <Button
-            variant="outline"
-            onClick={() => setOpen(false)}
-            data-ocid="partner.withdraw_cancel_button"
-          >
-            Annuler
-          </Button>
-          <Button
-            onClick={handleWithdraw}
-            className="bg-green-600 hover:bg-green-700 text-white font-semibold"
-            data-ocid="partner.withdraw_confirm_button"
-          >
-            Confirmer le retrait
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 // ─── Main Component ─────────────────────────────────────────────────────────────
 
 export default function PartnerDashboard() {
+  const [activeTab, setActiveTab] = useState("reservations");
   const [reservations, setReservations] =
     useState<PartnerReservation[]>(MOCK_RESERVATIONS);
   const [notifs, setNotifs] = useState<PartnerNotif[]>(MOCK_NOTIFS);
@@ -449,7 +335,11 @@ export default function PartnerDashboard() {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="reservations" data-ocid="partner.tab">
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+        data-ocid="partner.tab"
+      >
         <TabsList className="w-full sm:w-auto">
           <TabsTrigger
             value="reservations"
@@ -476,6 +366,13 @@ export default function PartnerDashboard() {
                 {unreadCount}
               </span>
             )}
+          </TabsTrigger>
+          <TabsTrigger
+            value="retraits"
+            className="gap-2"
+            data-ocid="partner.retraits_tab"
+          >
+            <ArrowDownLeft size={14} /> Retraits 💸
           </TabsTrigger>
         </TabsList>
 
@@ -570,7 +467,15 @@ export default function PartnerDashboard() {
                   ≈ {(totalBalance * 50).toLocaleString()} CDF
                 </p>
               </div>
-              <WithdrawModal totalBalance={totalBalance} />
+              <Button
+                size="lg"
+                className="bg-green-600 hover:bg-green-700 text-white font-bold px-8 py-4 text-base shadow-lg"
+                onClick={() => setActiveTab("retraits")}
+                data-ocid="partner.withdraw_button"
+              >
+                <ArrowDownLeft size={20} className="mr-2" />
+                Retirer les fonds
+              </Button>
             </CardContent>
           </Card>
 
@@ -725,6 +630,18 @@ export default function PartnerDashboard() {
                 </Card>
               </motion.div>
             ))}
+          </div>
+        </TabsContent>
+
+        {/* ── Tab: Retraits ─────────────────── */}
+        <TabsContent value="retraits" className="mt-6">
+          <WithdrawalGateway onSuccess={() => setActiveTab("retraits")} />
+          <div className="mt-8">
+            <h4 className="font-bold text-base text-foreground mb-4 flex items-center gap-2">
+              <ArrowDownLeft size={18} className="text-primary" />
+              Historique des retraits
+            </h4>
+            <WithdrawalHistory />
           </div>
         </TabsContent>
       </Tabs>

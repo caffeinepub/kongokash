@@ -35,12 +35,20 @@ const PAYMENT_OPTIONS: Array<{
   { id: "mpesa", label: "M-Pesa", icon: "🟢", desc: "Mobile Money" },
 ];
 
+const OkapiIcon = ({ className }: { className?: string }) => (
+  <img
+    src="/assets/generated/okapi-token-icon-transparent.dim_128x128.png"
+    className={className ?? "w-5 h-5 inline object-contain"}
+    alt="OKP"
+  />
+);
+
 const QUICK_SELECT_CHIPS = [
-  { label: "₿ Bitcoin", value: "BTC" },
-  { label: "⟠ Ethereum", value: "ETH" },
-  { label: "₮ USDT", value: "USDT" },
-  { label: "∞ ICP", value: "ICP" },
-  { label: "🦌 OKAPI", value: "OKP" },
+  { label: "₿ Bitcoin", value: "BTC", icon: null },
+  { label: "⟠ Ethereum", value: "ETH", icon: null },
+  { label: "₮ USDT", value: "USDT", icon: null },
+  { label: "∞ ICP", value: "ICP", icon: null },
+  { label: "OKAPI", value: "OKP", icon: true },
 ];
 
 export default function BuySellSection() {
@@ -157,11 +165,6 @@ export default function BuySellSection() {
                   desc: "Confirmation en moins de 5 minutes",
                 },
                 {
-                  icon: "💰",
-                  title: "Peu de frais",
-                  desc: "Seulement 0.5% par transaction",
-                },
-                {
                   icon: "📱",
                   title: "Mobile",
                   desc: "Airtel Money & M-Pesa disponibles",
@@ -179,6 +182,42 @@ export default function BuySellSection() {
                   </div>
                 </div>
               ))}
+              {/* Fee card – full width */}
+              <div
+                className="col-span-2 p-4 rounded-xl border-l-4"
+                style={{
+                  background: "oklch(0.52 0.12 160 / 0.06)",
+                  borderColor: "oklch(0.52 0.12 160)",
+                }}
+              >
+                <div className="font-semibold text-sm mb-2">
+                  💰 Frais transparents
+                </div>
+                <div className="space-y-1 text-xs text-muted-foreground">
+                  <div>
+                    Dépôt Mobile Money :{" "}
+                    <strong style={{ color: "oklch(0.52 0.12 160)" }}>
+                      0%
+                    </strong>{" "}
+                    — GRATUIT
+                  </div>
+                  <div>
+                    Retrait Mobile Money : max{" "}
+                    <strong style={{ color: "oklch(0.52 0.12 160)" }}>
+                      0.5%
+                    </strong>
+                  </div>
+                  <div>
+                    Trading : <strong>~1% + spread</strong>
+                  </div>
+                </div>
+                <div
+                  className="mt-2 text-xs"
+                  style={{ color: "oklch(0.55 0.22 27)" }}
+                >
+                  vs cabistes P2P : 3%–5%
+                </div>
+              </div>
             </div>
 
             <div className="flex gap-3 flex-wrap">
@@ -187,7 +226,7 @@ export default function BuySellSection() {
                   key={chip.value}
                   type="button"
                   onClick={() => setBuyAsset(chip.value)}
-                  className="px-4 py-2 rounded-full text-sm font-semibold text-white transition-all hover:opacity-80"
+                  className="px-4 py-2 rounded-full text-sm font-semibold text-white transition-all hover:opacity-80 flex items-center gap-1.5"
                   style={{
                     background:
                       buyAsset === chip.value
@@ -199,6 +238,9 @@ export default function BuySellSection() {
                         : "none",
                   }}
                 >
+                  {chip.icon ? (
+                    <OkapiIcon className="w-4 h-4 object-contain" />
+                  ) : null}
                   {chip.label}
                 </button>
               ))}
@@ -257,7 +299,10 @@ export default function BuySellSection() {
                             ∞ Internet Computer (ICP)
                           </SelectItem>
                           <SelectItem value="OKP">
-                            🦌 Okapi Token (OKP)
+                            <span className="flex items-center gap-1.5">
+                              <OkapiIcon className="w-4 h-4 inline object-contain" />
+                              Okapi Token (OKP)
+                            </span>
                           </SelectItem>
                         </SelectContent>
                       </Select>
@@ -423,7 +468,10 @@ export default function BuySellSection() {
                             ∞ Internet Computer (ICP)
                           </SelectItem>
                           <SelectItem value="OKP">
-                            🦌 Okapi Token (OKP)
+                            <span className="flex items-center gap-1.5">
+                              <OkapiIcon className="w-4 h-4 inline object-contain" />
+                              Okapi Token (OKP)
+                            </span>
                           </SelectItem>
                         </SelectContent>
                       </Select>

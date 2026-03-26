@@ -95,9 +95,9 @@ export default function HeroSection({
                   className="font-display font-bold text-2xl"
                   style={{ color: "oklch(0.77 0.13 85)" }}
                 >
-                  0.5%
+                  0%
                 </div>
-                <div className="text-white/50 text-sm">Frais minimaux</div>
+                <div className="text-white/50 text-sm">Dépôt Mobile Money</div>
               </div>
             </div>
 

@@ -1,33 +1,52 @@
-# KongoKash — Paires de trading CDF
+# KongoKash — Wallet Non-Custodial
 
 ## Current State
-- Exchange section (BuySellSection) supports BTC, ETH, USDT only
-- MarketOverview shows BTC/CDF, ETH/CDF, USDT/CDF, BTC/USD, ETH/USD, USDT/USD
-- Backend `buyCrypto`/`sellCrypto` only handles BTC, ETH, USDT
-- Backend wallet has `okp` field; OKP is managed separately (not via buy/sell)
-- No ICP support in backend wallet or exchange
+App KongoKash complète avec authentification via Internet Identity, dashboard, échange, mobile money, KYC, gouvernance, vesting. Aucun système de wallet non-custodial n'existe actuellement.
 
 ## Requested Changes (Diff)
 
 ### Add
-- ICP/CDF and OKAPI/CDF trading pairs in MarketOverview (with fallback rates)
-- ICP and OKP as selectable assets in BuySellSection buy/sell dropdowns
-- ICP/CDF, USDT/CDF, OKAPI/CDF ticker entries in the market scrolling banner
-- Description text in exchange section explaining CDF as the bridge currency
+- Composant `NonCustodialWallet.tsx` : système complet de wallet non-custodial entièrement côté client
+  - **Génération seed phrase** : 12 ou 24 mots depuis la wordlist BIP39 (wordlist EN intégrée), générés via `crypto.getRandomValues()`
+  - **Flux de création** : étape 1 — afficher la seed phrase + choix 12/24 mots ; étape 2 — confirmer en sélectionnant les mots dans le bon ordre ; étape 3 — wallet créé
+  - **Dérivation de clé** : utiliser Web Crypto API (PBKDF2) pour dériver une clé AES-GCM depuis la seed phrase + sel aléatoire
+  - **Chiffrement** : clé privée chiffrée avec AES-GCM, stockée dans localStorage (jamais en clair)
+  - **Authentification biométrique** : WebAuthn API (navigator.credentials) pour empreinte digitale / reconnaissance faciale — utilisé comme couche de déverrouillage rapide
+  - **Restauration** : formulaire pour entrer une seed phrase existante (12 ou 24 mots) et restaurer le wallet sur un autre appareil
+  - **Affichage wallet** : adresse publique dérivée, solde simulé, boutons Envoyer/Recevoir
+- Hook `useNonCustodialWallet.ts` : toute la logique crypto (génération, chiffrement, déchiffrement, WebAuthn enrollment/assertion)
+- Wordlist BIP39 intégrée inline (2048 mots anglais) dans un fichier `bip39-wordlist.ts`
+- Intégration dans la navigation : onglet "Wallet Sécurisé" ou bouton dédié visible après connexion
 
 ### Modify
-- MarketOverview FALLBACK_RATES: add ICP/CDF, OKAPI/CDF entries
-- BuySellSection: add ICP and OKAPI (OKP) to asset selectors for both buy and sell tabs
-- cryptoIcons map: add ICP and OKP icons
-- Backend `buyCrypto`/`sellCrypto`: add case for "ICP" (add icp field to wallet) and "OKP" (allow buying OKP with CDF directly)
+- `App.tsx` ou `Dashboard.tsx` : ajouter un point d'entrée vers le wallet non-custodial
+- `Navbar.tsx` : ajouter accès au wallet sécurisé si nécessaire
 
 ### Remove
-- Nothing removed
+- Rien
 
 ## Implementation Plan
-1. Frontend only changes (no backend modification possible here):
-   - MarketOverview: add ICP/CDF (rate ~11500 CDF), OKAPI/CDF (rate 50 CDF) to FALLBACK_RATES; add ICP icon
-   - BuySellSection: add ICP and OKAPI to asset dropdowns in both buy/sell tabs
-   - Add a short explanatory note about CDF as bridge currency
-   - The buy/sell calls pass asset as string; backend will handle it (mock success if not yet supported)
-2. Backend: The existing `buyCrypto`/`sellCrypto` functions handle unknown assets gracefully; we extend wallet type to include `icp` field and handle ICP/OKP buy/sell cases
+1. Créer `src/frontend/src/data/bip39-wordlist.ts` avec les 2048 mots BIP39
+2. Créer `src/frontend/src/hooks/useNonCustodialWallet.ts` avec :
+   - `generateSeedPhrase(length: 12 | 24)` via crypto.getRandomValues + wordlist
+   - `deriveKeyFromSeed(seed: string[], salt: Uint8Array)` via PBKDF2
+   - `encryptAndStore(privateKey, derivedKey, salt)` via AES-GCM → localStorage
+   - `decryptFromStorage(derivedKey)` → clé privée
+   - `enrollBiometric()` via WebAuthn navigator.credentials.create()
+   - `authenticateBiometric()` via WebAuthn navigator.credentials.get()
+   - `restoreFromSeed(words: string[])` → reconstruire le wallet
+3. Créer `src/frontend/src/components/NonCustodialWallet.tsx` avec les 4 états :
+   - `no-wallet` : choix Créer / Restaurer
+   - `create-step1` : affichage seed phrase + copie + avertissement
+   - `create-step2` : confirmation des mots (quiz ordre)
+   - `wallet-locked` : déverrouillage biométrique
+   - `wallet-unlocked` : vue principale (adresse, solde, actions)
+   - `restore` : formulaire saisie seed phrase
+4. Intégrer dans `Dashboard.tsx` comme nouvel onglet "Wallet Sécurisé"
+5. Valider et builder
+
+**Contraintes techniques :**
+- ZERO appel backend — tout reste dans le navigateur
+- Seed phrase et clé privée ne quittent jamais le localStorage chiffré
+- WebAuthn est progressif : si non supporté, fallback sur confirmation PIN local
+- Aucun accès admin possible par conception

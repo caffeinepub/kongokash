@@ -28,9 +28,20 @@ const cryptoIcons: Record<string, string> = {
   ETH: "⟠",
   USDT: "₮",
   ICP: "∞",
-  OKP: "🦌",
-  OKAPI: "🦌",
 };
+
+function CryptoIcon({ symbol }: { symbol: string }) {
+  if (symbol === "OKP" || symbol === "OKAPI") {
+    return (
+      <img
+        src="/assets/generated/okapi-token-icon-transparent.dim_128x128.png"
+        className="w-5 h-5 object-contain"
+        alt="OKP"
+      />
+    );
+  }
+  return <span>{cryptoIcons[symbol] || symbol[0]}</span>;
+}
 
 export default function MarketOverview() {
   const { data: rates } = useExchangeRates();
@@ -83,7 +94,7 @@ export default function MarketOverview() {
                       color: "oklch(0.77 0.13 85)",
                     }}
                   >
-                    {cryptoIcons[crypto] || crypto[0]}
+                    <CryptoIcon symbol={crypto} />
                   </div>
                   <div>
                     <div className="text-white font-semibold text-sm">

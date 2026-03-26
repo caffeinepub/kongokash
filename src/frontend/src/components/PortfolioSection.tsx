@@ -12,6 +12,19 @@ function addOpacity(color: string, opacity: string) {
   return color.endsWith(")") ? `${color.slice(0, -1)} / ${opacity})` : color;
 }
 
+function AssetIcon({ icon }: { icon: string }) {
+  if (icon === "OKP_IMG") {
+    return (
+      <img
+        src="/assets/generated/okapi-token-icon-transparent.dim_128x128.png"
+        className="w-6 h-6 object-contain"
+        alt="OKP"
+      />
+    );
+  }
+  return <span>{icon}</span>;
+}
+
 export default function PortfolioSection() {
   const { identity } = useInternetIdentity();
   const { data: portfolio, isLoading } = usePortfolioValue();
@@ -57,7 +70,7 @@ export default function PortfolioSection() {
     },
     {
       symbol: "OKP",
-      icon: "🦌",
+      icon: "OKP_IMG",
       amount: wallet?.okp ?? 0,
       valueCDF: (wallet?.okp ?? 0) * getRate("OKAPI/CDF"),
       color: "oklch(0.60 0.16 45)",
@@ -189,7 +202,7 @@ export default function PortfolioSection() {
                           className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold mx-auto mb-2"
                           style={{ background: asset.color, color: "white" }}
                         >
-                          {asset.icon}
+                          <AssetIcon icon={asset.icon} />
                         </div>
                         <div className="font-semibold text-sm">
                           {asset.symbol}

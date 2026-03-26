@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   CheckCircle,
   Clock,
+  Info,
   Loader2,
   Phone,
   Smartphone,
@@ -308,6 +309,21 @@ function DepositTab() {
         </div>
       )}
 
+      <div
+        style={{
+          background: "oklch(0.52 0.12 160 / 0.08)",
+          border: "1px solid oklch(0.52 0.12 160 / 0.3)",
+          borderRadius: "0.5rem",
+        }}
+        className="flex items-center gap-2 p-2.5 text-sm"
+      >
+        <CheckCircle size={14} style={{ color: "oklch(0.52 0.12 160)" }} />
+        <span>
+          <strong>Frais de dépôt : 0%</strong> — Ce dépôt est entièrement
+          gratuit
+        </span>
+      </div>
+
       <Button
         onClick={handleSubmit}
         disabled={depositMutation.isPending || !identity}
@@ -508,6 +524,21 @@ function WithdrawalTab() {
         </div>
       )}
 
+      <div
+        style={{
+          background: "oklch(0.77 0.13 85 / 0.08)",
+          border: "1px solid oklch(0.77 0.13 85 / 0.3)",
+          borderRadius: "0.5rem",
+        }}
+        className="flex items-center gap-2 p-2.5 text-sm"
+      >
+        <Info size={14} style={{ color: "oklch(0.55 0.13 75)" }} />
+        <span>
+          <strong>Frais de retrait : max 0.5%</strong> — Bien moins que les
+          3%–5% des cabistes P2P
+        </span>
+      </div>
+
       <Button
         onClick={handleSubmit}
         disabled={withdrawalMutation.isPending || !identity}
@@ -606,6 +637,55 @@ export default function MobileMoneySection() {
                   </Badge>
                 </div>
               ))}
+            </div>
+
+            <div
+              style={{
+                background: "oklch(0.27 0.07 195 / 0.06)",
+                border: "1px solid oklch(0.27 0.07 195 / 0.2)",
+                borderRadius: "0.75rem",
+              }}
+              className="p-4"
+            >
+              <p
+                className="text-sm font-semibold mb-2"
+                style={{ color: "oklch(0.27 0.07 195)" }}
+              >
+                📊 KongoKash vs Cabistes P2P
+              </p>
+              <div className="space-y-1.5 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">
+                    Dépôt Mobile Money
+                  </span>
+                  <span
+                    className="font-bold"
+                    style={{ color: "oklch(0.52 0.12 160)" }}
+                  >
+                    0% — GRATUIT
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">
+                    Retrait Mobile Money
+                  </span>
+                  <span
+                    className="font-bold"
+                    style={{ color: "oklch(0.52 0.12 160)" }}
+                  >
+                    max 0.5%
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Cabistes P2P</span>
+                  <span
+                    className="font-bold"
+                    style={{ color: "oklch(0.55 0.22 27)" }}
+                  >
+                    3% – 5%
+                  </span>
+                </div>
+              </div>
             </div>
 
             <div

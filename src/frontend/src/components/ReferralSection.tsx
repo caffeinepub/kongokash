@@ -82,7 +82,8 @@ export default function ReferralSection() {
           Système de Parrainage
         </h3>
         <p className="text-muted-foreground text-sm mt-1">
-          Invitez vos amis et gagnez des OKP pour chaque parrainage activé.
+          Invitez vos amis et recevez un bonus de bienvenue OKP — financé par la
+          réserve Communauté, pas par les autres utilisateurs.
         </p>
       </div>
 
@@ -196,6 +197,10 @@ export default function ReferralSection() {
                   🎁 <strong>+100 OKP</strong> pour vous et votre filleul à
                   l’activation du compte
                 </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Source : Allocation Communauté congolaise (250M OKP réservés
+                  pour l'adoption locale)
+                </p>
               </>
             )}
           </CardContent>

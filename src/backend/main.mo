@@ -1437,12 +1437,12 @@ actor {
   // Allocations de la distribution initiale
   func getInitialAllocations() : [OkpAllocation] {
     [
-      { name = "Communauté"; percentage = 40.0; amount = OKP_TOTAL_SUPPLY * 0.40; description = "Récompenses et incentives communautaires"; locked = false },
-      { name = "Équipe";     percentage = 20.0; amount = OKP_TOTAL_SUPPLY * 0.20; description = "Vesting 4 ans, cliff 12 mois — libération mensuelle progressive"; locked = true },
-      { name = "Liquidité";  percentage = 15.0; amount = OKP_TOTAL_SUPPLY * 0.15; description = "Liquidité & partenaires stratégiques"; locked = false },
-      { name = "Investisseurs"; percentage = 10.0; amount = OKP_TOTAL_SUPPLY * 0.10; description = "Tour de financement initial"; locked = false },
-      { name = "Marketing";  percentage = 10.0; amount = OKP_TOTAL_SUPPLY * 0.10; description = "Adoption & croissance"; locked = false },
-      { name = "Réserve";    percentage = 5.0;  amount = OKP_TOTAL_SUPPLY * 0.05; description = "Réserve & développement"; locked = false },
+      { name = "Communauté congolaise & récompenses"; percentage = 25.0; amount = OKP_TOTAL_SUPPLY * 0.25; description = "Airdrops, staking, adoption locale, éducation blockchain"; locked = false },
+      { name = "Fonds pour l'Innovation Numérique en RDC"; percentage = 10.0; amount = OKP_TOTAL_SUPPLY * 0.10; description = "Fonds pour l'innovation numérique, multisig institutionnel, DAO — vesting 5 ans"; locked = true },
+      { name = "Équipe & fondateurs"; percentage = 15.0; amount = OKP_TOTAL_SUPPLY * 0.15; description = "Vesting 4 ans, cliff 12 mois, libération mensuelle"; locked = true },
+      { name = "Investisseurs & partenariats"; percentage = 20.0; amount = OKP_TOTAL_SUPPLY * 0.20; description = "Private sale, early investors — vesting 2–3 ans, libération progressive"; locked = true },
+      { name = "Liquidité & marché"; percentage = 20.0; amount = OKP_TOTAL_SUPPLY * 0.20; description = "Pools DEX/CEX, market making, liquidité OKAPI ↔ CDF"; locked = false },
+      { name = "Réserve & développement"; percentage = 10.0; amount = OKP_TOTAL_SUPPLY * 0.10; description = "Développement futur, partenariats, croissance du réseau"; locked = false },
     ]
   };
 

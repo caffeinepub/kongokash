@@ -949,6 +949,80 @@ function WhitepaperTab() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Section 12 — Pourquoi KongoKash n'est pas un Ponzi */}
+      <Card>
+        <CardHeader>
+          <CardTitle style={{ color: OKP_COLOR }}>
+            12. Comment ça marche vraiment — Pourquoi KongoKash n'est pas un
+            Ponzi
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm">
+          <p className="text-muted-foreground leading-relaxed">
+            Un système Ponzi promet des rendements aux anciens membres financés
+            par les nouveaux arrivants, sans créer de valeur réelle. KongoKash
+            fonctionne différemment sur chaque point :
+          </p>
+          <div className="grid sm:grid-cols-2 gap-3">
+            {[
+              {
+                icon: "🏦",
+                title: "Valeur réelle",
+                desc: "KongoKash offre un service concret : acheter/vendre des cryptos en CDF, transférer de l'argent, payer via mobile money. Ce sont des services utilisés quotidiennement.",
+                color: "oklch(0.55 0.18 200)",
+              },
+              {
+                icon: "💰",
+                title: "Revenus légitimes",
+                desc: "Les récompenses OKP proviennent des frais de trading (~1% + spread) et de l'allocation Communauté (250 millions d'OKP déjà réservés), pas des dépôts des nouveaux utilisateurs.",
+                color: "oklch(0.55 0.18 160)",
+              },
+              {
+                icon: "🔒",
+                title: "Supply fixe",
+                desc: "1 milliard d'OKP — jamais plus. Aucune impression illimitée pour payer les anciens membres. La rareté est garantie par le smart contract.",
+                color: "oklch(0.60 0.20 25)",
+              },
+              {
+                icon: "📋",
+                title: "Transparence totale",
+                desc: "Le vesting de l'équipe est public et on-chain (4 ans, cliff 12 mois). Toutes les allocations sont visibles. Aucun insider ne peut vider ses tokens immédiatement.",
+                color: "oklch(0.55 0.18 265)",
+              },
+            ].map((item) => (
+              <div
+                key={item.title}
+                className="p-4 rounded-xl border bg-card hover:shadow-md transition-shadow"
+                style={{ borderColor: `${item.color}44` }}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <div
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-lg"
+                    style={{ background: `${item.color}22` }}
+                  >
+                    {item.icon}
+                  </div>
+                  <div className="font-semibold text-sm">{item.title}</div>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {item.desc}
+                </p>
+              </div>
+            ))}
+          </div>
+          <div
+            className="p-4 rounded-lg border text-xs text-muted-foreground leading-relaxed"
+            style={{ background: OKP_BG, borderColor: `${OKP_COLOR}44` }}
+          >
+            💡 <strong>Note :</strong> Les récompenses de parrainage et de
+            staking sont financées par l'allocation Communauté congolaise (250
+            000 000 OKP — 25% de la supply totale), allouée dès le départ pour
+            soutenir l'adoption. Ce n'est pas de l'argent des autres
+            utilisateurs.
+          </div>
+        </CardContent>
+      </Card>
     </motion.div>
   );
 }
@@ -2031,6 +2105,10 @@ export default function OkapiSection() {
                       )}
                       Réclamer ma récompense du jour
                     </Button>
+                    <p className="text-xs text-muted-foreground text-center mt-2">
+                      💡 Financé par l'allocation Communauté (250M OKP) — pas
+                      par les dépôts des autres utilisateurs.
+                    </p>
                   </CardContent>
                 </Card>
               </motion.div>

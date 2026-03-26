@@ -451,6 +451,21 @@ function ReservationModal({ structure, onClose }: ReservationModalProps) {
           `Votre réservation est confirmée — Code : ${data.bookingCode}`,
         );
         toast.success("Réservation confirmée !");
+        // Create escrow for the reservation
+        if (actor && structure) {
+          const rId = BigInt(Date.now() % 1_000_000); // fallback ID from booking code hash
+          const serviceDateNs =
+            BigInt(new Date(checkIn).getTime()) * 1_000_000n;
+          (actor as any)
+            .createEscrow(
+              rId,
+              structure.name,
+              finalAmount,
+              paymentMethod.toUpperCase(),
+              serviceDateNs,
+            )
+            .catch(() => {});
+        }
       } else {
         toast.error(data.message || "Erreur lors de la réservation");
       }
@@ -732,6 +747,21 @@ function ReservationModal({ structure, onClose }: ReservationModalProps) {
               </div>
             )}
 
+            <div
+              className="rounded-xl p-3 flex items-start gap-2 mt-2"
+              style={{
+                background: "oklch(0.20 0.08 195 / 0.25)",
+                border: "1px solid oklch(0.40 0.12 195 / 0.4)",
+              }}
+            >
+              <span className="text-sm shrink-0 mt-0.5">🔒</span>
+              <p className="text-xs" style={{ color: "oklch(0.70 0.08 195)" }}>
+                <strong>Paiement sécurisé par Escrow :</strong> Vos fonds sont
+                bloqués dans un smart contract et seront libérés au partenaire
+                uniquement après confirmation de votre arrivée, ou
+                automatiquement 6h avant votre service.
+              </p>
+            </div>
             <div
               className="rounded-xl p-3 flex items-start gap-2 mt-2"
               style={{

@@ -2591,4 +2591,200 @@ actor {
     };
   };
 
+
+  // ============================================================
+  // ESCROW PAYMENT SYSTEM
+  // ============================================================
+
+  type EscrowStatus = {
+    #locked;
+    #released;
+    #refunded;
+    #disputed;
+    #resolved;
+  };
+
+  type EscrowEntry = {
+    reservationId : Nat;
+    userId : Principal;
+    partnerId : Text;
+    amount : Float;
+    currency : Text;
+    status : EscrowStatus;
+    createdAt : Int;
+    releaseTime : Int;
+    serviceDate : Int;
+    disputeReason : ?Text;
+  };
+
+  var escrows = Map.empty<Nat, EscrowEntry>();
+
+  public shared ({ caller }) func createEscrow(
+    reservationId_ : Nat,
+    partnerId : Text,
+    amount : Float,
+    currency : Text,
+    serviceDateNs : Int
+  ) : async { success : Bool; message : Text } {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Connexion requise");
+    };
+    let sixHoursNs : Int = 6 * 60 * 60 * 1_000_000_000;
+    let releaseTime = serviceDateNs - sixHoursNs;
+    let entry : EscrowEntry = {
+      reservationId = reservationId_;
+      userId = caller;
+      partnerId;
+      amount;
+      currency;
+      status = #locked;
+      createdAt = Time.now();
+      releaseTime;
+      serviceDate = serviceDateNs;
+      disputeReason = null;
+    };
+    escrows.add(reservationId_, entry);
+    { success = true; message = "Fonds securises dans l'escrow" };
+  };
+
+  public shared ({ caller }) func confirmCheckin(reservationId_ : Nat) : async { success : Bool; message : Text } {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Connexion requise");
+    };
+    switch (escrows.get(reservationId_)) {
+      case (null) { return { success = false; message = "Escrow introuvable" } };
+      case (?e) {
+        switch (e.status) {
+          case (#locked) {
+            escrows.add(reservationId_, { e with status = #released });
+            { success = true; message = "Check-in confirme. Fonds liberes au partenaire." };
+          };
+          case (_) {
+            { success = false; message = "Les fonds ne sont plus bloques" };
+          };
+        };
+      };
+    };
+  };
+
+  public shared ({ caller }) func autoReleaseEscrow(reservationId_ : Nat) : async { success : Bool; message : Text } {
+    switch (escrows.get(reservationId_)) {
+      case (null) { return { success = false; message = "Escrow introuvable" } };
+      case (?e) {
+        switch (e.status) {
+          case (#locked) {
+            if (Time.now() < e.releaseTime) {
+              { success = false; message = "La liberation automatique n'est pas encore disponible" };
+            } else {
+              escrows.add(reservationId_, { e with status = #released });
+              { success = true; message = "Fonds liberes automatiquement au partenaire." };
+            };
+          };
+          case (_) {
+            { success = false; message = "Statut non valide pour liberation automatique" };
+          };
+        };
+      };
+    };
+  };
+
+  public shared ({ caller }) func openDispute(reservationId_ : Nat, reason : Text) : async { success : Bool; message : Text } {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Connexion requise");
+    };
+    switch (escrows.get(reservationId_)) {
+      case (null) { return { success = false; message = "Escrow introuvable" } };
+      case (?e) {
+        if (e.userId != caller) {
+          return { success = false; message = "Vous ne pouvez ouvrir un litige que sur vos propres reservations" };
+        };
+        switch (e.status) {
+          case (#locked) {
+            escrows.add(reservationId_, { e with status = #disputed; disputeReason = ?reason });
+            { success = true; message = "Litige ouvert. L'equipe KongoKash va examiner votre demande." };
+          };
+          case (_) {
+            { success = false; message = "Impossible d'ouvrir un litige sur un escrow deja traite" };
+          };
+        };
+      };
+    };
+  };
+
+  public shared ({ caller }) func resolveDispute(reservationId_ : Nat, favorUser : Bool) : async { success : Bool; message : Text } {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Acces admin requis");
+    };
+    switch (escrows.get(reservationId_)) {
+      case (null) { return { success = false; message = "Escrow introuvable" } };
+      case (?e) {
+        switch (e.status) {
+          case (#disputed) {
+            let newStatus = if (favorUser) { #refunded } else { #resolved };
+            escrows.add(reservationId_, { e with status = newStatus });
+            let msg = if (favorUser) {
+              "Litige resolu en faveur de l'utilisateur. Remboursement effectue."
+            } else {
+              "Litige resolu en faveur du partenaire. Fonds liberes."
+            };
+            { success = true; message = msg };
+          };
+          case (_) {
+            { success = false; message = "Cet escrow n'est pas en litige" };
+          };
+        };
+      };
+    };
+  };
+
+  public shared ({ caller }) func refundEscrow(reservationId_ : Nat) : async { success : Bool; message : Text } {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Acces admin requis");
+    };
+    switch (escrows.get(reservationId_)) {
+      case (null) { return { success = false; message = "Escrow introuvable" } };
+      case (?e) {
+        switch (e.status) {
+          case (#refunded) {
+            { success = false; message = "Deja rembourse" };
+          };
+          case (_) {
+            escrows.add(reservationId_, { e with status = #refunded });
+            { success = true; message = "Remboursement effectue." };
+          };
+        };
+      };
+    };
+  };
+
+  public query func getEscrowStatus(reservationId_ : Nat) : async ?EscrowEntry {
+    escrows.get(reservationId_);
+  };
+
+  public query ({ caller }) func getUserEscrows() : async [EscrowEntry] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Connexion requise");
+    };
+    escrows.values().toArray().filter(func(e) { e.userId == caller });
+  };
+
+  public query ({ caller }) func adminGetAllEscrows() : async [EscrowEntry] {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Acces admin requis");
+    };
+    escrows.values().toArray().sort(func(a, b) { Int.compare(b.createdAt, a.createdAt) });
+  };
+
+  public query ({ caller }) func adminGetDisputedEscrows() : async [EscrowEntry] {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Acces admin requis");
+    };
+    escrows.values().toArray().filter(func(e) {
+      switch (e.status) {
+        case (#disputed) { true };
+        case (_) { false };
+      };
+    });
+  };
+
 };

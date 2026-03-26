@@ -177,6 +177,19 @@ export interface WalletBalance {
   'usd' : number,
   'usdt' : number,
 }
+export type EscrowStatus = { 'locked' : null } | { 'released' : null } | { 'refunded' : null } | { 'disputed' : null } | { 'resolved' : null };
+export interface EscrowEntry {
+  'reservationId' : bigint,
+  'userId' : Principal,
+  'partnerId' : string,
+  'amount' : number,
+  'currency' : string,
+  'status' : EscrowStatus,
+  'createdAt' : bigint,
+  'releaseTime' : bigint,
+  'serviceDate' : bigint,
+  'disputeReason' : [] | [string],
+}
 export interface _SERVICE {
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'activateUser' : ActorMethod<[Principal], undefined>,
@@ -257,7 +270,17 @@ export interface _SERVICE {
   'getNetworkFees' : ActorMethod<[], Array<[string, number]>>,
   'transferOkp' : ActorMethod<[Principal, number], TransactionResult>,
   'unstakeOkp' : ActorMethod<[bigint], TransactionResult>,
-  /**
+    'createEscrow' : ActorMethod<[bigint, string, number, string, bigint], { 'success' : boolean, 'message' : string }>,
+  'confirmCheckin' : ActorMethod<[bigint], { 'success' : boolean, 'message' : string }>,
+  'autoReleaseEscrow' : ActorMethod<[bigint], { 'success' : boolean, 'message' : string }>,
+  'openDispute' : ActorMethod<[bigint, string], { 'success' : boolean, 'message' : string }>,
+  'resolveDispute' : ActorMethod<[bigint, boolean], { 'success' : boolean, 'message' : string }>,
+  'refundEscrow' : ActorMethod<[bigint], { 'success' : boolean, 'message' : string }>,
+  'getEscrowStatus' : ActorMethod<[bigint], [] | [EscrowEntry]>,
+  'getUserEscrows' : ActorMethod<[], Array<EscrowEntry>>,
+  'adminGetAllEscrows' : ActorMethod<[], Array<EscrowEntry>>,
+  'adminGetDisputedEscrows' : ActorMethod<[], Array<EscrowEntry>>,
+/**
    * / Profile Management
    */
   'updateProfile' : ActorMethod<[UpdateProfileRequest], undefined>,

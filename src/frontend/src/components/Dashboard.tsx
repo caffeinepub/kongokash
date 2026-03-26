@@ -41,6 +41,7 @@ import {
   useWallet,
 } from "../hooks/useQueries";
 import { DigitalTicket, type TicketData } from "./DigitalTicket";
+import { EscrowPaymentInfo } from "./EscrowPaymentInfo";
 import ExternalTransferModal, {
   ExternalTransferHistory,
 } from "./ExternalTransferModal";
@@ -1194,82 +1195,85 @@ function MesReservationsTab() {
         {filtered.map((r, idx) => (
           <div
             key={String(r.id)}
-            className="rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+            className="rounded-xl p-4 flex flex-col gap-3"
             style={{
               background: "oklch(0.16 0.04 220)",
               border: "1px solid oklch(0.25 0.05 220)",
             }}
             data-ocid={`reservation.item.${idx + 1}`}
           >
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap mb-1">
-                <span
-                  className="font-mono text-sm font-bold"
-                  style={{ color: "oklch(0.77 0.13 85)" }}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap mb-1">
+                  <span
+                    className="font-mono text-sm font-bold"
+                    style={{ color: "oklch(0.77 0.13 85)" }}
+                  >
+                    #{r.bookingCode}
+                  </span>
+                  {statusBadge(r.status)}
+                </div>
+                <p
+                  className="font-semibold truncate"
+                  style={{ color: "oklch(0.90 0.04 80)" }}
                 >
-                  #{r.bookingCode}
-                </span>
-                {statusBadge(r.status)}
+                  {r.structureName}
+                </p>
+                <p
+                  className="text-xs mt-0.5"
+                  style={{ color: "oklch(0.55 0.04 220)" }}
+                >
+                  {r.checkIn} → {r.checkOut} · {Number(r.guests)} pers. ·{" "}
+                  {r.totalAmount.toLocaleString("fr-FR")}{" "}
+                  {r.paymentMethod.toUpperCase()}
+                </p>
               </div>
-              <p
-                className="font-semibold truncate"
-                style={{ color: "oklch(0.90 0.04 80)" }}
-              >
-                {r.structureName}
-              </p>
-              <p
-                className="text-xs mt-0.5"
-                style={{ color: "oklch(0.55 0.04 220)" }}
-              >
-                {r.checkIn} → {r.checkOut} · {Number(r.guests)} pers. ·{" "}
-                {r.totalAmount.toLocaleString("fr-FR")}{" "}
-                {r.paymentMethod.toUpperCase()}
-              </p>
-            </div>
-            <div className="flex gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTicket({
-                    type: r.structureName.toLowerCase().includes("vol")
-                      ? "VOL"
-                      : "HÔTEL",
-                    serviceName: r.structureName,
-                    passenger: "Voyageur KongoKash",
-                    date: r.checkIn,
-                    bookingCode: r.bookingCode,
-                    details: `${Number(r.guests)} pers. · ${r.checkIn} → ${r.checkOut}`,
-                    price: `${r.totalAmount.toLocaleString("fr-FR")} ${r.paymentMethod.toUpperCase()}`,
-                  });
-                  setShowTicket(true);
-                }}
-                className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
-                style={{
-                  background: "oklch(0.25 0.10 195 / 0.3)",
-                  color: "oklch(0.60 0.15 195)",
-                  border: "1px solid oklch(0.40 0.12 195 / 0.4)",
-                }}
-                data-ocid={`reservation.secondary_button.${idx + 1}`}
-              >
-                🎫 Voir Ticket
-              </button>
-              {r.status === "confirmed" && (
+              <div className="flex gap-2 shrink-0">
                 <button
                   type="button"
-                  onClick={() => cancelReservation.mutate(r.id)}
-                  disabled={cancelReservation.isPending}
+                  onClick={() => {
+                    setActiveTicket({
+                      type: r.structureName.toLowerCase().includes("vol")
+                        ? "VOL"
+                        : "HÔTEL",
+                      serviceName: r.structureName,
+                      passenger: "Voyageur KongoKash",
+                      date: r.checkIn,
+                      bookingCode: r.bookingCode,
+                      details: `${Number(r.guests)} pers. · ${r.checkIn} → ${r.checkOut}`,
+                      price: `${r.totalAmount.toLocaleString("fr-FR")} ${r.paymentMethod.toUpperCase()}`,
+                    });
+                    setShowTicket(true);
+                  }}
                   className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
                   style={{
-                    background: "oklch(0.25 0.08 20 / 0.4)",
-                    color: "oklch(0.65 0.15 20)",
-                    border: "1px solid oklch(0.40 0.10 20 / 0.4)",
+                    background: "oklch(0.25 0.10 195 / 0.3)",
+                    color: "oklch(0.60 0.15 195)",
+                    border: "1px solid oklch(0.40 0.12 195 / 0.4)",
                   }}
-                  data-ocid={`reservation.delete_button.${idx + 1}`}
+                  data-ocid={`reservation.secondary_button.${idx + 1}`}
                 >
-                  Annuler
+                  🎫 Voir Ticket
                 </button>
-              )}
+                {r.status === "confirmed" && (
+                  <button
+                    type="button"
+                    onClick={() => cancelReservation.mutate(r.id)}
+                    disabled={cancelReservation.isPending}
+                    className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                    style={{
+                      background: "oklch(0.25 0.08 20 / 0.4)",
+                      color: "oklch(0.65 0.15 20)",
+                      border: "1px solid oklch(0.40 0.10 20 / 0.4)",
+                    }}
+                    data-ocid={`reservation.delete_button.${idx + 1}`}
+                  >
+                    Annuler
+                  </button>
+                )}
+              </div>
             </div>
+            <EscrowPaymentInfo reservationId={Number(r.id)} />
           </div>
         ))}
       </div>

@@ -38,6 +38,7 @@ import {
   Network,
   Plane,
   RefreshCw,
+  Scale,
   Settings,
   Shield,
   ShieldAlert,
@@ -66,6 +67,7 @@ import {
   useSetNetworkFee,
   useUpdateExternalTransferStatus,
 } from "../hooks/useQueries";
+import { EscrowDisputeTab } from "./EscrowPaymentInfo";
 import { UrgencesInstitutionnellesTab } from "./InstitutionalMultiSigWallet";
 import { PartnerOwnershipTransferModal } from "./PartnerOwnershipTransferModal";
 import { PartnerWalletDialog } from "./PartnerWalletSetup";
@@ -849,7 +851,7 @@ export default function AdminDashboard() {
 
         <Tabs defaultValue="overview" className="space-y-6">
           <TabsList
-            className="grid grid-cols-10 w-full"
+            className="grid grid-cols-11 w-full"
             style={{
               background: "oklch(0.15 0.03 220)",
               border: "1px solid oklch(0.25 0.04 220)",
@@ -911,6 +913,11 @@ export default function AdminDashboard() {
                 value: "urgences",
                 label: "Urgences 🆘",
                 icon: <ShieldAlert size={14} />,
+              },
+              {
+                value: "litiges",
+                label: "Litiges 🔴",
+                icon: <Scale size={14} />,
               },
             ].map((tab) => (
               <TabsTrigger
@@ -2137,6 +2144,11 @@ export default function AdminDashboard() {
           {/* ── Tab 11: Urgences Institutionnelles ──────────────────────── */}
           <TabsContent value="urgences" data-ocid="admin.urgences.panel">
             <UrgencesInstitutionnellesTab />
+          </TabsContent>
+
+          {/* ── Tab 12: Litiges Escrow ───────────────────────────────────── */}
+          <TabsContent value="litiges" data-ocid="admin.litiges.panel">
+            <EscrowDisputeTab />
           </TabsContent>
         </Tabs>
       </div>

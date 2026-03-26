@@ -36,6 +36,9 @@ import {
   useTransactions,
   useWallet,
 } from "../hooks/useQueries";
+import ExternalTransferModal, {
+  ExternalTransferHistory,
+} from "./ExternalTransferModal";
 import NonCustodialWallet from "./NonCustodialWallet";
 import ReferralSection, { ApplyReferralCard } from "./ReferralSection";
 import TransactionHistory from "./TransactionHistory";
@@ -821,6 +824,40 @@ export default function Dashboard() {
                     </CardContent>
                   </Card>
                 </div>
+              </div>
+            </motion.div>
+
+            {/* External Transfers Section */}
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.05, duration: 0.5 }}
+              className="mt-8"
+            >
+              <div
+                className="rounded-2xl p-6"
+                style={{
+                  background: "oklch(0.13 0.025 220)",
+                  border: "1px solid oklch(0.25 0.04 220)",
+                }}
+              >
+                <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+                  <div>
+                    <h3 className="font-display font-bold text-xl text-white">
+                      Transferts Externes
+                    </h3>
+                    <p
+                      className="text-sm mt-1"
+                      style={{ color: "oklch(0.55 0.03 220)" }}
+                    >
+                      Envoyez vos cryptos vers des adresses externes (TRC20,
+                      BEP20, ERC20)
+                    </p>
+                  </div>
+                  <ExternalTransferModal />
+                </div>
+                <ExternalTransferHistory compact />
               </div>
             </motion.div>
 

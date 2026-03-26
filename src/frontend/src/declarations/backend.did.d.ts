@@ -110,6 +110,17 @@ export interface StakeRecord {
   'rewardRate' : number,
   'amount' : number,
 }
+export interface ExternalTransfer {
+  'id' : bigint,
+  'status' : string,
+  'asset' : string,
+  'userId' : Principal,
+  'timestamp' : bigint,
+  'amount' : number,
+  'toAddress' : string,
+  'network' : string,
+  'networkFee' : number,
+}
 export interface Transaction {
   'id' : bigint,
   'status' : string,
@@ -238,6 +249,12 @@ export interface _SERVICE {
   'submitMobileMoneyDeposit' : ActorMethod<[string, string, number], bigint>,
   'submitMobileMoneyWithdrawal' : ActorMethod<[string, string, number], bigint>,
   'suspendUser' : ActorMethod<[Principal], undefined>,
+  'submitExternalTransfer' : ActorMethod<[string, number, string, string], ExternalTransfer>,
+  'updateExternalTransferStatus' : ActorMethod<[bigint, string], undefined>,
+  'getMyExternalTransfers' : ActorMethod<[], Array<ExternalTransfer>>,
+  'getAllExternalTransfers' : ActorMethod<[], Array<ExternalTransfer>>,
+  'setNetworkFee' : ActorMethod<[string, number], undefined>,
+  'getNetworkFees' : ActorMethod<[], Array<[string, number]>>,
   'transferOkp' : ActorMethod<[Principal, number], TransactionResult>,
   'unstakeOkp' : ActorMethod<[bigint], TransactionResult>,
   /**

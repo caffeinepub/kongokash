@@ -118,6 +118,17 @@ export interface Transaction {
     fiatCurrency: string;
     cryptoAmount: number;
 }
+export interface ExternalTransfer {
+    id: bigint;
+    status: string;  // "pending" | "confirmed" | "failed"
+    asset: string;
+    userId: Principal;
+    timestamp: bigint;
+    amount: number;
+    toAddress: string;
+    network: string;  // "TRC20" | "BEP20" | "ERC20"
+    networkFee: number;
+}
 export interface SetExchangeRateRequest {
     pair: string;
     buyRate: number;
@@ -254,6 +265,12 @@ export interface backendInterface {
     submitMobileMoneyDeposit(phone: string, operator: string, amountCdf: number): Promise<bigint>;
     submitMobileMoneyWithdrawal(phone: string, operator: string, amountCdf: number): Promise<bigint>;
     suspendUser(user: Principal): Promise<void>;
+    submitExternalTransfer(asset: string, amount: number, toAddress: string, network: string): Promise<ExternalTransfer>;
+    updateExternalTransferStatus(id: bigint, status: string): Promise<void>;
+    getMyExternalTransfers(): Promise<Array<ExternalTransfer>>;
+    getAllExternalTransfers(): Promise<Array<ExternalTransfer>>;
+    setNetworkFee(network: string, fee: number): Promise<void>;
+    getNetworkFees(): Promise<Array<[string, number]>>;
     transferOkp(to: Principal, amount: number): Promise<TransactionResult>;
     unstakeOkp(stakeId: bigint): Promise<TransactionResult>;
     /**

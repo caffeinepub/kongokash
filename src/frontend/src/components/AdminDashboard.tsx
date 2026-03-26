@@ -24,6 +24,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
   AlertTriangle,
+  ArrowUpRight,
   BarChart3,
   CheckCircle,
   CheckCircle2,
@@ -32,6 +33,7 @@ import {
   GitMerge,
   History,
   Loader2,
+  Network,
   RefreshCw,
   Settings,
   Shield,
@@ -48,6 +50,12 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { UserRole } from "../backend";
 import { useActor } from "../hooks/useActor";
+import {
+  useAllExternalTransfers,
+  useNetworkFees,
+  useSetNetworkFee,
+  useUpdateExternalTransferStatus,
+} from "../hooks/useQueries";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -208,8 +216,327 @@ function StatCard({ icon, label, value, sub, color, ocid }: StatCardProps) {
   );
 }
 
-// ─── Main Component ──────────────────────────────────────────────────────────
+// ─── External Transfers Admin Table ─────────────────────────────────────────
 
+function ExternalTransfersAdminTable() {
+  const { data: transfers = [], isLoading } = useAllExternalTransfers();
+  const updateStatusMutation = useUpdateExternalTransferStatus();
+
+  function truncateAddr(addr: string): string {
+    if (addr.length <= 14) return addr;
+    return `${addr.slice(0, 8)}...${addr.slice(-6)}`;
+  }
+
+  function statusBadge(status: string) {
+    if (status === "confirmed")
+      return (
+        <Badge
+          className="text-xs"
+          style={{
+            background: "oklch(0.52 0.12 160 / 0.2)",
+            color: "oklch(0.52 0.12 160)",
+            border: "1px solid oklch(0.52 0.12 160 / 0.4)",
+          }}
+        >
+          Confirmé
+        </Badge>
+      );
+    if (status === "failed")
+      return (
+        <Badge
+          className="text-xs"
+          style={{
+            background: "oklch(0.55 0.22 27 / 0.2)",
+            color: "oklch(0.75 0.18 27)",
+            border: "1px solid oklch(0.55 0.22 27 / 0.4)",
+          }}
+        >
+          Échoué
+        </Badge>
+      );
+    return (
+      <Badge
+        className="text-xs"
+        style={{
+          background: "oklch(0.77 0.13 85 / 0.2)",
+          color: "oklch(0.77 0.13 85)",
+          border: "1px solid oklch(0.77 0.13 85 / 0.4)",
+        }}
+      >
+        En attente
+      </Badge>
+    );
+  }
+
+  function networkBadge(network: string) {
+    const colors: Record<string, string> = {
+      TRC20: "oklch(0.52 0.12 160)",
+      BEP20: "oklch(0.77 0.13 85)",
+      ERC20: "oklch(0.55 0.20 270)",
+    };
+    const color = colors[network] ?? "oklch(0.6 0.1 220)";
+    return (
+      <Badge
+        className="text-xs"
+        style={{
+          background: `${color}33`,
+          color,
+          border: `1px solid ${color}66`,
+        }}
+      >
+        {network}
+      </Badge>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-8" data-ocid="admin.loading_state">
+        <Loader2 className="animate-spin text-teal-400" size={24} />
+      </div>
+    );
+  }
+
+  if (transfers.length === 0) {
+    return (
+      <div
+        className="text-center py-8 text-white/40"
+        data-ocid="admin.empty_state"
+      >
+        <Network size={32} className="mx-auto mb-2 opacity-30" />
+        <p className="text-sm">Aucun transfert externe</p>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="rounded-xl overflow-hidden"
+      style={{ border: "1px solid oklch(0.25 0.04 220)" }}
+    >
+      <Table>
+        <TableHeader style={{ background: "oklch(0.15 0.03 220)" }}>
+          <TableRow style={{ borderColor: "oklch(0.25 0.04 220)" }}>
+            <TableHead className="text-white/60">#ID</TableHead>
+            <TableHead className="text-white/60">Type</TableHead>
+            <TableHead className="text-white/60">Actif</TableHead>
+            <TableHead className="text-white/60 text-right">Montant</TableHead>
+            <TableHead className="text-white/60">Réseau</TableHead>
+            <TableHead className="text-white/60">Adresse</TableHead>
+            <TableHead className="text-white/60">Statut</TableHead>
+            <TableHead className="text-white/60">Date</TableHead>
+            <TableHead className="text-white/60">Utilisateur</TableHead>
+            <TableHead className="text-white/60 text-right">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {transfers.map((t, i) => (
+            <TableRow
+              key={t.id.toString()}
+              data-ocid={`admin.row.${i + 1}`}
+              style={{
+                borderColor: "oklch(0.20 0.03 220)",
+                background:
+                  i % 2 === 0 ? "oklch(0.13 0.02 220)" : "oklch(0.12 0.02 220)",
+              }}
+            >
+              <TableCell className="text-white/60 font-mono text-xs">
+                {t.id.toString()}
+              </TableCell>
+              <TableCell>
+                <Badge
+                  className="text-xs"
+                  style={{
+                    background: "oklch(0.52 0.12 160 / 0.15)",
+                    color: "oklch(0.52 0.12 160)",
+                    border: "1px solid oklch(0.52 0.12 160 / 0.3)",
+                  }}
+                >
+                  Transfert Ext.
+                </Badge>
+              </TableCell>
+              <TableCell className="text-white/80 font-semibold text-sm">
+                {t.asset}
+              </TableCell>
+              <TableCell className="text-right text-white/80 font-mono text-sm">
+                {t.amount}
+              </TableCell>
+              <TableCell>{networkBadge(t.network)}</TableCell>
+              <TableCell className="text-white/60 font-mono text-xs">
+                {truncateAddr(t.toAddress)}
+              </TableCell>
+              <TableCell>{statusBadge(t.status)}</TableCell>
+              <TableCell className="text-white/60 text-xs">
+                {new Date(Number(t.timestamp) / 1_000_000).toLocaleString(
+                  "fr-FR",
+                )}
+              </TableCell>
+              <TableCell className="text-white/40 font-mono text-xs">
+                {t.userId.toString().slice(0, 8)}...
+              </TableCell>
+              <TableCell className="text-right">
+                {t.status === "pending" && (
+                  <div className="flex items-center justify-end gap-1">
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs px-2"
+                      style={{
+                        background: "oklch(0.52 0.12 160)",
+                        color: "white",
+                      }}
+                      onClick={() =>
+                        updateStatusMutation.mutate({
+                          id: t.id,
+                          status: "confirmed",
+                        })
+                      }
+                      disabled={updateStatusMutation.isPending}
+                      data-ocid={`admin.confirm_button.${i + 1}`}
+                    >
+                      {updateStatusMutation.isPending ? (
+                        <Loader2 size={10} className="animate-spin" />
+                      ) : (
+                        <CheckCircle size={10} className="mr-1" />
+                      )}
+                      Confirmer
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs px-2"
+                      style={{
+                        background: "oklch(0.55 0.22 27)",
+                        color: "white",
+                      }}
+                      onClick={() =>
+                        updateStatusMutation.mutate({
+                          id: t.id,
+                          status: "failed",
+                        })
+                      }
+                      disabled={updateStatusMutation.isPending}
+                      data-ocid={`admin.delete_button.${i + 1}`}
+                    >
+                      <XCircle size={10} className="mr-1" />
+                      Rejeter
+                    </Button>
+                  </div>
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+// ─── Network Fees Admin Card ─────────────────────────────────────────────────
+
+function NetworkFeesAdminCard() {
+  const { data: feesRaw = [] } = useNetworkFees();
+  const setFeeMutation = useSetNetworkFee();
+  const feesMap = Object.fromEntries(feesRaw as Array<[string, number]>);
+
+  const [trc20Fee, setTrc20Fee] = useState(String(feesMap.TRC20 ?? "1"));
+  const [bep20Fee, setBep20Fee] = useState(String(feesMap.BEP20 ?? "2"));
+  const [erc20Fee, setErc20Fee] = useState(String(feesMap.ERC20 ?? "5"));
+
+  const networks = [
+    {
+      id: "TRC20",
+      label: "TRC20 (Tron)",
+      value: trc20Fee,
+      setValue: setTrc20Fee,
+      recommended: true,
+    },
+    {
+      id: "BEP20",
+      label: "BEP20 (BSC)",
+      value: bep20Fee,
+      setValue: setBep20Fee,
+      recommended: false,
+    },
+    {
+      id: "ERC20",
+      label: "ERC20 (Ethereum)",
+      value: erc20Fee,
+      setValue: setErc20Fee,
+      recommended: false,
+    },
+  ];
+
+  return (
+    <Card
+      style={{
+        background: "oklch(0.15 0.03 220)",
+        border: "1px solid oklch(0.25 0.04 220)",
+      }}
+    >
+      <CardHeader>
+        <CardTitle className="text-white flex items-center gap-2">
+          <Network size={16} style={{ color: "oklch(0.52 0.12 160)" }} />
+          Frais par Réseau
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-xs" style={{ color: "oklch(0.55 0.03 220)" }}>
+          TRC20 recommandé par défaut — frais les plus bas
+        </p>
+        {networks.map((n) => (
+          <div key={n.id} className="space-y-1.5">
+            <Label className="text-white/70 text-sm flex items-center gap-2">
+              {n.label}
+              {n.recommended && (
+                <Badge
+                  className="text-[10px] px-1 py-0"
+                  style={{
+                    background: "oklch(0.77 0.13 85 / 0.2)",
+                    color: "oklch(0.77 0.13 85)",
+                    border: "1px solid oklch(0.77 0.13 85 / 0.4)",
+                  }}
+                >
+                  Recommandé
+                </Badge>
+              )}
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                step="0.1"
+                placeholder="Ex: 1.0"
+                value={n.value}
+                onChange={(e) => n.setValue(e.target.value)}
+                className="text-sm"
+                style={{
+                  background: "oklch(0.12 0.02 220)",
+                  border: "1px solid oklch(0.25 0.04 220)",
+                  color: "white",
+                }}
+                data-ocid="admin.input"
+              />
+              <Button
+                onClick={() =>
+                  setFeeMutation.mutate({ network: n.id, fee: Number(n.value) })
+                }
+                disabled={setFeeMutation.isPending || !n.value}
+                style={{ background: "oklch(0.52 0.12 160)", color: "white" }}
+                data-ocid="admin.save_button"
+              >
+                {setFeeMutation.isPending ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  "Sauvegarder"
+                )}
+              </Button>
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Main Component ──────────────────────────────────────────────────────────
 export default function AdminDashboard() {
   const { actor, isFetching } = useActor();
   const queryClient = useQueryClient();
@@ -1169,6 +1496,18 @@ export default function AdminDashboard() {
                   </Table>
                 </div>
               )}
+
+              {/* External Transfers Sub-section */}
+              <div className="mt-8">
+                <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
+                  <ArrowUpRight
+                    size={16}
+                    style={{ color: "oklch(0.52 0.12 160)" }}
+                  />
+                  Transferts Externes
+                </h3>
+                <ExternalTransfersAdminTable />
+              </div>
             </div>
           </TabsContent>
 
@@ -1722,6 +2061,7 @@ export default function AdminDashboard() {
                 </CardContent>
               </Card>
             </div>
+            <NetworkFeesAdminCard />
           </TabsContent>
 
           {/* ── Tab 5: Mobile Money ─────────────────────────────────────────── */}

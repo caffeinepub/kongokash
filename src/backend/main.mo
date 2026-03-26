@@ -402,6 +402,33 @@ actor {
   var vestingBeneficiary  : ?Principal = null;
   var vestingInitialized  : Bool      = false;
 
+  // ── Transferts Externes (TRC20, BEP20, ERC20) ──────────────────────────────
+  type ExternalTransfer = {
+    id : Nat;
+    userId : Principal;
+    asset : Text;
+    amount : Float;
+    toAddress : Text;
+    network : Text;  // "TRC20" | "BEP20" | "ERC20"
+    networkFee : Float;
+    status : Text;   // "pending" | "confirmed" | "failed"
+    timestamp : Int;
+  };
+
+  var externalTransfers = Map.empty<Nat, ExternalTransfer>();
+  var externalTransferId = 0;
+  // Network fees configurable by admin (default values in CDF equivalent)
+  let networkFees = Map.empty<Text, Float>();
+  networkFees.add("TRC20", 1.0);
+  networkFees.add("BEP20", 2.0);
+  networkFees.add("ERC20", 5.0);
+
+  func nextExternalTransferId() : Nat {
+    externalTransferId += 1;
+    externalTransferId;
+  };
+
+
 
   type UserAdminView = {
     principal : Principal;
@@ -2146,6 +2173,91 @@ actor {
     });
     transactions.add(tx);
     computeVestingStatus()
+  };
+
+
+  // ── External Transfer Functions ─────────────────────────────────────────────
+
+  public shared ({ caller }) func submitExternalTransfer(
+    asset : Text,
+    amount : Float,
+    toAddress : Text,
+    network : Text,
+  ) : async ExternalTransfer {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can submit external transfers");
+    };
+    requireNotSuspended(caller);
+    if (not (network == "TRC20" or network == "BEP20" or network == "ERC20")) {
+      Runtime.trap("Invalid network: must be TRC20, BEP20 or ERC20");
+    };
+    if (amount <= 0.0) {
+      Runtime.trap("Amount must be positive");
+    };
+    if (toAddress.size() == 0) {
+      Runtime.trap("Address cannot be empty");
+    };
+    let fee = switch (networkFees.get(network)) {
+      case (?f) { f };
+      case (null) { 1.0 };
+    };
+    let id = nextExternalTransferId();
+    let transfer : ExternalTransfer = {
+      id;
+      userId = caller;
+      asset;
+      amount;
+      toAddress;
+      network;
+      networkFee = fee;
+      status = "pending";
+      timestamp = Time.now();
+    };
+    externalTransfers.add(id, transfer);
+    transfer
+  };
+
+  public shared ({ caller }) func updateExternalTransferStatus(
+    id : Nat,
+    status : Text,
+  ) : async () {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can update external transfer status");
+    };
+    if (not (status == "pending" or status == "confirmed" or status == "failed")) {
+      Runtime.trap("Invalid status");
+    };
+    switch (externalTransfers.get(id)) {
+      case (null) { Runtime.trap("External transfer not found") };
+      case (?t) {
+        externalTransfers.add(id, { t with status });
+      };
+    };
+  };
+
+  public query ({ caller }) func getMyExternalTransfers() : async [ExternalTransfer] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    externalTransfers.values().toArray().filter(func(t) { t.userId == caller });
+  };
+
+  public query ({ caller }) func getAllExternalTransfers() : async [ExternalTransfer] {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can view all external transfers");
+    };
+    externalTransfers.values().toArray();
+  };
+
+  public shared ({ caller }) func setNetworkFee(network : Text, fee : Float) : async () {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can set network fees");
+    };
+    networkFees.add(network, fee);
+  };
+
+  public query func getNetworkFees() : async [(Text, Float)] {
+    networkFees.toArray();
   };
 
 

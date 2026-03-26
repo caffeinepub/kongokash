@@ -129,3 +129,99 @@ export function useUpdateProfile() {
     },
   });
 }
+
+// ─── External Transfers ──────────────────────────────────────────────────────
+
+export function useMyExternalTransfers() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["externalTransfers"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return (actor as any).getMyExternalTransfers();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useAllExternalTransfers() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["allExternalTransfers"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return (actor as any).getAllExternalTransfers();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useNetworkFees() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["networkFees"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return (actor as any).getNetworkFees();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useSubmitExternalTransfer() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      asset,
+      amount,
+      toAddress,
+      network,
+    }: {
+      asset: string;
+      amount: number;
+      toAddress: string;
+      network: string;
+    }) => {
+      if (!actor) throw new Error("Non connecté");
+      return (actor as any).submitExternalTransfer(
+        asset,
+        amount,
+        toAddress,
+        network,
+      );
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["externalTransfers"] });
+      qc.invalidateQueries({ queryKey: ["wallet"] });
+    },
+  });
+}
+
+export function useUpdateExternalTransferStatus() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, status }: { id: bigint; status: string }) => {
+      if (!actor) throw new Error("Non connecté");
+      return (actor as any).updateExternalTransferStatus(id, status);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["allExternalTransfers"] });
+    },
+  });
+}
+
+export function useSetNetworkFee() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ network, fee }: { network: string; fee: number }) => {
+      if (!actor) throw new Error("Non connecté");
+      return (actor as any).setNetworkFee(network, fee);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["networkFees"] });
+    },
+  });
+}

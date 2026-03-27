@@ -46,6 +46,7 @@ import { EscrowPaymentInfo } from "./EscrowPaymentInfo";
 import ExternalTransferModal, {
   ExternalTransferHistory,
 } from "./ExternalTransferModal";
+import { HistoriqueTab } from "./HistoriqueTab";
 import NonCustodialWallet from "./NonCustodialWallet";
 import PartnerDashboard from "./PartnerDashboard";
 import ReferralSection, { ApplyReferralCard } from "./ReferralSection";
@@ -263,6 +264,13 @@ export default function Dashboard() {
               data-ocid="dashboard.tab"
             >
               <Building2 size={14} /> Espace Partenaire 🏢
+            </TabsTrigger>
+            <TabsTrigger
+              value="historique"
+              className="flex items-center gap-2"
+              data-ocid="dashboard.tab"
+            >
+              <History size={14} /> Historique 📋
             </TabsTrigger>
           </TabsList>
 
@@ -1015,6 +1023,9 @@ export default function Dashboard() {
           <TabsContent value="partner">
             <PartnerDashboard />
           </TabsContent>
+          <TabsContent value="historique">
+            <HistoriqueTab />
+          </TabsContent>
         </Tabs>
       </div>
     </section>
@@ -1285,7 +1296,10 @@ function MesReservationsTab() {
                 )}
               </div>
             </div>
-            <EscrowPaymentInfo reservationId={Number(r.id)} />
+            <EscrowPaymentInfo
+              reservationId={Number(r.id)}
+              bookingCode={r.bookingCode}
+            />
           </div>
         ))}
       </div>

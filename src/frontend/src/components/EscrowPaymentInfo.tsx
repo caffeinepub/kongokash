@@ -17,13 +17,19 @@ import {
   RefreshCw,
   Undo2,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { EscrowEntry } from "../declarations/backend.did";
 import { useActor } from "../hooks/useActor";
+import {
+  type AcknowledgmentData,
+  formatDateTime,
+  loadAcknowledgment,
+} from "../lib/reservationAcknowledgment";
 
 interface EscrowPaymentInfoProps {
   reservationId: number;
+  bookingCode?: string;
 }
 
 function getStatusInfo(status: EscrowEntry["status"]) {
@@ -81,11 +87,22 @@ function formatNs(ns: bigint): string {
   });
 }
 
-export function EscrowPaymentInfo({ reservationId }: EscrowPaymentInfoProps) {
+export function EscrowPaymentInfo({
+  reservationId,
+  bookingCode,
+}: EscrowPaymentInfoProps) {
   const { actor, isFetching } = useActor();
   const queryClient = useQueryClient();
   const [disputeReason, setDisputeReason] = useState("");
   const [disputeOpen, setDisputeOpen] = useState(false);
+  const [ackData, setAckData] = useState<AcknowledgmentData | null>(null);
+  useEffect(() => {
+    if (bookingCode) {
+      loadAcknowledgment(bookingCode).then(setAckData);
+    } else {
+      setAckData(null);
+    }
+  }, [bookingCode]);
 
   const { data: escrowData, isLoading } = useQuery<
     EscrowEntry | null,
@@ -189,6 +206,21 @@ export function EscrowPaymentInfo({ reservationId }: EscrowPaymentInfoProps) {
       }}
       data-ocid="escrow.panel"
     >
+      {/* Neutral intermediary info badge */}
+      <div
+        className="flex items-center gap-2 rounded-lg px-3 py-2 mb-1 text-xs"
+        style={{
+          background: "oklch(0.22 0.07 195 / 0.4)",
+          border: "1px solid oklch(0.52 0.12 160 / 0.3)",
+          color: "oklch(0.72 0.10 160)",
+        }}
+      >
+        <span>⚖️</span>
+        <span>
+          KongoKash agit comme intermédiaire neutre — nous ne détenons jamais
+          vos fonds directement.
+        </span>
+      </div>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
@@ -279,6 +311,39 @@ export function EscrowPaymentInfo({ reservationId }: EscrowPaymentInfoProps) {
                 </DialogTitle>
               </DialogHeader>
               <div className="space-y-3 py-2">
+                {ackData?.acknowledged &&
+                  ackData.acknowledgedAt &&
+                  ackData.proofHash && (
+                    <div
+                      className="rounded-xl p-3 space-y-1.5"
+                      style={{
+                        background: "oklch(0.26 0.10 85 / 0.2)",
+                        border: "1px solid oklch(0.55 0.14 85 / 0.45)",
+                      }}
+                      data-ocid="escrow.error_state"
+                    >
+                      <p
+                        className="text-xs font-bold"
+                        style={{ color: "oklch(0.72 0.13 85)" }}
+                      >
+                        ⚠️ Attention — Accusé de réception enregistré
+                      </p>
+                      <p
+                        className="text-xs leading-relaxed"
+                        style={{ color: "oklch(0.65 0.08 85)" }}
+                      >
+                        Un accusé de réception a été enregistré pour cette
+                        réservation le{" "}
+                        <strong>
+                          {formatDateTime(ackData.acknowledgedAt)}
+                        </strong>
+                        . La preuve on-chain{" "}
+                        <span className="font-mono">{ackData.proofHash}</span>{" "}
+                        confirme que vous avez bien reçu votre confirmation.
+                        Toute déclaration contraire sera rejetée.
+                      </p>
+                    </div>
+                  )}
                 <p
                   className="text-sm"
                   style={{ color: "oklch(0.65 0.04 220)" }}

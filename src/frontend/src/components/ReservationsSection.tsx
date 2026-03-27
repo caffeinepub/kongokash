@@ -39,11 +39,17 @@ import {
   Users,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useActor } from "../hooks/useActor";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useReservationNotifications } from "../hooks/useReservationNotifications";
+import {
+  type AcknowledgmentData,
+  acknowledgeReservation,
+  formatDateTime,
+  loadAcknowledgment,
+} from "../lib/reservationAcknowledgment";
 import { DigitalTicket, type TicketData } from "./DigitalTicket";
 
 // ─── Local Types ────────────────────────────────────────────────────────────────────
@@ -396,6 +402,75 @@ interface ReservationModalProps {
   onClose: () => void;
 }
 
+// ─── Inline Acknowledgment Button ────────────────────────────────────────
+
+function AcknowledgmentButton({ bookingCode }: { bookingCode: string }) {
+  const [ack, setAck] = useState<AcknowledgmentData>({
+    acknowledged: false,
+    acknowledgedAt: null,
+    proofHash: null,
+    auditTrail: [],
+  });
+  useEffect(() => {
+    loadAcknowledgment(bookingCode).then(setAck);
+  }, [bookingCode]);
+
+  const handleAcknowledge = async () => {
+    const updated = await acknowledgeReservation(bookingCode);
+    setAck(updated);
+    toast.success(
+      "✅ Accusé de réception enregistré — Preuve on-chain générée",
+      { duration: 5000 },
+    );
+  };
+
+  if (ack.acknowledged && ack.acknowledgedAt && ack.proofHash) {
+    return (
+      <div
+        className="mt-3 rounded-xl px-4 py-3 text-center space-y-1"
+        style={{
+          background: "oklch(0.22 0.08 145 / 0.25)",
+          border: "1px solid oklch(0.50 0.14 145 / 0.45)",
+        }}
+        data-ocid="reservation.success_state"
+      >
+        <p
+          className="text-xs font-semibold"
+          style={{ color: "oklch(0.68 0.15 145)" }}
+        >
+          ✅ Accusé de réception enregistré
+        </p>
+        <p className="text-xs" style={{ color: "oklch(0.52 0.04 220)" }}>
+          {formatDateTime(ack.acknowledgedAt)}
+        </p>
+        <p
+          className="font-mono text-xs break-all"
+          style={{ color: "oklch(0.55 0.10 195)" }}
+        >
+          {ack.proofHash}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      className="mt-3 w-full rounded-xl py-3 text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.98]"
+      style={{
+        background:
+          "linear-gradient(90deg, oklch(0.42 0.14 160), oklch(0.38 0.16 180))",
+        color: "white",
+        border: "none",
+      }}
+      onClick={handleAcknowledge}
+      data-ocid="reservation.primary_button"
+    >
+      ✅ J&apos;ai bien reçu ma réservation
+    </button>
+  );
+}
+
 function ReservationModal({ structure, onClose }: ReservationModalProps) {
   const { identity } = useInternetIdentity();
   const { actor, isFetching } = useActor();
@@ -546,6 +621,7 @@ function ReservationModal({ structure, onClose }: ReservationModalProps) {
             >
               Conservez ce code — il vous sera demandé à l'entrée
             </p>
+            <AcknowledgmentButton bookingCode={bookingCode} />
             <Button
               className="mt-4 w-full"
               onClick={onClose}
@@ -1118,6 +1194,7 @@ function ParkBookingModal({ park, onClose, onTicket }: ParkBookingModalProps) {
               Votre ticket numérique est prêt — cliquez "Voir Ticket" dans votre
               Dashboard
             </p>
+            <AcknowledgmentButton bookingCode={bookingCode} />
             <Button
               className="mt-4 w-full"
               onClick={onClose}
@@ -1499,6 +1576,7 @@ function FlightBookingModal({
             <p className="text-xs" style={{ color: "oklch(0.50 0.03 220)" }}>
               Votre ticket numérique est disponible dans le Dashboard
             </p>
+            <AcknowledgmentButton bookingCode={bookingCode} />
             <Button
               className="mt-4 w-full"
               onClick={onClose}

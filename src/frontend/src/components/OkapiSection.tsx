@@ -1460,6 +1460,234 @@ function WhitepaperTab() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Section 15 — Architecture de Sécurité */}
+      <Card>
+        <CardHeader>
+          <CardTitle style={{ color: OKP_COLOR }}>
+            15. Architecture de Sécurité
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Comment KongoKash protège les clés, les fonds et les identités —
+            sans jamais stocker vos données côté serveur.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-6 text-sm">
+          {/* Sub-section 1 */}
+          <div
+            className="rounded-xl border p-4 space-y-3"
+            style={{ borderColor: `${OKP_COLOR}44`, background: OKP_BG }}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-2xl">🔐</span>
+              <h3 className="font-bold text-base" style={{ color: OKP_COLOR }}>
+                1. Stockage sécurisé des clés (côté device)
+              </h3>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-3">
+              {[
+                {
+                  label: "Génération",
+                  value:
+                    "crypto.getRandomValues() — entropie cryptographique native du navigateur",
+                },
+                {
+                  label: "Dérivation de clé",
+                  value:
+                    "scrypt (N=32768, r=8, p=1) — résistant GPU/ASIC, sel 256 bits",
+                },
+                {
+                  label: "Chiffrement",
+                  value: "AES-256-GCM — standard militaire",
+                },
+                {
+                  label: "Stockage",
+                  value: "localStorage chiffré — jamais en clair",
+                },
+              ].map((row) => (
+                <div
+                  key={row.label}
+                  className="p-3 rounded-lg bg-background border"
+                  style={{ borderColor: `${OKP_COLOR}33` }}
+                >
+                  <div
+                    className="text-xs font-semibold"
+                    style={{ color: OKP_COLOR }}
+                  >
+                    {row.label}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {row.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="p-3 rounded-lg border border-red-500/30 bg-red-500/5 text-xs">
+              <strong className="text-red-400">
+                Ce qui ne quitte JAMAIS le device :
+              </strong>
+              <ul className="mt-1 space-y-0.5 text-muted-foreground list-disc list-inside">
+                <li>Seed phrase brute (12 ou 24 mots)</li>
+                <li>Clé privée déchiffrée</li>
+                <li>Mot de passe de déverrouillage</li>
+              </ul>
+              <p className="mt-2 font-medium text-muted-foreground">
+                KongoKash ne reçoit aucune de ces données — zéro accès serveur,
+                par conception.
+              </p>
+            </div>
+          </div>
+
+          {/* Sub-section 2 */}
+          <div
+            className="rounded-xl border p-4 space-y-3"
+            style={{ borderColor: `${OKP_COLOR}44`, background: OKP_BG }}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-2xl">📱</span>
+              <h3 className="font-bold text-base" style={{ color: OKP_COLOR }}>
+                2. Récupération en cas de perte du téléphone
+              </h3>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div
+                className="p-3 rounded-lg bg-background border space-y-2"
+                style={{ borderColor: `${OKP_COLOR}33` }}
+              >
+                <div className="text-xs font-bold" style={{ color: OKP_COLOR }}>
+                  👤 Utilisateurs individuels
+                </div>
+                <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+                  <li>
+                    La seed phrase (12 ou 24 mots) est la seule clé de
+                    récupération
+                  </li>
+                  <li>
+                    Formulaire de restauration : ressaisir les mots sur un
+                    nouvel appareil
+                  </li>
+                  <li>Wallet re-dérivé localement — aucun serveur impliqué</li>
+                  <li>
+                    Accès biométrique (WebAuthn) re-enregistré après
+                    restauration sur le nouvel appareil
+                  </li>
+                  <li>
+                    <strong>Important :</strong> WebAuthn est un mécanisme de
+                    déverrouillage <em>local uniquement</em> — la récupération
+                    reste exclusivement possible via la seed phrase sur tout
+                    appareil.
+                  </li>
+                </ul>
+              </div>
+              <div
+                className="p-3 rounded-lg bg-background border space-y-2"
+                style={{ borderColor: `${OKP_COLOR}33` }}
+              >
+                <div className="text-xs font-bold" style={{ color: OKP_COLOR }}>
+                  🏢 Partenaires institutionnels
+                </div>
+                <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+                  <li>
+                    Wallet multi-sig 2/3 — les 2 autres signataires continuent
+                    normalement
+                  </li>
+                  <li>Remplacement sans jamais partager de seed phrase</li>
+                  <li>
+                    En cas de décès/incapacité : vote des 2 restants via
+                    "Urgences 🆘"
+                  </li>
+                  <li>
+                    Rôles institutionnels permanents — indépendants des
+                    individus
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {/* Sub-section 3 */}
+          <div
+            className="rounded-xl border p-4 space-y-3"
+            style={{ borderColor: `${OKP_COLOR}44`, background: OKP_BG }}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-2xl">🔗</span>
+              <h3 className="font-bold text-base" style={{ color: OKP_COLOR }}>
+                3. Intégration avec les modules Paiement et Réservation
+              </h3>
+            </div>
+            <div className="grid sm:grid-cols-3 gap-3">
+              {[
+                {
+                  title: "Module Réservation",
+                  icon: "🏨",
+                  items: [
+                    "Fonds signés localement avant envoi au smart contract escrow",
+                    "Identité vérifiée via Internet Identity (Principal ICP)",
+                    "Le wallet non-custodial est une couche additionnelle de sécurité",
+                  ],
+                },
+                {
+                  title: "Module Escrow",
+                  icon: "🔒",
+                  items: [
+                    "Fonds associés au Principal ICP de l'utilisateur",
+                    "Libération on-chain, entre Principals ICP",
+                    "Wallet non-custodial intervient uniquement pour les retraits externes",
+                  ],
+                },
+                {
+                  title: "Transferts Externes",
+                  icon: "🌐",
+                  items: [
+                    "Transaction signée avec la clé locale de l'utilisateur",
+                    "Backend valide le montant et enregistre la demande",
+                    "Admin confirme (ou HTTP outcall automatique à venir)",
+                  ],
+                },
+              ].map((block) => (
+                <div
+                  key={block.title}
+                  className="p-3 rounded-lg bg-background border space-y-2"
+                  style={{ borderColor: `${OKP_COLOR}33` }}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>{block.icon}</span>
+                    <div
+                      className="text-xs font-bold"
+                      style={{ color: OKP_COLOR }}
+                    >
+                      {block.title}
+                    </div>
+                  </div>
+                  <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+                    {block.items.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+            <div
+              className="p-4 rounded-lg text-center border"
+              style={{
+                background: `${OKP_COLOR}11`,
+                borderColor: `${OKP_COLOR}44`,
+              }}
+            >
+              <p className="text-xs font-semibold" style={{ color: OKP_COLOR }}>
+                💡 En résumé
+              </p>
+              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                Le wallet non-custodial est une couche de sécurité locale pour
+                les retraits et transferts externes. L'identité on-chain
+                (Internet Identity / Principal ICP) reste le socle de toutes les
+                transactions internes à la plateforme.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </motion.div>
   );
 }

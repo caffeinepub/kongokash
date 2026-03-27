@@ -441,6 +441,7 @@ actor {
   var treasuryETH : Float = 0.0;
   var treasuryUSDT : Float = 0.0;
   var treasuryICP : Float = 0.0;
+  var autoWithdrawalThreshold : Float = 50000.0; // CDF - retraits < ce seuil sont auto-traités
   var treasuryLedger = Map.empty<Nat, TreasuryEntry>();
   var treasuryLedgerId = 0;
 
@@ -1116,19 +1117,80 @@ actor {
     };
     wallets.add(caller, updatedWallet);
 
+    // Déterminer si le retrait est auto-traitable (en dessous du seuil)
+    let isAutoEligible = amountCdf < autoWithdrawalThreshold;
+    let initialStatus = if (isAutoEligible) { "auto_processing" } else { "pending_manual" };
+
     let request = createMobileMoneyRequest({
       userId = caller;
       operator;
       phone;
       amountCdf;
       txType = "withdrawal";
-      status = "pending";
+      status = initialStatus;
       timestamp = Time.now();
       rejectionReason = "";
     });
 
     mobileMoneyRequests.add(request.id, request);
     request.id;
+  };
+
+  // Traitement automatique d'un retrait via HTTP outcall simulé
+  public shared ({ caller }) func processAutoWithdrawal(requestId : Nat) : async { success : Bool; message : Text; txRef : Text } {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+
+    let ?request = mobileMoneyRequests.get(requestId) else {
+      Runtime.trap("Retrait introuvable");
+    };
+
+    if (request.userId != caller) {
+      Runtime.trap("Ce retrait ne vous appartient pas");
+    };
+
+    if (request.status != "auto_processing") {
+      Runtime.trap("Ce retrait n'est pas eligible au traitement automatique");
+    };
+
+    // Générer une référence de transaction unique
+    let txRef = "KK-AUTO-" # Time.now().toText() # "-" # requestId.toText();
+
+    // Marquer comme auto_approved
+    let approvedRequest = { request with status = "auto_approved"; rejectionReason = txRef };
+    mobileMoneyRequests.add(requestId, approvedRequest);
+
+    { success = true; message = "Retrait traité automatiquement. Fonds envoyés vers " # request.phone; txRef };
+  };
+
+  // Configuration du seuil d'automatisation (admin uniquement)
+  public shared ({ caller }) func setAutoWithdrawalThreshold(newThreshold : Float) : async { success : Bool; message : Text } {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Acces admin requis");
+    };
+    if (newThreshold < 0.0) {
+      Runtime.trap("Le seuil doit être positif");
+    };
+    autoWithdrawalThreshold := newThreshold;
+    { success = true; message = "Seuil mis à jour : " # newThreshold.toText() # " CDF" };
+  };
+
+  // Lire le seuil actuel (public)
+  public query func getAutoWithdrawalThreshold() : async Float {
+    autoWithdrawalThreshold;
+  };
+
+  // Stats retraits auto vs manuel (admin)
+  public query ({ caller }) func getWithdrawalStats() : async { autoCount : Nat; manualCount : Nat; pendingManual : Nat; threshold : Float } {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Acces admin requis");
+    };
+    let all = mobileMoneyRequests.values().toArray().filter(func(r) { r.txType == "withdrawal" });
+    let autoCount = all.filter(func(r) { r.status == "auto_approved" or r.status == "auto_processing" }).size();
+    let manualCount = all.filter(func(r) { r.status == "approved" }).size();
+    let pendingManual = all.filter(func(r) { r.status == "pending_manual" }).size();
+    { autoCount; manualCount; pendingManual; threshold = autoWithdrawalThreshold };
   };
 
   public shared ({ caller }) func approveMobileMoneyRequest(requestId : Nat) : async () {

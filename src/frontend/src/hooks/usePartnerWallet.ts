@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import {
+  migrateFromLocalStorage,
+  secureGet,
+  secureRemove,
+  secureSet,
+} from "../lib/secureStorage";
+import {
   type WalletState,
   deriveAddress,
   deriveKeyFromSeed,
@@ -19,12 +25,14 @@ function fromBase64(b64: string): Uint8Array {
   );
 }
 
-export function getPartnerWalletStatus(partnerId: string): "active" | "none" {
+export async function getPartnerWalletStatus(
+  partnerId: string,
+): Promise<"active" | "none"> {
   const key = `kk_partner_${partnerId}_encrypted`;
   const addrKey = `kk_partner_${partnerId}_address`;
-  return localStorage.getItem(key) && localStorage.getItem(addrKey)
-    ? "active"
-    : "none";
+  const encrypted = await secureGet(key);
+  const addr = await secureGet(addrKey);
+  return encrypted && addr ? "active" : "none";
 }
 
 export interface PartnerWalletHook {
@@ -38,7 +46,7 @@ export interface PartnerWalletHook {
   unlockWithBiometric: () => Promise<boolean>;
   enrollBiometric: (address: string) => Promise<boolean>;
   lockWallet: () => void;
-  clearWallet: () => void;
+  clearWallet: () => Promise<void>;
 }
 
 export function usePartnerWallet(partnerId: string): PartnerWalletHook {
@@ -47,6 +55,7 @@ export function usePartnerWallet(partnerId: string): PartnerWalletHook {
   const lsIv = `kk_partner_${partnerId}_iv`;
   const lsWebauthnId = `kk_partner_${partnerId}_webauthn_id`;
   const lsAddress = `kk_partner_${partnerId}_address`;
+  const lsKdf = `kk_partner_${partnerId}_kdf`;
 
   const [walletState, setWalletState] = useState<WalletState>("no-wallet");
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
@@ -54,26 +63,44 @@ export function usePartnerWallet(partnerId: string): PartnerWalletHook {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (window.PublicKeyCredential) {
-      PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
-        .then(setBiometricAvailable)
-        .catch(() => setBiometricAvailable(false));
-    }
-    const encrypted = localStorage.getItem(lsEncrypted);
-    const address = localStorage.getItem(lsAddress);
-    if (encrypted && address) {
-      setWalletState("locked");
-      setWalletAddress(address);
-    } else {
-      setWalletState("no-wallet");
-    }
-    setIsLoading(false);
-  }, [lsEncrypted, lsAddress]);
+    let mounted = true;
+    const init = async () => {
+      if (window.PublicKeyCredential) {
+        PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
+          .then(setBiometricAvailable)
+          .catch(() => setBiometricAvailable(false));
+      }
+      // One-time migration from localStorage
+      await migrateFromLocalStorage([
+        lsEncrypted,
+        lsSalt,
+        lsIv,
+        lsWebauthnId,
+        lsAddress,
+        lsKdf,
+      ]);
+      const encrypted = await secureGet(lsEncrypted);
+      const address = await secureGet(lsAddress);
+      if (!mounted) return;
+      if (encrypted && address) {
+        setWalletState("locked");
+        setWalletAddress(address);
+      } else {
+        setWalletState("no-wallet");
+      }
+      setIsLoading(false);
+    };
+    init();
+    return () => {
+      mounted = false;
+    };
+  }, [lsEncrypted, lsAddress, lsSalt, lsIv, lsWebauthnId, lsKdf]);
 
   const createWallet = useCallback(
     async (words: string[], _password: string) => {
-      const rawSalt = crypto.getRandomValues(new Uint8Array(16));
-      localStorage.setItem(lsSalt, toBase64(rawSalt));
+      const rawSalt = crypto.getRandomValues(new Uint8Array(32));
+      await secureSet(lsSalt, toBase64(rawSalt));
+      await secureSet(lsKdf, "scrypt");
       const derivedKey = await deriveKeyFromSeed(words, rawSalt);
       const address = deriveAddress(words);
       const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -87,17 +114,17 @@ export function usePartnerWallet(partnerId: string): PartnerWalletHook {
         derivedKey,
         buf,
       );
-      localStorage.setItem(lsEncrypted, toBase64(encrypted));
-      localStorage.setItem(lsIv, toBase64(iv));
-      localStorage.setItem(lsAddress, address);
+      await secureSet(lsEncrypted, toBase64(encrypted));
+      await secureSet(lsIv, toBase64(iv));
+      await secureSet(lsAddress, address);
       setWalletAddress(address);
       setWalletState("unlocked");
     },
-    [lsEncrypted, lsSalt, lsIv, lsAddress, partnerId],
+    [lsEncrypted, lsSalt, lsIv, lsAddress, lsKdf, partnerId],
   );
 
   const unlockWithBiometric = useCallback(async (): Promise<boolean> => {
-    const credIdB64 = localStorage.getItem(lsWebauthnId);
+    const credIdB64 = await secureGet(lsWebauthnId);
     if (
       !credIdB64 ||
       !window.PublicKeyCredential ||
@@ -120,7 +147,7 @@ export function usePartnerWallet(partnerId: string): PartnerWalletHook {
         },
       });
       if (credential) {
-        const address = localStorage.getItem(lsAddress);
+        const address = await secureGet(lsAddress);
         setWalletAddress(address);
         setWalletState("unlocked");
         return true;
@@ -165,7 +192,7 @@ export function usePartnerWallet(partnerId: string): PartnerWalletHook {
         })) as PublicKeyCredential | null;
         if (!credential) return false;
         const idArr = new Uint8Array(credential.rawId);
-        localStorage.setItem(lsWebauthnId, toBase64(idArr));
+        await secureSet(lsWebauthnId, toBase64(idArr));
         return true;
       } catch {
         return false;
@@ -178,15 +205,16 @@ export function usePartnerWallet(partnerId: string): PartnerWalletHook {
     setWalletState("locked");
   }, []);
 
-  const clearWallet = useCallback(() => {
-    localStorage.removeItem(lsEncrypted);
-    localStorage.removeItem(lsSalt);
-    localStorage.removeItem(lsIv);
-    localStorage.removeItem(lsWebauthnId);
-    localStorage.removeItem(lsAddress);
+  const clearWallet = useCallback(async () => {
+    await secureRemove(lsEncrypted);
+    await secureRemove(lsSalt);
+    await secureRemove(lsIv);
+    await secureRemove(lsWebauthnId);
+    await secureRemove(lsAddress);
+    await secureRemove(lsKdf);
     setWalletState("no-wallet");
     setWalletAddress(null);
-  }, [lsEncrypted, lsSalt, lsIv, lsWebauthnId, lsAddress]);
+  }, [lsEncrypted, lsSalt, lsIv, lsWebauthnId, lsAddress, lsKdf]);
 
   return {
     walletState,

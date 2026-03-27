@@ -12,6 +12,7 @@ import MobileMoneySection from "./components/MobileMoneySection";
 import Navbar from "./components/Navbar";
 import OkapiSection from "./components/OkapiSection";
 import ReservationsSection from "./components/ReservationsSection";
+import VisionSection from "./components/VisionSection";
 import { useActor } from "./hooks/useActor";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
 import { ReservationNotifProvider } from "./hooks/useReservationNotifications";
@@ -58,6 +59,7 @@ export default function App() {
             onGetStarted={() => scrollToSection("buysell")}
             onViewMarkets={() => scrollToSection("market")}
           />
+          <VisionSection />
           <MarketOverview />
           <ReservationsSection />
           <Dashboard />

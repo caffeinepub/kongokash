@@ -51,6 +51,7 @@ import {
   Vault,
   Vote,
   XCircle,
+  Zap,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useCallback, useEffect, useState } from "react";
@@ -586,10 +587,7 @@ function RetraitsAdminTab() {
     bancaire: "Virement Bancaire",
   };
 
-  const statusConfig: Record<
-    WithdrawalRequest["status"],
-    { label: string; cls: string }
-  > = {
+  const statusConfig: Record<string, { label: string; cls: string }> = {
     pending: {
       label: "En attente",
       cls: "bg-yellow-100 text-yellow-800 border-yellow-300",
@@ -2365,6 +2363,52 @@ function MobileMoneyAdminTab({ actor, isFetching }: MobileMoneyAdminTabProps) {
   const [showRejectInput, setShowRejectInput] = useState<
     Record<string, boolean>
   >({});
+  const [autoThreshold, setAutoThreshold] = useState(50000);
+  const [thresholdInput, setThresholdInput] = useState("50000");
+  const [savingThreshold, setSavingThreshold] = useState(false);
+  const [withdrawalStats, setWithdrawalStats] = useState<{
+    autoCount: number;
+    manualCount: number;
+    pendingManual: number;
+    threshold: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!actor || isFetching) return;
+    (actor as any)
+      .getAutoWithdrawalThreshold()
+      .then((t: number) => {
+        setAutoThreshold(t);
+        setThresholdInput(String(t));
+      })
+      .catch(() => {});
+    (actor as any)
+      .getWithdrawalStats()
+      .then((s: any) => setWithdrawalStats(s))
+      .catch(() => {});
+  }, [actor, isFetching]);
+
+  const handleSaveThreshold = async () => {
+    const val = Number.parseFloat(thresholdInput);
+    if (Number.isNaN(val) || val <= 0) {
+      toast.error("Valeur invalide");
+      return;
+    }
+    setSavingThreshold(true);
+    try {
+      const res = await (actor as any).setAutoWithdrawalThreshold(val);
+      if (res?.success) {
+        setAutoThreshold(val);
+        toast.success("Seuil mis à jour");
+      } else {
+        toast.error(res?.message ?? "Erreur");
+      }
+    } catch {
+      toast.error("Erreur réseau");
+    } finally {
+      setSavingThreshold(false);
+    }
+  };
 
   const { data: requests = [], isLoading } = useQuery({
     queryKey: ["adminMobileMoney"],
@@ -2392,9 +2436,11 @@ function MobileMoneyAdminTab({ actor, isFetching }: MobileMoneyAdminTabProps) {
     onError: () => toast.error("Erreur lors du rejet"),
   });
 
+  const needsAction = (s: string) =>
+    s === "pending" || s === "pending_manual" || s === "auto_processing";
   const sorted = [...requests].sort((a, b) => {
-    if (a.status === "pending" && b.status !== "pending") return -1;
-    if (a.status !== "pending" && b.status === "pending") return 1;
+    if (needsAction(a.status) && !needsAction(b.status)) return -1;
+    if (!needsAction(a.status) && needsAction(b.status)) return 1;
     return Number(b.timestamp) - Number(a.timestamp);
   });
 
@@ -2422,197 +2468,288 @@ function MobileMoneyAdminTab({ actor, isFetching }: MobileMoneyAdminTabProps) {
   }
 
   return (
-    <div className="space-y-3">
-      {sorted.map((req, i) => {
-        const key = req.id.toString();
-        const isPending = req.status === "pending";
-        return (
-          <Card
-            key={key}
-            data-ocid={`admin.item.${i + 1}`}
-            style={{
-              background: "oklch(0.15 0.03 220)",
-              border: `1px solid ${isPending ? "oklch(0.67 0.15 55 / 0.4)" : "oklch(0.25 0.04 220)"}`,
-            }}
-          >
-            <CardContent className="p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <span className="text-2xl mt-0.5">
-                    {req.operator === "airtel"
-                      ? "\uD83D\uDD34"
-                      : "\uD83D\uDFE2"}
-                  </span>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Badge
-                        style={{
-                          background:
-                            req.operator === "airtel"
-                              ? "oklch(0.55 0.22 27)"
-                              : "oklch(0.52 0.12 160)",
-                          color: "white",
-                          fontSize: "11px",
-                        }}
-                      >
-                        {req.operator === "airtel" ? "Airtel Money" : "M-Pesa"}
-                      </Badge>
-                      <Badge
-                        style={{
-                          background:
-                            req.txType === "deposit"
-                              ? "oklch(0.52 0.18 280)"
-                              : "oklch(0.67 0.15 55)",
-                          color: "white",
-                          fontSize: "11px",
-                        }}
-                      >
-                        {req.txType === "deposit"
-                          ? "D\u00e9p\u00f4t"
-                          : "Retrait"}
-                      </Badge>
-                      {req.status === "approved" && (
+    <div className="space-y-4">
+      {/* ── Configuration Auto-Retraits ─────────────────────────────────── */}
+      <Card
+        style={{
+          background: "oklch(0.15 0.03 220)",
+          border: "1px solid oklch(0.28 0.06 220)",
+        }}
+      >
+        <CardHeader className="pb-3">
+          <CardTitle className="text-white text-base flex items-center gap-2">
+            <Zap size={18} className="text-amber-400" />
+            Configuration Auto-Retraits
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {withdrawalStats && (
+            <div className="flex flex-wrap gap-4 text-sm">
+              <span className="text-green-400 font-semibold">
+                ⚡ Traités auto: {Number(withdrawalStats.autoCount)}
+              </span>
+              <span className="text-amber-400 font-semibold">
+                👤 Validation manuelle: {Number(withdrawalStats.manualCount)}
+              </span>
+              <span className="text-orange-400 font-semibold">
+                ⏳ En attente: {Number(withdrawalStats.pendingManual)}
+              </span>
+            </div>
+          )}
+          <div className="flex items-end gap-3 flex-wrap">
+            <div className="flex-1 min-w-[180px]">
+              <label
+                htmlFor="auto-threshold-input"
+                className="text-white/60 text-xs mb-1.5 block"
+              >
+                Seuil auto-traitement (CDF) — actuellement{" "}
+                <strong className="text-amber-400">
+                  {autoThreshold.toLocaleString("fr-FR")} FC
+                </strong>
+              </label>
+              <Input
+                type="number"
+                value={thresholdInput}
+                onChange={(e) => setThresholdInput(e.target.value)}
+                id="auto-threshold-input"
+                placeholder="50000"
+                data-ocid="admin.auto_threshold.input"
+                style={{
+                  background: "oklch(0.12 0.02 220)",
+                  border: "1px solid oklch(0.25 0.04 220)",
+                  color: "white",
+                }}
+              />
+            </div>
+            <Button
+              onClick={handleSaveThreshold}
+              disabled={savingThreshold}
+              data-ocid="admin.auto_threshold.save_button"
+              style={{ background: "oklch(0.52 0.12 160)", color: "white" }}
+            >
+              {savingThreshold ? (
+                <Loader2 size={14} className="animate-spin mr-1" />
+              ) : null}
+              Enregistrer
+            </Button>
+          </div>
+          <p className="text-white/40 text-xs">
+            Les retraits inférieurs à ce seuil sont traités automatiquement via
+            HTTP outcalls. Les montants supérieurs requièrent une validation
+            manuelle.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* ── Requests list ──────────────────────────────────────────────── */}
+      <div className="space-y-3">
+        {sorted.map((req, i) => {
+          const key = req.id.toString();
+          const isPending =
+            req.status === "pending" ||
+            req.status === "pending_manual" ||
+            req.status === "auto_processing";
+          return (
+            <Card
+              key={key}
+              data-ocid={`admin.item.${i + 1}`}
+              style={{
+                background: "oklch(0.15 0.03 220)",
+                border: `1px solid ${isPending ? "oklch(0.67 0.15 55 / 0.4)" : "oklch(0.25 0.04 220)"}`,
+              }}
+            >
+              <CardContent className="p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl mt-0.5">
+                      {req.operator === "airtel"
+                        ? "\uD83D\uDD34"
+                        : "\uD83D\uDFE2"}
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
                         <Badge
                           style={{
-                            background: "oklch(0.52 0.12 160)",
+                            background:
+                              req.operator === "airtel"
+                                ? "oklch(0.55 0.22 27)"
+                                : "oklch(0.52 0.12 160)",
                             color: "white",
                             fontSize: "11px",
                           }}
                         >
-                          \u2713 Approuv\u00e9
+                          {req.operator === "airtel"
+                            ? "Airtel Money"
+                            : "M-Pesa"}
                         </Badge>
-                      )}
-                      {req.status === "rejected" && (
                         <Badge
                           style={{
-                            background: "oklch(0.55 0.22 27)",
+                            background:
+                              req.txType === "deposit"
+                                ? "oklch(0.52 0.18 280)"
+                                : "oklch(0.67 0.15 55)",
                             color: "white",
                             fontSize: "11px",
                           }}
                         >
-                          \u2717 Rejet\u00e9
+                          {req.txType === "deposit"
+                            ? "D\u00e9p\u00f4t"
+                            : "Retrait"}
                         </Badge>
-                      )}
-                      {req.status === "pending" && (
-                        <Badge
-                          style={{
-                            background: "oklch(0.77 0.13 85)",
-                            color: "oklch(0.20 0.01 250)",
-                            fontSize: "11px",
-                          }}
-                        >
-                          En attente
-                        </Badge>
+                        {req.status === "approved" && (
+                          <Badge
+                            style={{
+                              background: "oklch(0.52 0.12 160)",
+                              color: "white",
+                              fontSize: "11px",
+                            }}
+                          >
+                            \u2713 Approuv\u00e9
+                          </Badge>
+                        )}
+                        {req.status === "rejected" && (
+                          <Badge
+                            style={{
+                              background: "oklch(0.55 0.22 27)",
+                              color: "white",
+                              fontSize: "11px",
+                            }}
+                          >
+                            \u2717 Rejet\u00e9
+                          </Badge>
+                        )}
+                        {req.status === "pending" && (
+                          <Badge
+                            style={{
+                              background: "oklch(0.77 0.13 85)",
+                              color: "oklch(0.20 0.01 250)",
+                              fontSize: "11px",
+                            }}
+                          >
+                            En attente
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-white font-semibold mt-1">
+                        {new Intl.NumberFormat("fr-FR").format(req.amountCdf)}{" "}
+                        FC
+                      </p>
+                      <p className="text-white/50 text-xs">
+                        {req.phone} \u00b7 {truncatePrincipal(req.userId)}{" "}
+                        \u00b7 {formatDate(req.timestamp)}
+                      </p>
+                      {req.status === "rejected" && req.rejectionReason && (
+                        <p className="text-red-400/70 text-xs mt-1">
+                          Motif: {req.rejectionReason}
+                        </p>
                       )}
                     </div>
-                    <p className="text-white font-semibold mt-1">
-                      {new Intl.NumberFormat("fr-FR").format(req.amountCdf)} FC
-                    </p>
-                    <p className="text-white/50 text-xs">
-                      {req.phone} \u00b7 {truncatePrincipal(req.userId)} \u00b7{" "}
-                      {formatDate(req.timestamp)}
-                    </p>
-                    {req.status === "rejected" && req.rejectionReason && (
-                      <p className="text-red-400/70 text-xs mt-1">
-                        Motif: {req.rejectionReason}
-                      </p>
-                    )}
                   </div>
-                </div>
 
-                {isPending && (
-                  <div className="flex flex-col gap-2 items-end">
-                    {!showRejectInput[key] ? (
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          style={{
-                            background: "oklch(0.52 0.12 160)",
-                            color: "white",
-                          }}
-                          onClick={() => approveMutation.mutate(req.id)}
-                          disabled={approveMutation.isPending}
-                          data-ocid={`admin.confirm_button.${i + 1}`}
-                        >
-                          {approveMutation.isPending ? (
-                            <Loader2 size={12} className="animate-spin mr-1" />
-                          ) : (
-                            <CheckCircle size={12} className="mr-1" />
-                          )}
-                          Approuver
-                        </Button>
-                        <Button
-                          size="sm"
-                          style={{
-                            background: "oklch(0.55 0.22 27)",
-                            color: "white",
-                          }}
-                          onClick={() =>
-                            setShowRejectInput((p) => ({ ...p, [key]: true }))
-                          }
-                          data-ocid={`admin.delete_button.${i + 1}`}
-                        >
-                          <XCircle size={12} className="mr-1" />
-                          Rejeter
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="flex gap-2 items-center">
-                        <Input
-                          placeholder="Motif du rejet..."
-                          value={rejectReasons[key] ?? ""}
-                          onChange={(e) =>
-                            setRejectReasons((p) => ({
-                              ...p,
-                              [key]: e.target.value,
-                            }))
-                          }
-                          className="text-xs h-8 w-48"
-                          style={{
-                            background: "oklch(0.12 0.02 220)",
-                            border: "1px solid oklch(0.25 0.04 220)",
-                            color: "white",
-                          }}
-                          data-ocid={`admin.input.${i + 1}`}
-                        />
-                        <Button
-                          size="sm"
-                          style={{
-                            background: "oklch(0.55 0.22 27)",
-                            color: "white",
-                          }}
-                          onClick={() => {
-                            rejectMutation.mutate({
-                              id: req.id,
-                              reason: rejectReasons[key] ?? "",
-                            });
-                            setShowRejectInput((p) => ({ ...p, [key]: false }));
-                          }}
-                          disabled={rejectMutation.isPending}
-                          data-ocid={`admin.confirm_button.${i + 1}`}
-                        >
-                          Confirmer
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="border-white/20 text-white/60 hover:text-white hover:bg-white/10 h-8"
-                          onClick={() =>
-                            setShowRejectInput((p) => ({ ...p, [key]: false }))
-                          }
-                          data-ocid={`admin.cancel_button.${i + 1}`}
-                        >
-                          Annuler
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })}
+                  {(req.status === "pending" ||
+                    req.status === "pending_manual") && (
+                    <div className="flex flex-col gap-2 items-end">
+                      {!showRejectInput[key] ? (
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            style={{
+                              background: "oklch(0.52 0.12 160)",
+                              color: "white",
+                            }}
+                            onClick={() => approveMutation.mutate(req.id)}
+                            disabled={approveMutation.isPending}
+                            data-ocid={`admin.confirm_button.${i + 1}`}
+                          >
+                            {approveMutation.isPending ? (
+                              <Loader2
+                                size={12}
+                                className="animate-spin mr-1"
+                              />
+                            ) : (
+                              <CheckCircle size={12} className="mr-1" />
+                            )}
+                            Approuver
+                          </Button>
+                          <Button
+                            size="sm"
+                            style={{
+                              background: "oklch(0.55 0.22 27)",
+                              color: "white",
+                            }}
+                            onClick={() =>
+                              setShowRejectInput((p) => ({ ...p, [key]: true }))
+                            }
+                            data-ocid={`admin.delete_button.${i + 1}`}
+                          >
+                            <XCircle size={12} className="mr-1" />
+                            Rejeter
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2 items-center">
+                          <Input
+                            placeholder="Motif du rejet..."
+                            value={rejectReasons[key] ?? ""}
+                            onChange={(e) =>
+                              setRejectReasons((p) => ({
+                                ...p,
+                                [key]: e.target.value,
+                              }))
+                            }
+                            className="text-xs h-8 w-48"
+                            style={{
+                              background: "oklch(0.12 0.02 220)",
+                              border: "1px solid oklch(0.25 0.04 220)",
+                              color: "white",
+                            }}
+                            data-ocid={`admin.input.${i + 1}`}
+                          />
+                          <Button
+                            size="sm"
+                            style={{
+                              background: "oklch(0.55 0.22 27)",
+                              color: "white",
+                            }}
+                            onClick={() => {
+                              rejectMutation.mutate({
+                                id: req.id,
+                                reason: rejectReasons[key] ?? "",
+                              });
+                              setShowRejectInput((p) => ({
+                                ...p,
+                                [key]: false,
+                              }));
+                            }}
+                            disabled={rejectMutation.isPending}
+                            data-ocid={`admin.confirm_button.${i + 1}`}
+                          >
+                            Confirmer
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-white/20 text-white/60 hover:text-white hover:bg-white/10 h-8"
+                            onClick={() =>
+                              setShowRejectInput((p) => ({
+                                ...p,
+                                [key]: false,
+                              }))
+                            }
+                            data-ocid={`admin.cancel_button.${i + 1}`}
+                          >
+                            Annuler
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
     </div>
   );
 }

@@ -19,13 +19,21 @@ import {
   Zap,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useActor } from "../hooks/useActor";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 type WithdrawalMethod = "airtel" | "mpesa" | "bancaire";
-type WithdrawalStatus = "pending" | "processing" | "completed" | "failed";
+type WithdrawalStatus =
+  | "pending"
+  | "processing"
+  | "completed"
+  | "failed"
+  | "auto_processing"
+  | "auto_approved"
+  | "pending_manual";
 
 export interface WithdrawalRequest {
   id: string;
@@ -155,12 +163,14 @@ function Step1({
   amount,
   setAmount,
   onNext,
+  threshold,
 }: {
   asset: string;
   setAsset: (a: string) => void;
   amount: string;
   setAmount: (v: string) => void;
   onNext: () => void;
+  threshold: number;
 }) {
   const balance = BALANCES[asset] ?? 0;
   const numAmount = Number.parseFloat(amount) || 0;
@@ -285,6 +295,25 @@ function Step1({
               {(numAmount - fee).toFixed(asset === "CDF" ? 0 : 4)} {asset}
             </span>
           </div>
+        </motion.div>
+      )}
+
+      {/* Auto vs manual badge */}
+      {numAmount > 0 && isValid && (
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center gap-2"
+        >
+          {toCDF(asset, numAmount) < threshold ? (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-green-100 text-green-800 border border-green-300">
+              ⚡ Traitement automatique — Instantané
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800 border border-yellow-300">
+              👤 Validation manuelle requise — Délai 24–48h
+            </span>
+          )}
         </motion.div>
       )}
 
@@ -556,6 +585,15 @@ function Step3({
         </p>
       </div>
 
+      {/* Reassurance line */}
+      <p
+        className="text-xs text-center"
+        style={{ color: "oklch(0.65 0.08 160)" }}
+      >
+        🔒 Vos fonds partent directement de votre wallet vers votre compte —
+        KongoKash n'est qu'un facilitateur.
+      </p>
+
       <div className="flex gap-3">
         <Button
           variant="outline"
@@ -657,8 +695,8 @@ export function WithdrawalHistory() {
   const withdrawals: WithdrawalRequest[] = JSON.parse(raw);
 
   const statusConfig: Record<
-    WithdrawalStatus,
-    { label: string; className: string; icon: React.ReactNode }
+    string,
+    { label: string; className: string; icon: React.ReactNode; txRef?: string }
   > = {
     pending: {
       label: "En attente",
@@ -677,6 +715,31 @@ export function WithdrawalHistory() {
     },
     failed: {
       label: "Échoué",
+      className: "bg-red-100 text-red-800 border-red-300",
+      icon: <XCircle size={11} />,
+    },
+    auto_processing: {
+      label: "⏳ En cours...",
+      className: "bg-yellow-100 text-yellow-800 border-yellow-300",
+      icon: <Zap size={11} />,
+    },
+    auto_approved: {
+      label: "⚡ Traité automatiquement",
+      className: "bg-green-100 text-green-800 border-green-300",
+      icon: <CheckCircle2 size={11} />,
+    },
+    pending_manual: {
+      label: "⏳ En attente admin",
+      className: "bg-orange-100 text-orange-800 border-orange-300",
+      icon: <Clock size={11} />,
+    },
+    approved: {
+      label: "✅ Approuvé",
+      className: "bg-green-100 text-green-800 border-green-300",
+      icon: <CheckCircle2 size={11} />,
+    },
+    rejected: {
+      label: "❌ Rejeté",
       className: "bg-red-100 text-red-800 border-red-300",
       icon: <XCircle size={11} />,
     },
@@ -736,11 +799,13 @@ export function WithdrawalHistory() {
                       </p>
                     </div>
                   </div>
-                  <span
-                    className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${cfg.className}`}
-                  >
-                    {cfg.icon} {cfg.label}
-                  </span>
+                  <div className="flex flex-col items-end gap-1">
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${cfg.className}`}
+                    >
+                      {cfg.icon} {cfg.label}
+                    </span>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -776,6 +841,7 @@ interface WithdrawalGatewayProps {
 export default function WithdrawalGateway({
   onSuccess,
 }: WithdrawalGatewayProps) {
+  const { actor, isFetching } = useActor();
   const [step, setStep] = useState(1);
   const [asset, setAsset] = useState("OKP");
   const [amount, setAmount] = useState("");
@@ -783,33 +849,75 @@ export default function WithdrawalGateway({
   const [destination, setDestination] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [requestId, setRequestId] = useState("");
+  const [threshold, setThreshold] = useState(50000);
 
-  const handleConfirm = () => {
+  useEffect(() => {
+    if (!actor || isFetching) return;
+    (actor as any)
+      .getAutoWithdrawalThreshold()
+      .then((t: number) => setThreshold(t))
+      .catch(() => {});
+  }, [actor, isFetching]);
+
+  const handleConfirm = async () => {
     setIsSubmitting(true);
-    setTimeout(() => {
+    try {
       const id = generateId();
       const numAmount = Number.parseFloat(amount) || 0;
       const fee = numAmount * FEE_RATE;
+      const cdfAmount = toCDF(asset, numAmount);
+      const isAuto = cdfAmount < threshold;
       const req: WithdrawalRequest = {
         id,
         partnerId: "partner-001",
         partnerName: "Partenaire KongoKash",
         asset,
         amount: numAmount,
-        amountCDF: toCDF(asset, numAmount),
+        amountCDF: cdfAmount,
         fee,
         method: method as WithdrawalMethod,
         destination,
-        status: "pending",
+        status: isAuto ? "auto_processing" : "pending_manual",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
       saveWithdrawal(req);
       setRequestId(id);
+
+      if (isAuto && actor) {
+        try {
+          const result = await (actor as any).processAutoWithdrawal(id);
+          if (result?.success) {
+            // Update status in storage
+            const stored: WithdrawalRequest[] = JSON.parse(
+              localStorage.getItem("partnerWithdrawals") ?? "[]",
+            );
+            const updated = stored.map((w) =>
+              w.id === id
+                ? {
+                    ...w,
+                    status: "auto_approved" as WithdrawalStatus,
+                    updatedAt: new Date().toISOString(),
+                  }
+                : w,
+            );
+            localStorage.setItem("partnerWithdrawals", JSON.stringify(updated));
+            toast.success(
+              `⚡ Retrait traité automatiquement ! Réf: ${result.txRef}`,
+            );
+          } else {
+            toast.success("Demande de retrait envoyée — traitement en cours.");
+          }
+        } catch {
+          toast.success("Demande de retrait envoyée — traitement en cours.");
+        }
+      } else {
+        toast.info("Votre demande est en attente de validation admin.");
+      }
       setStep(4);
+    } finally {
       setIsSubmitting(false);
-      toast.success("Demande de retrait envoyée avec succès !");
-    }, 1500);
+    }
   };
 
   const handleDone = () => {
@@ -847,6 +955,7 @@ export default function WithdrawalGateway({
             amount={amount}
             setAmount={setAmount}
             onNext={() => setStep(2)}
+            threshold={threshold}
           />
         )}
         {step === 2 && (

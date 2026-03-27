@@ -31,7 +31,17 @@ import { toast } from "sonner";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type TicketStatus = "open" | "in_progress" | "resolved";
-export type TicketSubject = "Réservation" | "Paiement" | "Compte" | "Autre";
+export type TicketSubject =
+  | "Réservation"
+  | "Paiement"
+  | "Compte"
+  | "Litige"
+  | "Autre";
+export type DisputeReason =
+  | "Paiement non reçu"
+  | "Service non rendu"
+  | "Annulation refusée"
+  | "Autre";
 
 export interface SupportTicket {
   id: string;
@@ -41,6 +51,9 @@ export interface SupportTicket {
   createdAt: number;
   updatedAt: number;
   reply?: string;
+  disputeReason?: string;
+  disputeAmount?: number;
+  category?: string;
 }
 
 const STORAGE_KEY = "kongokash_support_tickets";
@@ -81,6 +94,18 @@ const DEMO_TICKETS: SupportTicket[] = [
     createdAt: Date.now() - 1 * 24 * 60 * 60 * 1000,
     updatedAt: Date.now() - 5 * 60 * 60 * 1000,
     reply: "Votre dossier est en cours d'examen par notre équipe technique.",
+  },
+  {
+    id: "TKT-003",
+    subject: "Litige",
+    message:
+      "J'ai payé ma réservation à l'Hôtel Okapi Palace en OKP mais le partenaire refuse de confirmer mon check-in.",
+    status: "open",
+    createdAt: Date.now() - 6 * 60 * 60 * 1000,
+    updatedAt: Date.now() - 6 * 60 * 60 * 1000,
+    disputeReason: "Service non rendu",
+    disputeAmount: 150000,
+    category: "dispute",
   },
 ];
 
@@ -147,6 +172,9 @@ export default function SupportSection() {
   const [showForm, setShowForm] = useState(false);
   const [subject, setSubject] = useState<TicketSubject>("Réservation");
   const [message, setMessage] = useState("");
+  const [disputeReason, setDisputeReason] =
+    useState<string>("Paiement non reçu");
+  const [disputeAmount, setDisputeAmount] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(
     null,
@@ -166,6 +194,11 @@ export default function SupportSection() {
         status: "open",
         createdAt: Date.now(),
         updatedAt: Date.now(),
+        ...(subject === "Litige" && {
+          disputeReason,
+          disputeAmount: disputeAmount ? Number(disputeAmount) : undefined,
+          category: "dispute",
+        }),
       };
       const updated = [newTicket, ...tickets];
       setTickets(updated);
@@ -391,6 +424,9 @@ export default function SupportSection() {
                   <SelectItem value="Compte" className="text-white">
                     👤 Compte
                   </SelectItem>
+                  <SelectItem value="Litige" className="text-white">
+                    ⚖️ Litige
+                  </SelectItem>
                   <SelectItem value="Autre" className="text-white">
                     ❓ Autre
                   </SelectItem>
@@ -416,6 +452,86 @@ export default function SupportSection() {
                 {message.length} / 500 caractères (minimum 10)
               </p>
             </div>
+            {subject === "Litige" && (
+              <div
+                className="space-y-3 rounded-xl p-4"
+                style={{
+                  background: "oklch(0.14 0.04 220)",
+                  border: "1px solid oklch(0.30 0.10 20 / 0.3)",
+                }}
+              >
+                <p
+                  className="text-xs font-semibold"
+                  style={{ color: "oklch(0.70 0.12 20)" }}
+                >
+                  ⚖️ Détails du litige
+                </p>
+                <div className="space-y-1.5">
+                  <Label
+                    className="text-xs"
+                    style={{ color: "oklch(0.65 0.03 220)" }}
+                  >
+                    Motif
+                  </Label>
+                  <Select
+                    value={disputeReason}
+                    onValueChange={setDisputeReason}
+                  >
+                    <SelectTrigger
+                      className="bg-transparent border-white/20 text-white"
+                      data-ocid="support.select"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent
+                      style={{
+                        background: "oklch(0.18 0.04 220)",
+                        border: "1px solid oklch(0.28 0.06 220)",
+                      }}
+                    >
+                      <SelectItem
+                        value="Paiement non reçu"
+                        className="text-white"
+                      >
+                        💸 Paiement non reçu
+                      </SelectItem>
+                      <SelectItem
+                        value="Service non rendu"
+                        className="text-white"
+                      >
+                        🚫 Service non rendu
+                      </SelectItem>
+                      <SelectItem
+                        value="Annulation refusée"
+                        className="text-white"
+                      >
+                        ❌ Annulation refusée
+                      </SelectItem>
+                      <SelectItem value="Autre" className="text-white">
+                        ❓ Autre
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label
+                    className="text-xs"
+                    style={{ color: "oklch(0.65 0.03 220)" }}
+                  >
+                    Montant contesté (optionnel)
+                  </Label>
+                  <input
+                    type="number"
+                    value={disputeAmount}
+                    onChange={(e) => setDisputeAmount(e.target.value)}
+                    placeholder="Ex: 50000"
+                    className="w-full rounded-md px-3 py-2 text-sm bg-transparent border text-white placeholder:text-white/30"
+                    style={{ borderColor: "oklch(0.30 0.04 220)" }}
+                    data-ocid="support.input"
+                  />
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button
@@ -491,6 +607,87 @@ export default function SupportSection() {
                   {selectedTicket.subject}
                 </span>
               </div>
+              {selectedTicket.subject === "Litige" && (
+                <div
+                  className="rounded-xl p-4 space-y-3"
+                  style={{
+                    background: "oklch(0.14 0.04 220)",
+                    border: "1px solid oklch(0.30 0.10 20 / 0.3)",
+                  }}
+                >
+                  <p
+                    className="text-xs font-bold"
+                    style={{ color: "oklch(0.70 0.12 20)" }}
+                  >
+                    ⚖️ Suivi du litige
+                  </p>
+                  {selectedTicket.disputeReason && (
+                    <div className="flex justify-between text-xs">
+                      <span style={{ color: "oklch(0.50 0.03 220)" }}>
+                        Motif
+                      </span>
+                      <span style={{ color: "oklch(0.75 0.03 220)" }}>
+                        {selectedTicket.disputeReason}
+                      </span>
+                    </div>
+                  )}
+                  {selectedTicket.disputeAmount && (
+                    <div className="flex justify-between text-xs">
+                      <span style={{ color: "oklch(0.50 0.03 220)" }}>
+                        Montant contesté
+                      </span>
+                      <span style={{ color: "oklch(0.77 0.13 85)" }}>
+                        {selectedTicket.disputeAmount.toLocaleString("fr-FR")}{" "}
+                        FC
+                      </span>
+                    </div>
+                  )}
+                  <div className="pt-2 space-y-2">
+                    {[
+                      { label: "Litige ouvert", done: true },
+                      {
+                        label: "En cours d'examen (admin)",
+                        done:
+                          selectedTicket.status === "in_progress" ||
+                          selectedTicket.status === "resolved",
+                      },
+                      {
+                        label: "Résolu",
+                        done: selectedTicket.status === "resolved",
+                      },
+                    ].map((step, i) => (
+                      <div key={step.label} className="flex items-center gap-2">
+                        <div
+                          className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-xs"
+                          style={{
+                            background: step.done
+                              ? "oklch(0.30 0.12 145 / 0.4)"
+                              : "oklch(0.18 0.03 220)",
+                            border: step.done
+                              ? "2px solid oklch(0.55 0.15 145)"
+                              : "2px solid oklch(0.28 0.05 220)",
+                            color: step.done
+                              ? "oklch(0.70 0.15 145)"
+                              : "oklch(0.35 0.04 220)",
+                          }}
+                        >
+                          {step.done ? "✓" : i + 1}
+                        </div>
+                        <span
+                          className="text-xs"
+                          style={{
+                            color: step.done
+                              ? "oklch(0.70 0.15 145)"
+                              : "oklch(0.40 0.03 220)",
+                          }}
+                        >
+                          {step.label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div>
                 <p
                   className="text-xs mb-2"

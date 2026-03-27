@@ -548,6 +548,25 @@ function ViewBiometricEnrollment({
         Passer — utiliser la seed phrase à la place
       </button>
 
+      <div
+        className="rounded-xl p-3 text-sm text-left flex gap-2"
+        style={{
+          background: "oklch(0.25 0.06 230 / 0.5)",
+          border: "1px solid oklch(0.52 0.12 200 / 0.3)",
+        }}
+        data-ocid="wallet.panel"
+      >
+        <span className="shrink-0">ℹ️</span>
+        <p style={{ color: "oklch(0.75 0.05 220)" }}>
+          <strong style={{ color: "oklch(0.85 0.06 220)" }}>
+            Déverrouillage local uniquement.
+          </strong>{" "}
+          La biométrie permet uniquement de déverrouiller l'app rapidement sur
+          cet appareil. Elle ne remplace pas votre phrase secrète et ne peut pas
+          récupérer votre wallet.
+        </p>
+      </div>
+
       <p className="text-xs" style={{ color: "oklch(0.45 0.02 220)" }}>
         Wallet : {truncateAddress(address)}
       </p>
@@ -632,6 +651,21 @@ function ViewLocked({
           Biométrie non configurée. Utilisez votre seed phrase.
         </p>
       )}
+
+      <div
+        className="rounded-xl p-3 text-xs text-left flex gap-2"
+        style={{
+          background: "oklch(0.25 0.06 230 / 0.4)",
+          border: "1px solid oklch(0.52 0.12 200 / 0.25)",
+        }}
+        data-ocid="wallet.panel"
+      >
+        <span className="shrink-0">🔒</span>
+        <p style={{ color: "oklch(0.65 0.04 220)" }}>
+          Déverrouillage local uniquement — pour récupérer votre wallet sur un
+          autre appareil, utilisez votre phrase secrète.
+        </p>
+      </div>
 
       {error && (
         <div

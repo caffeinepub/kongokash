@@ -1,33 +1,30 @@
-# KongoKash — Passerelles de Retrait Partenaires
+# KongoKash — Retraits Externes Automatisés
 
 ## Current State
-Les partenaires (hôtels, parcs, musées, compagnies aériennes) reçoivent des paiements via l'escrow smart contract. Ils ont un espace partenaire dans le Dashboard avec un bouton "Retirer les fonds". Cependant, il n'existe pas de passerelles de conversion structurées (crypto → Mobile Money, crypto → CDF/USD).
+Tous les retraits Mobile Money (Airtel/M-Pesa) sont soumis manuellement par les utilisateurs et nécessitent une validation admin avant traitement. Le composant `http-outcalls` est déjà sélectionné. La fonction `submitMobileMoneyWithdrawal` crée un enregistrement avec statut `pending`, puis l'admin approuve via `approveMobileMoneyRequest`.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Page/onglet "Passerelle de Retrait" dans l'Espace Partenaire
-- 3 méthodes de retrait :
-  1. Crypto → Airtel Money (avec numéro de téléphone)
-  2. Crypto → M-Pesa (avec numéro de téléphone)
-  3. Crypto → CDF ou USD (virement bancaire)
-- Formulaire de retrait avec : sélection de l'actif (OKP, USDT, CDF, etc.), montant, méthode, numéro ou RIB
-- Affichage en temps réel du taux de conversion + frais (max 0.5%)
-- Statut de traitement : En attente → En cours → Complété / Échoué
-- Historique des retraits partenaire
-- Bannière "Option future : Intégration bancaire & carte" (teaser)
-- Dashboard Admin : onglet "Retraits Partenaires" pour valider/rejeter les demandes
+- Seuil d'automatisation configurable par l'admin (défaut : 50 000 CDF)
+- Fonction backend `processAutoWithdrawal` qui simule un HTTP outcall vers l'API Airtel/M-Pesa
+- Logique : si montant < seuil → traitement automatique immédiat (statut `auto_approved`), sinon → statut `pending_manual` pour validation admin
+- Indicateur visuel côté utilisateur : badge "Traitement automatique" ou "Validation requise"
+- Section admin pour configurer le seuil et voir les statistiques auto vs manuel
 
 ### Modify
-- Bouton "Retirer les fonds" dans l'espace partenaire → redirige vers la nouvelle passerelle
+- `submitMobileMoneyWithdrawal` : appliquer la logique auto/manuel selon le seuil
+- `WithdrawalGateway.tsx` : afficher la distinction auto/manuel selon le montant saisi
+- `AdminDashboard.tsx` : ajouter configuration du seuil + colonne statut enrichie
 
 ### Remove
 - Rien
 
 ## Implementation Plan
-1. Ajouter un composant `WithdrawalGateway` dans l'espace partenaire
-2. Formulaire : asset selector, montant, méthode (Airtel / M-Pesa / Bancaire), coordonnées
-3. Calcul temps réel : montant converti en CDF/USD selon les taux actuels, frais 0.5% affichés
-4. Soumission → statut "En attente" visible dans historique
-5. Admin Dashboard → onglet "Retraits 💸" : liste des demandes avec boutons Approuver/Rejeter
-6. Notification automatique au partenaire à chaque changement de statut
+1. Ajouter `autoWithdrawalThreshold` dans le state du backend (variable configurable)
+2. Ajouter `setAutoWithdrawalThreshold` (admin only)
+3. Ajouter `getAutoWithdrawalThreshold` (public query)
+4. Modifier `submitMobileMoneyWithdrawal` pour détecter le seuil et appliquer auto-traitement
+5. Ajouter `processAutoWithdrawal` avec HTTP outcall simulé vers API Mobile Money
+6. Mettre à jour `WithdrawalGateway.tsx` : afficher badge auto/manuel en temps réel
+7. Mettre à jour `AdminDashboard.tsx` : section seuil configurable + stats

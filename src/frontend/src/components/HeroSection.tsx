@@ -71,6 +71,12 @@ export default function HeroSection({
               au Congo.
             </h1>
 
+            <p
+              className="text-base font-semibold tracking-wide mb-1"
+              style={{ color: "oklch(0.77 0.13 85 / 0.9)" }}
+            >
+              Partenaires libres. Clients protégés. Infrastructure neutre.
+            </p>
             <p className="text-lg text-white/70 leading-relaxed max-w-lg">
               Achetez et vendez du BTC, ETH et USDT directement avec vos Francs
               Congolais (CDF) ou Dollars US. Rapide, sécurisé, à moindre coût.

@@ -26,6 +26,21 @@ export default function Footer() {
             <p className="text-white/60 text-sm leading-relaxed">
               La plateforme décentralisée pour acheter et vendre des
               cryptomonnaies avec vos Francs Congolais à moindre coût.
+              <br />
+              <br />
+              <span
+                style={{ color: "oklch(0.72 0.12 160)" }}
+                className="font-semibold"
+              >
+                Infrastructure décentralisée pour le Congo 🇨🇩
+              </span>
+              <br />
+              <span
+                style={{ color: "oklch(0.60 0.08 195)" }}
+                className="text-xs"
+              >
+                Hébergé sur Internet Computer Protocol (ICP)
+              </span>
             </p>
             <div className="flex gap-3 mt-5">
               {[

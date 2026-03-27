@@ -23,6 +23,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useBuyCrypto, useSellCrypto } from "../hooks/useQueries";
+import P2PSection from "./P2PSection";
 
 type PaymentMethod = "bank" | "airtel" | "mpesa";
 
@@ -281,12 +282,15 @@ export default function BuySellSection() {
                 </div>
 
                 <Tabs defaultValue="buy">
-                  <TabsList className="grid w-full grid-cols-2 mb-6">
+                  <TabsList className="grid w-full grid-cols-3 mb-6">
                     <TabsTrigger value="buy" data-ocid="buysell.tab">
                       Acheter
                     </TabsTrigger>
                     <TabsTrigger value="sell" data-ocid="buysell.tab">
                       Vendre
+                    </TabsTrigger>
+                    <TabsTrigger value="p2p" data-ocid="buysell.tab">
+                      P2P 🔄
                     </TabsTrigger>
                   </TabsList>
 
@@ -634,6 +638,11 @@ export default function BuySellSection() {
                         "Confirmer la vente"
                       )}
                     </Button>
+                  </TabsContent>
+
+                  {/* P2P Tab */}
+                  <TabsContent value="p2p">
+                    <P2PSection />
                   </TabsContent>
                 </Tabs>
               </CardContent>

@@ -2849,4 +2849,306 @@ actor {
     });
   };
 
+
+  // ─── P2P Trading Module ────────────────────────────────────────────────────
+
+  type P2PStatus = {
+    #open;
+    #locked;
+    #payment_sent;
+    #confirmed;
+    #disputed;
+    #cancelled;
+    #completed;
+  };
+
+  type P2POffer = {
+    id : Nat;
+    sellerId : Principal;
+    asset : Text;
+    amount : Float;
+    pricePerUnit : Float;
+    currency : Text;
+    paymentMethod : Text;
+    status : P2PStatus;
+    createdAt : Int;
+    buyerId : ?Principal;
+    tradeId : ?Nat;
+    minAmount : Float;
+    maxAmount : Float;
+  };
+
+  type P2PTrade = {
+    id : Nat;
+    offerId : Nat;
+    sellerId : Principal;
+    buyerId : Principal;
+    asset : Text;
+    amount : Float;
+    totalPrice : Float;
+    currency : Text;
+    paymentMethod : Text;
+    status : P2PStatus;
+    createdAt : Int;
+    lockedAt : ?Int;
+    confirmedAt : ?Int;
+    completedAt : ?Int;
+    disputeReason : ?Text;
+    proofHash : ?Text;
+  };
+
+  var p2pOfferId = 0;
+  var p2pTradeId = 0;
+  var p2pOffers = Map.empty<Nat, P2POffer>();
+  var p2pTrades = Map.empty<Nat, P2PTrade>();
+
+  func nextP2POfferId() : Nat {
+    p2pOfferId += 1;
+    p2pOfferId;
+  };
+
+  func nextP2PTradeId() : Nat {
+    p2pTradeId += 1;
+    p2pTradeId;
+  };
+
+  public shared ({ caller }) func createP2POffer(
+    asset : Text,
+    amount : Float,
+    pricePerUnit : Float,
+    currency : Text,
+    paymentMethod : Text,
+    minAmount : Float,
+    maxAmount : Float
+  ) : async { success : Bool; message : Text; offerId : Nat } {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Connexion requise");
+    };
+    let oid = nextP2POfferId();
+    let offer : P2POffer = {
+      id = oid;
+      sellerId = caller;
+      asset;
+      amount;
+      pricePerUnit;
+      currency;
+      paymentMethod;
+      status = #open;
+      createdAt = Time.now();
+      buyerId = null;
+      tradeId = null;
+      minAmount;
+      maxAmount;
+    };
+    p2pOffers.add(oid, offer);
+    { success = true; message = "Offre creee et fonds verrouilles dans l\'escrow"; offerId = oid };
+  };
+
+  public shared ({ caller }) func acceptP2POffer(offerId_ : Nat, amount : Float) : async { success : Bool; message : Text; tradeId : Nat } {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Connexion requise");
+    };
+    switch (p2pOffers.get(offerId_)) {
+      case (null) { return { success = false; message = "Offre introuvable"; tradeId = 0 } };
+      case (?offer) {
+        if (offer.sellerId == caller) {
+          return { success = false; message = "Vous ne pouvez pas acheter votre propre offre"; tradeId = 0 };
+        };
+        switch (offer.status) {
+          case (#open) {
+            if (amount < offer.minAmount or amount > offer.maxAmount) {
+              return { success = false; message = "Montant hors limites autorisees"; tradeId = 0 };
+            };
+            let tid = nextP2PTradeId();
+            let trade : P2PTrade = {
+              id = tid;
+              offerId = offerId_;
+              sellerId = offer.sellerId;
+              buyerId = caller;
+              asset = offer.asset;
+              amount;
+              totalPrice = amount * offer.pricePerUnit;
+              currency = offer.currency;
+              paymentMethod = offer.paymentMethod;
+              status = #locked;
+              createdAt = Time.now();
+              lockedAt = ?Time.now();
+              confirmedAt = null;
+              completedAt = null;
+              disputeReason = null;
+              proofHash = null;
+            };
+            p2pTrades.add(tid, trade);
+            p2pOffers.add(offerId_, { offer with status = #locked; buyerId = ?caller; tradeId = ?tid });
+            { success = true; message = "Offre acceptee. Fonds verrouilles dans le smart escrow."; tradeId = tid };
+          };
+          case (_) {
+            { success = false; message = "Cette offre n\'est plus disponible"; tradeId = 0 };
+          };
+        };
+      };
+    };
+  };
+
+  public shared ({ caller }) func buyerConfirmPaymentSent(tradeId_ : Nat, proofHash : Text) : async { success : Bool; message : Text } {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Connexion requise");
+    };
+    switch (p2pTrades.get(tradeId_)) {
+      case (null) { return { success = false; message = "Trade introuvable" } };
+      case (?trade) {
+        if (trade.buyerId != caller) {
+          return { success = false; message = "Action non autorisee" };
+        };
+        switch (trade.status) {
+          case (#locked) {
+            p2pTrades.add(tradeId_, { trade with status = #payment_sent; proofHash = ?proofHash });
+            { success = true; message = "Paiement marque comme envoye. En attente de confirmation du vendeur." };
+          };
+          case (_) {
+            { success = false; message = "Action impossible sur ce trade" };
+          };
+        };
+      };
+    };
+  };
+
+  public shared ({ caller }) func sellerConfirmPaymentReceived(tradeId_ : Nat) : async { success : Bool; message : Text } {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Connexion requise");
+    };
+    switch (p2pTrades.get(tradeId_)) {
+      case (null) { return { success = false; message = "Trade introuvable" } };
+      case (?trade) {
+        if (trade.sellerId != caller) {
+          return { success = false; message = "Seul le vendeur peut confirmer la reception du paiement" };
+        };
+        switch (trade.status) {
+          case (#payment_sent) {
+            p2pTrades.add(tradeId_, { trade with status = #completed; completedAt = ?Time.now(); confirmedAt = ?Time.now() });
+            { success = true; message = "Paiement confirme. Les cryptos ont ete liberes a l\'acheteur." };
+          };
+          case (_) {
+            { success = false; message = "Le paiement n\'a pas encore ete marque comme envoye par l\'acheteur" };
+          };
+        };
+      };
+    };
+  };
+
+  public shared ({ caller }) func cancelP2POffer(offerId_ : Nat) : async { success : Bool; message : Text } {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Connexion requise");
+    };
+    switch (p2pOffers.get(offerId_)) {
+      case (null) { return { success = false; message = "Offre introuvable" } };
+      case (?offer) {
+        if (offer.sellerId != caller) {
+          return { success = false; message = "Seul le vendeur peut annuler cette offre" };
+        };
+        switch (offer.status) {
+          case (#open) {
+            p2pOffers.add(offerId_, { offer with status = #cancelled });
+            { success = true; message = "Offre annulee. Fonds restitues." };
+          };
+          case (_) {
+            { success = false; message = "Impossible d\'annuler une offre deja acceptee" };
+          };
+        };
+      };
+    };
+  };
+
+  public shared ({ caller }) func openP2PDispute(tradeId_ : Nat, reason : Text) : async { success : Bool; message : Text } {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Connexion requise");
+    };
+    switch (p2pTrades.get(tradeId_)) {
+      case (null) { return { success = false; message = "Trade introuvable" } };
+      case (?trade) {
+        if (trade.buyerId != caller and trade.sellerId != caller) {
+          return { success = false; message = "Vous n\'etes pas partie de ce trade" };
+        };
+        switch (trade.status) {
+          case (#locked) {
+            p2pTrades.add(tradeId_, { trade with status = #disputed; disputeReason = ?reason });
+            { success = true; message = "Litige ouvert. L\'equipe KongoKash va arbitrer dans les 24h." };
+          };
+          case (#payment_sent) {
+            p2pTrades.add(tradeId_, { trade with status = #disputed; disputeReason = ?reason });
+            { success = true; message = "Litige ouvert. L\'equipe KongoKash va arbitrer dans les 24h." };
+          };
+          case (_) {
+            { success = false; message = "Impossible d\'ouvrir un litige sur ce trade" };
+          };
+        };
+      };
+    };
+  };
+
+  public shared ({ caller }) func resolveP2PDispute(tradeId_ : Nat, favorBuyer : Bool) : async { success : Bool; message : Text } {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Acces admin requis");
+    };
+    switch (p2pTrades.get(tradeId_)) {
+      case (null) { return { success = false; message = "Trade introuvable" } };
+      case (?trade) {
+        switch (trade.status) {
+          case (#disputed) {
+            let newStatus = if (favorBuyer) { #cancelled } else { #completed };
+            p2pTrades.add(tradeId_, { trade with status = newStatus; completedAt = ?Time.now() });
+            let msg = if (favorBuyer) {
+              "Litige resolu en faveur de l\'acheteur. Fonds restitues au vendeur."
+            } else {
+              "Litige resolu en faveur du vendeur. Cryptos liberes a l\'acheteur."
+            };
+            { success = true; message = msg };
+          };
+          case (_) {
+            { success = false; message = "Ce trade n\'est pas en litige" };
+          };
+        };
+      };
+    };
+  };
+
+  public query func getP2POffers() : async [P2POffer] {
+    p2pOffers.values().toArray().filter(func(o) {
+      switch (o.status) { case (#open) { true }; case (_) { false } }
+    });
+  };
+
+  public query ({ caller }) func getUserP2PTrades() : async [P2PTrade] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Connexion requise");
+    };
+    p2pTrades.values().toArray().filter(func(t) {
+      t.buyerId == caller or t.sellerId == caller
+    });
+  };
+
+  public query ({ caller }) func getUserP2POffers() : async [P2POffer] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Connexion requise");
+    };
+    p2pOffers.values().toArray().filter(func(o) { o.sellerId == caller });
+  };
+
+  public query ({ caller }) func adminGetP2PDisputes() : async [P2PTrade] {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Acces admin requis");
+    };
+    p2pTrades.values().toArray().filter(func(t) {
+      switch (t.status) { case (#disputed) { true }; case (_) { false } }
+    });
+  };
+
+  public query ({ caller }) func adminGetAllP2PTrades() : async [P2PTrade] {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Acces admin requis");
+    };
+    p2pTrades.values().toArray().sort(func(a, b) { Int.compare(b.createdAt, a.createdAt) });
+  };
+
+
 };

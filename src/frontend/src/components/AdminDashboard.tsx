@@ -71,6 +71,7 @@ import {
 } from "../hooks/useQueries";
 import { EscrowDisputeTab } from "./EscrowPaymentInfo";
 import { UrgencesInstitutionnellesTab } from "./InstitutionalMultiSigWallet";
+import { AdminP2PTab } from "./P2PSection";
 import { PartnerOwnershipTransferModal } from "./PartnerOwnershipTransferModal";
 import { PartnerWalletDialog } from "./PartnerWalletSetup";
 import { AdminSupportTab } from "./SupportSection";
@@ -1034,7 +1035,7 @@ export default function AdminDashboard() {
 
         <Tabs defaultValue="overview" className="space-y-6">
           <TabsList
-            className="grid grid-cols-12 w-full"
+            className="grid grid-cols-14 w-full"
             style={{
               background: "oklch(0.15 0.03 220)",
               border: "1px solid oklch(0.25 0.04 220)",
@@ -1101,6 +1102,11 @@ export default function AdminDashboard() {
                 value: "litiges",
                 label: "Litiges 🔴",
                 icon: <Scale size={14} />,
+              },
+              {
+                value: "p2p",
+                label: "P2P 🔄",
+                icon: <RefreshCw size={14} />,
               },
               {
                 value: "retraits",
@@ -2341,6 +2347,11 @@ export default function AdminDashboard() {
 
           <TabsContent value="retraits" data-ocid="admin.retraits.panel">
             <RetraitsAdminTab />
+          </TabsContent>
+
+          {/* ── Tab P2P ─────────────────────────────────────────────────────── */}
+          <TabsContent value="p2p" data-ocid="admin.p2p.panel">
+            <AdminP2PTab />
           </TabsContent>
         </Tabs>
       </div>

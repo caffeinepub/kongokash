@@ -1,30 +1,39 @@
-# KongoKash — Retraits Externes Automatisés
+# KongoKash — Smart Escrow P2P Contract
 
 ## Current State
-Tous les retraits Mobile Money (Airtel/M-Pesa) sont soumis manuellement par les utilisateurs et nécessitent une validation admin avant traitement. Le composant `http-outcalls` est déjà sélectionné. La fonction `submitMobileMoneyWithdrawal` crée un enregistrement avec statut `pending`, puis l'admin approuve via `approveMobileMoneyRequest`.
+P2P module exists in P2PSection.tsx with full lifecycle: createOffer, acceptOffer, confirmPaymentSent, confirmPaymentReceived, openDispute, resolveDispute. Backend has all corresponding Motoko functions. The escrow locking mechanic exists but UX doesn't clearly visualize the locking event when seller creates an offer or when buyer accepts.
+
+Missing:
+- No auto-release timer (seller funds locked indefinitely if buyer never pays)
+- Payment instructions (phone/account) not shown to buyer after locking
+- Seller's own offers visible in the market list (confusing)
+- No countdown timer on locked trades
+- No buyer escape hatch if seller goes silent
 
 ## Requested Changes (Diff)
 
 ### Add
-- Seuil d'automatisation configurable par l'admin (défaut : 50 000 CDF)
-- Fonction backend `processAutoWithdrawal` qui simule un HTTP outcall vers l'API Airtel/M-Pesa
-- Logique : si montant < seuil → traitement automatique immédiat (statut `auto_approved`), sinon → statut `pending_manual` pour validation admin
-- Indicateur visuel côté utilisateur : badge "Traitement automatique" ou "Validation requise"
-- Section admin pour configurer le seuil et voir les statistiques auto vs manuel
+- Escrow lock animation/visual when seller creates offer (funds locked badge with lock icon)
+- Countdown timer (30 min) displayed on locked trades for buyer to confirm payment
+- Payment instructions panel shown to buyer inside the trade card (seller's payment method contact info)
+- Auto-cancel logic on frontend: show "Délai dépassé" badge when 30min window expired
+- "Annuler le trade" button for buyer/seller when payment window expires (calls cancelP2POffer)
+- Filter own offers from OffresDisponiblesTab so sellers don't see their own offers
+- Escrow status diagram in AcceptOfferDialog showing the 3-step flow: Offre créée → Fonds verrouillés → Paiement confirmé → Libération
 
 ### Modify
-- `submitMobileMoneyWithdrawal` : appliquer la logique auto/manuel selon le seuil
-- `WithdrawalGateway.tsx` : afficher la distinction auto/manuel selon le montant saisi
-- `AdminDashboard.tsx` : ajouter configuration du seuil + colonne statut enrichie
+- CreateOfferDialog: add confirmation message showing "Vos fonds seront verrouillés immédiatement dans le smart contract" before submit
+- AcceptOfferDialog: show escrow flow diagram before confirm button
+- TradeCard: enhance escrow timeline with lock icon, timer, and payment instructions section
+- OffresDisponiblesTab: filter out caller's own offers
 
 ### Remove
-- Rien
+- Nothing
 
 ## Implementation Plan
-1. Ajouter `autoWithdrawalThreshold` dans le state du backend (variable configurable)
-2. Ajouter `setAutoWithdrawalThreshold` (admin only)
-3. Ajouter `getAutoWithdrawalThreshold` (public query)
-4. Modifier `submitMobileMoneyWithdrawal` pour détecter le seuil et appliquer auto-traitement
-5. Ajouter `processAutoWithdrawal` avec HTTP outcall simulé vers API Mobile Money
-6. Mettre à jour `WithdrawalGateway.tsx` : afficher badge auto/manuel en temps réel
-7. Mettre à jour `AdminDashboard.tsx` : section seuil configurable + stats
+1. Add escrow flow diagram component (3 steps with icons)
+2. Add countdown timer hook using trade `createdAt` + 30min window
+3. Show payment instructions (paymentMethod + simulated contact) in locked trade card
+4. Add lock confirmation in CreateOfferDialog
+5. Filter own offers in OffresDisponiblesTab
+6. Add expired timer badge and cancel button

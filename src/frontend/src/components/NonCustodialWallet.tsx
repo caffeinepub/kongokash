@@ -4,18 +4,26 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import { Textarea } from "@/components/ui/textarea";
 import {
   AlertTriangle,
   Check,
   CheckCircle,
+  ChevronDown,
+  CloudUpload,
   Copy,
+  Download,
   Fingerprint,
+  KeyRound,
   Lock,
   LockOpen,
   RefreshCw,
   RotateCcw,
   Send,
   ShieldCheck,
+  Upload,
+  UserCheck,
+  Users,
   Wallet,
   X,
 } from "lucide-react";
@@ -26,6 +34,7 @@ import {
   generateSeedPhrase,
   useNonCustodialWallet,
 } from "../hooks/useNonCustodialWallet";
+import { secureGet, secureSet } from "../lib/secureStorage";
 
 function truncateAddress(addr: string): string {
   if (addr.length <= 12) return addr;
@@ -923,10 +932,13 @@ function ViewUnlocked({
         )}
       </AnimatePresence>
 
+      {/* Recovery Options */}
+      <RecoveryOptionsPanel />
+
       {/* Lock button */}
       <Button
         variant="outline"
-        className="w-full"
+        className="w-full mt-3"
         style={{
           borderColor: "oklch(0.30 0.06 195)",
           color: "oklch(0.65 0.03 220)",
@@ -937,6 +949,829 @@ function ViewUnlocked({
         <Lock size={14} className="mr-2" /> Verrouiller le wallet
       </Button>
     </motion.div>
+  );
+}
+
+// —— RECOVERY OPTIONS PANEL ——
+
+function toBase64Buf(buf: ArrayBuffer | Uint8Array): string {
+  const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  return btoa(String.fromCharCode(...bytes));
+}
+
+function fromBase64Str(b64: string): Uint8Array {
+  return new Uint8Array(
+    atob(b64)
+      .split("")
+      .map((c) => c.charCodeAt(0)),
+  );
+}
+
+function createXorShares(seedStr: string, n: number): string[] {
+  const encoder = new TextEncoder();
+  const seedBytes = encoder.encode(seedStr);
+  const len = seedBytes.length;
+  const shares: Uint8Array[] = [];
+  const xorAccum = new Uint8Array(len);
+  for (let i = 0; i < n - 1; i++) {
+    const share = crypto.getRandomValues(new Uint8Array(len));
+    shares.push(share);
+    for (let j = 0; j < len; j++) xorAccum[j] ^= share[j];
+  }
+  const lastShare = new Uint8Array(len);
+  for (let j = 0; j < len; j++) lastShare[j] = seedBytes[j] ^ xorAccum[j];
+  shares.push(lastShare);
+  return shares.map((s) => toBase64Buf(s));
+}
+
+function reconstructFromXorShares(shareB64s: string[]): string {
+  const shares = shareB64s.map((s) => fromBase64Str(s));
+  const len = shares[0].length;
+  const result = new Uint8Array(len);
+  for (const share of shares) {
+    for (let j = 0; j < len; j++) result[j] ^= share[j];
+  }
+  return new TextDecoder().decode(result);
+}
+
+interface Guardian {
+  id: string;
+  name: string;
+  contact: string;
+  share?: string;
+}
+
+function RecoveryOptionsPanel() {
+  const [open, setOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"cloud" | "social">("cloud");
+
+  // Cloud backup state
+  const [backupDone, setBackupDone] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const [restoreSuccess, setRestoreSuccess] = useState(false);
+
+  // Social recovery state
+  const [guardians, setGuardians] = useState<Guardian[]>([
+    { id: "g1", name: "", contact: "" },
+    { id: "g2", name: "", contact: "" },
+    { id: "g3", name: "", contact: "" },
+  ]);
+  const [seedInput, setSeedInput] = useState("");
+  const [shares, setShares] = useState<string[]>([]);
+  const [sharesGenerated, setSharesGenerated] = useState(false);
+  const [reconstructInputs, setReconstructInputs] = useState<string[]>([
+    "",
+    "",
+    "",
+  ]);
+  const [reconstructed, setReconstructed] = useState<string | null>(null);
+  const [reconstructError, setReconstructError] = useState(false);
+
+  const exportBackup = async () => {
+    const encrypted = await secureGet("kk_wallet_encrypted");
+    const salt = await secureGet("kk_wallet_salt");
+    const iv = await secureGet("kk_wallet_iv");
+    const kdf = await secureGet("kk_wallet_kdf");
+    const address = await secureGet("kk_wallet_address");
+    if (!encrypted) {
+      toast.error("Aucun wallet à sauvegarder");
+      return;
+    }
+    const backupData = {
+      version: 1,
+      timestamp: Date.now(),
+      address,
+      encrypted,
+      salt,
+      iv,
+      kdf,
+    };
+    const json = JSON.stringify(backupData);
+    const b64 = btoa(unescape(encodeURIComponent(json)));
+    const blob = new Blob([b64], { type: "application/octet-stream" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const date = new Date().toISOString().split("T")[0];
+    a.href = url;
+    a.download = `kongokash-wallet-backup-${date}.kkbackup`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setBackupDone(true);
+    toast.success("Sauvegarde exportée avec succès !");
+  };
+
+  const importBackup = async (file: File) => {
+    setRestoring(true);
+    setRestoreSuccess(false);
+    try {
+      const text = await file.text();
+      const json = decodeURIComponent(escape(atob(text.trim())));
+      const data = JSON.parse(json);
+      if (!data.encrypted || !data.salt || !data.iv)
+        throw new Error("Fichier invalide");
+      await secureSet("kk_wallet_encrypted", data.encrypted);
+      await secureSet("kk_wallet_salt", data.salt);
+      await secureSet("kk_wallet_iv", data.iv);
+      if (data.kdf) await secureSet("kk_wallet_kdf", data.kdf);
+      if (data.address) await secureSet("kk_wallet_address", data.address);
+      setRestoreSuccess(true);
+      toast.success(
+        "Sauvegarde restaurée ! Veuillez déverrouiller avec votre phrase secrète.",
+      );
+    } catch {
+      toast.error("Fichier de sauvegarde invalide ou corrompu.");
+    } finally {
+      setRestoring(false);
+    }
+  };
+
+  const generateShares = async () => {
+    const words = seedInput.trim().split(/\s+/);
+    if (words.length < 12) {
+      toast.error("Entrez au moins 12 mots de votre phrase secrète");
+      return;
+    }
+    const n = guardians.length;
+    const newShares = createXorShares(words.join(" "), n);
+    const updatedGuardians = guardians.map((g, i) => ({
+      ...g,
+      share: newShares[i],
+    }));
+    setGuardians(updatedGuardians);
+    setShares(newShares);
+    setSharesGenerated(true);
+    await secureSet(
+      "kk_wallet_guardians",
+      JSON.stringify(
+        updatedGuardians.map(({ id, name, contact }) => ({
+          id,
+          name,
+          contact,
+        })),
+      ),
+    );
+    toast.success("Parts générées ! Envoyez chaque part à son gardien.");
+  };
+
+  const reconstruct = () => {
+    const filled = reconstructInputs.filter((s) => s.trim().length > 0);
+    if (filled.length < 2) {
+      toast.error("Collez au moins 2 parts pour reconstruire");
+      return;
+    }
+    try {
+      const seed = reconstructFromXorShares(filled.map((s) => s.trim()));
+      const words = seed.trim().split(" ");
+      if (words.length < 12) throw new Error("invalid");
+      setReconstructed(seed);
+      setReconstructError(false);
+      toast.success("Phrase secrète reconstruite avec succès !");
+    } catch {
+      setReconstructError(true);
+      setReconstructed(null);
+      toast.error("Reconstruction échouée. Vérifiez les parts collées.");
+    }
+  };
+
+  const panelStyle = {
+    background: "oklch(0.22 0.04 220)",
+    border: "1px solid oklch(0.30 0.06 195)",
+  };
+
+  const inputStyle = {
+    background: "oklch(0.15 0.03 220)",
+    borderColor: "oklch(0.30 0.06 195)",
+    color: "oklch(0.92 0.04 80)",
+  };
+
+  return (
+    <div className="mt-3">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between rounded-xl px-4 py-3 transition-colors"
+        style={{
+          background: open ? "oklch(0.27 0.07 195)" : "oklch(0.20 0.04 220)",
+          border: "1px solid oklch(0.30 0.06 195)",
+          color: "oklch(0.77 0.13 85)",
+        }}
+        data-ocid="wallet.open_modal_button"
+      >
+        <div className="flex items-center gap-2 font-semibold text-sm">
+          <KeyRound size={15} />🔑 Options de Récupération
+          <Badge
+            className="text-xs"
+            style={{
+              background: "oklch(0.35 0.10 220 / 0.6)",
+              color: "oklch(0.72 0.08 220)",
+            }}
+          >
+            Optionnel
+          </Badge>
+        </div>
+        <ChevronDown
+          size={16}
+          className="transition-transform"
+          style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
+        />
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <div
+              className="rounded-b-xl p-4 space-y-4"
+              style={panelStyle}
+              data-ocid="wallet.panel"
+            >
+              {/* Warning */}
+              <div
+                className="rounded-lg px-3 py-2 text-xs flex items-start gap-2"
+                style={{
+                  background: "oklch(0.35 0.10 85 / 0.15)",
+                  border: "1px solid oklch(0.77 0.13 85 / 0.3)",
+                  color: "oklch(0.77 0.13 85)",
+                }}
+              >
+                <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+                Ces options ne remplacent pas votre phrase secrète. Conservez-la
+                toujours en lieu sûr.
+              </div>
+
+              {/* Tab switcher */}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("cloud")}
+                  className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-colors"
+                  style={
+                    activeTab === "cloud"
+                      ? { background: "oklch(0.52 0.12 160)", color: "white" }
+                      : {
+                          background: "oklch(0.18 0.04 220)",
+                          color: "oklch(0.55 0.03 220)",
+                        }
+                  }
+                  data-ocid="wallet.tab"
+                >
+                  <CloudUpload size={14} />
+                  Sauvegarde Cloud
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("social")}
+                  className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-colors"
+                  style={
+                    activeTab === "social"
+                      ? { background: "oklch(0.52 0.12 160)", color: "white" }
+                      : {
+                          background: "oklch(0.18 0.04 220)",
+                          color: "oklch(0.55 0.03 220)",
+                        }
+                  }
+                  data-ocid="wallet.tab"
+                >
+                  <Users size={14} />
+                  Récupération Sociale
+                </button>
+              </div>
+
+              {/* Cloud Backup Tab */}
+              {activeTab === "cloud" && (
+                <motion.div
+                  key="cloud"
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="space-y-4"
+                >
+                  {/* Export */}
+                  <div
+                    className="rounded-xl p-4 space-y-3"
+                    style={{
+                      background: "oklch(0.18 0.04 220)",
+                      border: "1px solid oklch(0.25 0.05 195)",
+                    }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Download
+                        size={15}
+                        style={{ color: "oklch(0.52 0.12 160)" }}
+                      />
+                      <span
+                        className="font-semibold text-sm"
+                        style={{ color: "oklch(0.92 0.04 80)" }}
+                      >
+                        Exporter une sauvegarde chiffrée
+                      </span>
+                    </div>
+                    <p
+                      className="text-xs"
+                      style={{ color: "oklch(0.60 0.03 220)" }}
+                    >
+                      Crée un fichier{" "}
+                      <code
+                        className="px-1 rounded"
+                        style={{ background: "oklch(0.25 0.04 220)" }}
+                      >
+                        .kkbackup
+                      </code>{" "}
+                      contenant votre wallet chiffré. La clé privée reste
+                      protégée — seule votre phrase secrète peut la déchiffrer.
+                    </p>
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      style={{
+                        background: "oklch(0.52 0.12 160)",
+                        color: "white",
+                      }}
+                      onClick={exportBackup}
+                      data-ocid="wallet.upload_button"
+                    >
+                      <Download size={13} className="mr-2" />💾 Télécharger la
+                      sauvegarde
+                    </Button>
+                    {backupDone && (
+                      <div
+                        className="flex items-center gap-2 text-xs rounded-lg px-3 py-2"
+                        style={{
+                          background: "oklch(0.35 0.10 160 / 0.2)",
+                          color: "oklch(0.60 0.15 160)",
+                        }}
+                      >
+                        <CheckCircle size={12} />
+                        Enregistrez ce fichier dans Google Drive, iCloud ou tout
+                        autre stockage sécurisé.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Import */}
+                  <div
+                    className="rounded-xl p-4 space-y-3"
+                    style={{
+                      background: "oklch(0.18 0.04 220)",
+                      border: "1px solid oklch(0.25 0.05 195)",
+                    }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Upload
+                        size={15}
+                        style={{ color: "oklch(0.77 0.13 85)" }}
+                      />
+                      <span
+                        className="font-semibold text-sm"
+                        style={{ color: "oklch(0.92 0.04 80)" }}
+                      >
+                        Restaurer depuis une sauvegarde
+                      </span>
+                    </div>
+                    <p
+                      className="text-xs"
+                      style={{ color: "oklch(0.60 0.03 220)" }}
+                    >
+                      Importez un fichier{" "}
+                      <code
+                        className="px-1 rounded"
+                        style={{ background: "oklch(0.25 0.04 220)" }}
+                      >
+                        .kkbackup
+                      </code>{" "}
+                      pour restaurer votre wallet sur cet appareil.
+                    </p>
+                    <label
+                      className="flex items-center justify-center gap-2 w-full py-2 rounded-lg text-sm font-semibold cursor-pointer transition-colors"
+                      style={{
+                        background: "oklch(0.35 0.09 85 / 0.25)",
+                        border: "1px dashed oklch(0.77 0.13 85 / 0.5)",
+                        color: "oklch(0.77 0.13 85)",
+                      }}
+                      data-ocid="wallet.dropzone"
+                    >
+                      <Upload size={13} />📂 Choisir un fichier .kkbackup
+                      <input
+                        type="file"
+                        accept=".kkbackup"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) importBackup(file);
+                        }}
+                        data-ocid="wallet.upload_button"
+                      />
+                    </label>
+                    {restoring && (
+                      <p
+                        className="text-xs text-center"
+                        style={{ color: "oklch(0.65 0.03 220)" }}
+                      >
+                        Restauration en cours...
+                      </p>
+                    )}
+                    {restoreSuccess && (
+                      <div
+                        className="flex items-center gap-2 text-xs rounded-lg px-3 py-2"
+                        style={{
+                          background: "oklch(0.35 0.10 160 / 0.2)",
+                          color: "oklch(0.60 0.15 160)",
+                        }}
+                        data-ocid="wallet.success_state"
+                      >
+                        <CheckCircle size={12} />
+                        Wallet restauré ! Verrouillez puis déverrouillez avec
+                        votre phrase secrète.
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Social Recovery Tab */}
+              {activeTab === "social" && (
+                <motion.div
+                  key="social"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="space-y-4"
+                >
+                  {/* Setup guardians & generate shares */}
+                  <div
+                    className="rounded-xl p-4 space-y-3"
+                    style={{
+                      background: "oklch(0.18 0.04 220)",
+                      border: "1px solid oklch(0.25 0.05 195)",
+                    }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <UserCheck
+                        size={15}
+                        style={{ color: "oklch(0.52 0.12 160)" }}
+                      />
+                      <span
+                        className="font-semibold text-sm"
+                        style={{ color: "oklch(0.92 0.04 80)" }}
+                      >
+                        Configurer des gardiens ({guardians.length} personnes de
+                        confiance)
+                      </span>
+                    </div>
+                    <p
+                      className="text-xs"
+                      style={{ color: "oklch(0.60 0.03 220)" }}
+                    >
+                      Votre phrase secrète sera divisée en {guardians.length}{" "}
+                      parts. Chaque gardien reçoit une part. Toutes les parts
+                      sont nécessaires pour reconstruire votre wallet.
+                    </p>
+
+                    {/* Guardian list */}
+                    <div className="space-y-2">
+                      {guardians.map((g, i) => (
+                        <div key={g.id} className="grid grid-cols-2 gap-2">
+                          <Input
+                            placeholder={`Gardien ${i + 1} — Nom`}
+                            value={g.name}
+                            onChange={(e) => {
+                              const updated = [...guardians];
+                              updated[i] = {
+                                ...updated[i],
+                                name: e.target.value,
+                              };
+                              setGuardians(updated);
+                            }}
+                            style={inputStyle}
+                            data-ocid="wallet.input"
+                          />
+                          <Input
+                            placeholder="Tél / Email"
+                            value={g.contact}
+                            onChange={(e) => {
+                              const updated = [...guardians];
+                              updated[i] = {
+                                ...updated[i],
+                                contact: e.target.value,
+                              };
+                              setGuardians(updated);
+                            }}
+                            style={inputStyle}
+                            data-ocid="wallet.input"
+                          />
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex gap-2">
+                      {guardians.length < 5 && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs"
+                          style={{
+                            borderColor: "oklch(0.30 0.06 195)",
+                            color: "oklch(0.65 0.03 220)",
+                          }}
+                          onClick={() =>
+                            setGuardians([
+                              ...guardians,
+                              { id: `g${Date.now()}`, name: "", contact: "" },
+                            ])
+                          }
+                        >
+                          + Ajouter un gardien
+                        </Button>
+                      )}
+                      {guardians.length > 2 && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs"
+                          style={{
+                            borderColor: "oklch(0.30 0.06 195)",
+                            color: "oklch(0.65 0.03 220)",
+                          }}
+                          onClick={() => setGuardians(guardians.slice(0, -1))}
+                        >
+                          − Retirer
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Seed phrase input */}
+                    <div className="space-y-1">
+                      <Label
+                        className="text-xs"
+                        style={{ color: "oklch(0.65 0.03 220)" }}
+                      >
+                        Votre phrase secrète (12 ou 24 mots) pour générer les
+                        parts
+                      </Label>
+                      <Textarea
+                        placeholder="mot1 mot2 mot3 ... mot12"
+                        value={seedInput}
+                        onChange={(e) => setSeedInput(e.target.value)}
+                        rows={3}
+                        className="font-mono text-xs resize-none"
+                        style={inputStyle}
+                        data-ocid="wallet.textarea"
+                      />
+                    </div>
+
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      style={{
+                        background: "oklch(0.52 0.12 160)",
+                        color: "white",
+                      }}
+                      onClick={generateShares}
+                      data-ocid="wallet.primary_button"
+                    >
+                      <Users size={13} className="mr-2" />
+                      Générer les parts de récupération
+                    </Button>
+                  </div>
+
+                  {/* Show generated shares */}
+                  {sharesGenerated && shares.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="rounded-xl p-4 space-y-3"
+                      style={{
+                        background: "oklch(0.18 0.04 220)",
+                        border: "1px solid oklch(0.52 0.12 160 / 0.4)",
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <CheckCircle
+                          size={14}
+                          style={{ color: "oklch(0.52 0.12 160)" }}
+                        />
+                        <span
+                          className="font-semibold text-sm"
+                          style={{ color: "oklch(0.92 0.04 80)" }}
+                        >
+                          Parts générées — Envoyez chaque part à son gardien
+                        </span>
+                      </div>
+                      {shares.map((share, i) => (
+                        // biome-ignore lint/suspicious/noArrayIndexKey: share position is meaningful
+                        <div key={`share-${i}`} className="space-y-1">
+                          <Label
+                            className="text-xs"
+                            style={{ color: "oklch(0.65 0.03 220)" }}
+                          >
+                            Part {i + 1} →{" "}
+                            {guardians[i]?.name || `Gardien ${i + 1}`}
+                          </Label>
+                          <div className="flex gap-2">
+                            <code
+                              className="flex-1 rounded-lg px-3 py-2 text-xs font-mono break-all"
+                              style={{
+                                background: "oklch(0.15 0.03 220)",
+                                color: "oklch(0.77 0.13 85)",
+                                border: "1px solid oklch(0.25 0.05 195)",
+                              }}
+                            >
+                              {share.slice(0, 40)}…
+                            </code>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              style={{
+                                borderColor: "oklch(0.30 0.06 195)",
+                                color: "oklch(0.65 0.03 220)",
+                              }}
+                              onClick={() => {
+                                navigator.clipboard.writeText(share);
+                                toast.success(`Part ${i + 1} copiée !`);
+                              }}
+                              data-ocid="wallet.button"
+                            >
+                              <Copy size={12} />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                      <p
+                        className="text-xs"
+                        style={{ color: "oklch(0.55 0.03 220)" }}
+                      >
+                        ⚠️ Effacez votre phrase secrète du champ ci-dessus après
+                        avoir envoyé les parts.
+                      </p>
+                    </motion.div>
+                  )}
+
+                  {/* Reconstruction */}
+                  <div
+                    className="rounded-xl p-4 space-y-3"
+                    style={{
+                      background: "oklch(0.18 0.04 220)",
+                      border: "1px solid oklch(0.25 0.05 195)",
+                    }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <KeyRound
+                        size={15}
+                        style={{ color: "oklch(0.77 0.13 85)" }}
+                      />
+                      <span
+                        className="font-semibold text-sm"
+                        style={{ color: "oklch(0.92 0.04 80)" }}
+                      >
+                        Reconstruire depuis les parts
+                      </span>
+                    </div>
+                    <p
+                      className="text-xs"
+                      style={{ color: "oklch(0.60 0.03 220)" }}
+                    >
+                      Collez toutes les parts reçues de vos gardiens pour
+                      retrouver votre phrase secrète.
+                    </p>
+                    {reconstructInputs.map((val, i) => (
+                      // biome-ignore lint/suspicious/noArrayIndexKey: position is meaningful
+                      <div key={`recon-${i}`} className="space-y-1">
+                        <Label
+                          className="text-xs"
+                          style={{ color: "oklch(0.65 0.03 220)" }}
+                        >
+                          Part {i + 1}
+                        </Label>
+                        <Textarea
+                          placeholder={`Collez la part ${i + 1} ici`}
+                          value={val}
+                          onChange={(e) => {
+                            const updated = [...reconstructInputs];
+                            updated[i] = e.target.value;
+                            setReconstructInputs(updated);
+                          }}
+                          rows={2}
+                          className="font-mono text-xs resize-none"
+                          style={inputStyle}
+                          data-ocid="wallet.textarea"
+                        />
+                      </div>
+                    ))}
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs"
+                        style={{
+                          borderColor: "oklch(0.30 0.06 195)",
+                          color: "oklch(0.65 0.03 220)",
+                        }}
+                        onClick={() =>
+                          setReconstructInputs([...reconstructInputs, ""])
+                        }
+                      >
+                        + Ajouter une part
+                      </Button>
+                      {reconstructInputs.length > 2 && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs"
+                          style={{
+                            borderColor: "oklch(0.30 0.06 195)",
+                            color: "oklch(0.65 0.03 220)",
+                          }}
+                          onClick={() =>
+                            setReconstructInputs(reconstructInputs.slice(0, -1))
+                          }
+                        >
+                          − Retirer
+                        </Button>
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      style={{
+                        background: "oklch(0.35 0.09 85)",
+                        color: "oklch(0.92 0.04 80)",
+                      }}
+                      onClick={reconstruct}
+                      data-ocid="wallet.submit_button"
+                    >
+                      <KeyRound size={13} className="mr-2" />
+                      Reconstruire la phrase secrète
+                    </Button>
+                    {reconstructError && (
+                      <div
+                        className="flex items-center gap-2 text-xs rounded-lg px-3 py-2"
+                        style={{
+                          background: "oklch(0.35 0.15 25 / 0.2)",
+                          color: "oklch(0.65 0.15 25)",
+                        }}
+                        data-ocid="wallet.error_state"
+                      >
+                        <X size={12} />
+                        Reconstruction échouée. Vérifiez que toutes les parts
+                        sont correctes.
+                      </div>
+                    )}
+                    {reconstructed && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="rounded-lg p-3 space-y-2"
+                        style={{
+                          background: "oklch(0.35 0.10 160 / 0.15)",
+                          border: "1px solid oklch(0.52 0.12 160 / 0.4)",
+                        }}
+                        data-ocid="wallet.success_state"
+                      >
+                        <div
+                          className="flex items-center gap-2 text-xs font-semibold"
+                          style={{ color: "oklch(0.60 0.15 160)" }}
+                        >
+                          <CheckCircle size={13} />
+                          Phrase secrète reconstruite avec succès !
+                        </div>
+                        <code
+                          className="block text-xs font-mono break-all rounded-lg p-2"
+                          style={{
+                            background: "oklch(0.15 0.03 220)",
+                            color: "oklch(0.77 0.13 85)",
+                          }}
+                        >
+                          {reconstructed}
+                        </code>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full"
+                          style={{
+                            borderColor: "oklch(0.52 0.12 160 / 0.5)",
+                            color: "oklch(0.60 0.15 160)",
+                          }}
+                          onClick={() => {
+                            navigator.clipboard.writeText(reconstructed);
+                            toast.success("Phrase secrète copiée !");
+                          }}
+                          data-ocid="wallet.button"
+                        >
+                          <Copy size={12} className="mr-1" />
+                          Copier la phrase
+                        </Button>
+                      </motion.div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 

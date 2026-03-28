@@ -1,39 +1,30 @@
-# KongoKash — Smart Escrow P2P Contract
+# KongoKash — Anti-Fraude Actif
 
 ## Current State
-P2P module exists in P2PSection.tsx with full lifecycle: createOffer, acceptOffer, confirmPaymentSent, confirmPaymentReceived, openDispute, resolveDispute. Backend has all corresponding Motoko functions. The escrow locking mechanic exists but UX doesn't clearly visualize the locking event when seller creates an offer or when buyer accepts.
-
-Missing:
-- No auto-release timer (seller funds locked indefinitely if buyer never pays)
-- Payment instructions (phone/account) not shown to buyer after locking
-- Seller's own offers visible in the market list (confusing)
-- No countdown timer on locked trades
-- No buyer escape hatch if seller goes silent
+KongoKash has basic anti-fraud measures: proof of receipt hashing, P2P state machine, proof of payment with SHA-256, multi-level verification (auto/AI/manual). No active fraud detection for multi-accounts, suspicious patterns, or IP tracking.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Escrow lock animation/visual when seller creates offer (funds locked badge with lock icon)
-- Countdown timer (30 min) displayed on locked trades for buyer to confirm payment
-- Payment instructions panel shown to buyer inside the trade card (seller's payment method contact info)
-- Auto-cancel logic on frontend: show "Délai dépassé" badge when 30min window expired
-- "Annuler le trade" button for buyer/seller when payment window expires (calls cancelP2POffer)
-- Filter own offers from OffresDisponiblesTab so sellers don't see their own offers
-- Escrow status diagram in AcceptOfferDialog showing the 3-step flow: Offre créée → Fonds verrouillés → Paiement confirmé → Libération
+- **Device Fingerprint** module: generates a persistent fingerprint per device (screen, timezone, userAgent, canvas, webGL, fonts) and stores it in IndexedDB
+- **Multi-account detection**: when a new user connects, compare their fingerprint against all known fingerprints — flag if same device has multiple accounts
+- **Suspicious pattern detection**: track repetitive behaviors (multiple failed P2P trades, repeated dispute openings, rapid successive reservations with cancellations)
+- **IP tracking simulation**: record and flag suspicious IP activity (multiple accounts from same IP)
+- **Sanctions system**: 3 levels — Blocage immédiat (immediate block), Gel temporaire (temporary freeze, configurable duration), Blacklist globale (global blacklist)
+- **Admin Anti-Fraude dashboard tab**: view flagged accounts, apply/lift sanctions, view fraud logs
+- **User-facing block**: blocked users see a clear message explaining their status and appeal process
+- **Fraud score**: each user gets a live fraud score (0–100), updated automatically based on behavior
 
 ### Modify
-- CreateOfferDialog: add confirmation message showing "Vos fonds seront verrouillés immédiatement dans le smart contract" before submit
-- AcceptOfferDialog: show escrow flow diagram before confirm button
-- TradeCard: enhance escrow timeline with lock icon, timer, and payment instructions section
-- OffresDisponiblesTab: filter out caller's own offers
+- Admin Dashboard: add "Anti-Fraude 🛡️" tab with fraud alerts, user sanctions, and audit log
+- User authentication flow: check fraud status on login, block access if sanctioned
 
 ### Remove
-- Nothing
+- Nothing removed
 
 ## Implementation Plan
-1. Add escrow flow diagram component (3 steps with icons)
-2. Add countdown timer hook using trade `createdAt` + 30min window
-3. Show payment instructions (paymentMethod + simulated contact) in locked trade card
-4. Add lock confirmation in CreateOfferDialog
-5. Filter own offers in OffresDisponiblesTab
-6. Add expired timer badge and cancel button
+1. Create `fraudDetection.ts` utility: device fingerprint generation, pattern analysis, fraud score calculation
+2. Add fraud state to backend mock (user fraud scores, sanctions, blacklist)
+3. Add Anti-Fraude tab in AdminDashboard with flagged users, sanction controls, and audit log
+4. Integrate fraud check on user actions (P2P, reservations, login)
+5. Add blocked user UI state with appeal message

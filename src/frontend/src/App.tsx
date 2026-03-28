@@ -1,5 +1,6 @@
 import { Toaster } from "@/components/ui/sonner";
 import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import AdminDashboard from "./components/AdminDashboard";
 import BanquesSection from "./components/BanquesSection";
 import BuySellSection from "./components/BuySellSection";
@@ -16,6 +17,7 @@ import VisionSection from "./components/VisionSection";
 import { useActor } from "./hooks/useActor";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
 import { ReservationNotifProvider } from "./hooks/useReservationNotifications";
+import { checkUserSanction, runAutoDetection } from "./utils/fraudDetection";
 
 export default function App() {
   const { identity } = useInternetIdentity();
@@ -33,6 +35,18 @@ export default function App() {
     enabled: !!actor && !isFetching && !!identity,
   });
 
+  const userId = identity?.getPrincipal().toString();
+  const [appealOpen, setAppealOpen] = useState(false);
+  const [appealMsg, setAppealMsg] = useState("");
+
+  useEffect(() => {
+    if (userId) {
+      runAutoDetection(userId);
+    }
+  }, [userId]);
+
+  const sanction = userId ? checkUserSanction(userId) : { blocked: false };
+
   const scrollToSection = (id: string) => {
     const el = document.getElementById(id);
     if (el) {
@@ -47,6 +61,83 @@ export default function App() {
         <FirstAdminSetup />
         <Toaster richColors position="top-right" />
       </ReservationNotifProvider>
+    );
+  }
+
+  if (sanction.blocked) {
+    const typeLabels: Record<string, string> = {
+      BLOCAGE_IMMEDIAT: "Blocage immédiat",
+      GEL_TEMPORAIRE: "Gel temporaire",
+      BLACKLIST_GLOBALE: "Blacklist globale",
+    };
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6">
+        <div className="max-w-md w-full rounded-2xl border border-red-500/30 bg-slate-900 p-8 text-center space-y-5">
+          <div className="text-5xl">🚫</div>
+          <h1 className="text-2xl font-bold text-red-400">Accès suspendu</h1>
+          <p className="text-slate-400">{sanction.message}</p>
+          {sanction.type && (
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-900/30 border border-red-500/30 text-red-300 text-sm font-medium">
+              Type : {typeLabels[sanction.type] ?? sanction.type}
+            </div>
+          )}
+          {sanction.expiry && (
+            <p className="text-amber-400 text-sm">
+              ❄️ Levée prévue le{" "}
+              {sanction.expiry.toLocaleString("fr-CD", {
+                day: "2-digit",
+                month: "long",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </p>
+          )}
+          <p className="text-slate-500 text-sm">
+            Contact :{" "}
+            <a
+              href="mailto:support@kongokash.cd"
+              className="text-teal-400 underline"
+            >
+              support@kongokash.cd
+            </a>
+          </p>
+          {!appealOpen ? (
+            <button
+              type="button"
+              onClick={() => setAppealOpen(true)}
+              className="mt-2 px-5 py-2 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-sm font-medium transition-colors"
+              data-ocid="fraud.primary_button"
+            >
+              Faire appel
+            </button>
+          ) : (
+            <div className="space-y-3 text-left">
+              <textarea
+                value={appealMsg}
+                onChange={(e) => setAppealMsg(e.target.value)}
+                placeholder="Expliquez votre situation..."
+                rows={3}
+                className="w-full bg-slate-800 border border-slate-600 rounded-lg p-3 text-white text-sm placeholder:text-slate-500 resize-none"
+                data-ocid="fraud.textarea"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setAppealMsg("");
+                  setAppealOpen(false);
+                  alert("Votre appel a été envoyé à l'équipe de support.");
+                }}
+                disabled={appealMsg.trim().length < 10}
+                className="w-full py-2 rounded-lg bg-teal-700 hover:bg-teal-600 disabled:opacity-40 text-white text-sm font-medium transition-colors"
+                data-ocid="fraud.submit_button"
+              >
+                Envoyer l'appel
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
     );
   }
 

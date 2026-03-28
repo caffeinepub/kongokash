@@ -69,6 +69,8 @@ import {
   useSetNetworkFee,
   useUpdateExternalTransferStatus,
 } from "../hooks/useQueries";
+import { getActiveAlertsCount } from "../utils/fraudDetection";
+import AntiFraudDashboard from "./AntiFraudDashboard";
 import { EscrowDisputeTab } from "./EscrowPaymentInfo";
 import { UrgencesInstitutionnellesTab } from "./InstitutionalMultiSigWallet";
 import { AdminP2PTab } from "./P2PSection";
@@ -1113,6 +1115,11 @@ export default function AdminDashboard() {
                 label: "Retraits 💸",
                 icon: <ArrowDownLeft size={14} />,
               },
+              {
+                value: "antifraud",
+                label: "Anti-Fraude 🛡️",
+                icon: <Shield size={14} />,
+              },
             ].map((tab) => (
               <TabsTrigger
                 key={tab.value}
@@ -1122,6 +1129,11 @@ export default function AdminDashboard() {
               >
                 {tab.icon}
                 <span className="hidden sm:inline">{tab.label}</span>
+                {tab.value === "antifraud" && getActiveAlertsCount() > 0 && (
+                  <span className="ml-0.5 inline-flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold w-4 h-4">
+                    {getActiveAlertsCount()}
+                  </span>
+                )}
               </TabsTrigger>
             ))}
           </TabsList>
@@ -2352,6 +2364,11 @@ export default function AdminDashboard() {
           {/* ── Tab P2P ─────────────────────────────────────────────────────── */}
           <TabsContent value="p2p" data-ocid="admin.p2p.panel">
             <AdminP2PTab />
+          </TabsContent>
+
+          {/* ── Tab Anti-Fraude ──────────────────────────────────────────────── */}
+          <TabsContent value="antifraud" data-ocid="admin.antifraud.panel">
+            <AntiFraudDashboard />
           </TabsContent>
         </Tabs>
       </div>

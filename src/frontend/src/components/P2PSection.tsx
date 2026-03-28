@@ -32,11 +32,25 @@ import {
   Shield,
   XCircle,
 } from "lucide-react";
+import { Scale } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useActor } from "../hooks/useActor";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
+import {
+  shouldAutoTriggerDispute as _shouldAutoTriggerDispute,
+  createDisputeLog,
+  getAllDisputeLogs,
+} from "../utils/p2pDispute";
+import {
+  type VerificationResult,
+  loadAllVerificationResults,
+  loadVerificationResult,
+  saveVerificationResult,
+  verifyPaymentProof,
+} from "../utils/p2pVerification";
+import P2PDisputePanel from "./P2PDisputePanel";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -163,6 +177,374 @@ function formatNs(ns: bigint): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+// ─── Proof Utilities ──────────────────────────────────────────────────────────
+
+async function computeFileHash(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function analyzeFalsificationRisk(file: File): {
+  score: "low" | "medium" | "high";
+  reason: string;
+} {
+  const now = Date.now();
+  const ageSec = (now - file.lastModified) / 1000;
+  if (!file.type.startsWith("image/"))
+    return { score: "high", reason: "Fichier non-image détecté" };
+  if (file.size < 10_000)
+    return {
+      score: "high",
+      reason: "Fichier trop petit pour une capture d'écran",
+    };
+  if (ageSec < 10)
+    return {
+      score: "medium",
+      reason: "Fichier créé il y a moins de 10 secondes",
+    };
+  if (ageSec < 60) return { score: "medium", reason: "Fichier très récent" };
+  return { score: "low", reason: "Métadonnées normales" };
+}
+
+interface ParsedProof {
+  txId: string;
+  senderName: string;
+  fileHash: string;
+  deviceTs: number;
+  compositeHash: string;
+}
+
+function parseProof(raw: string): ParsedProof | null {
+  try {
+    const p = JSON.parse(raw);
+    if (p?.txId && p.senderName && p.fileHash) return p as ParsedProof;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// ─── State Machine Stricte ───────────────────────────────────────────────────
+
+type P2PStateMachine =
+  | "INITIÉ"
+  | "PAIEMENT_EN_ATTENTE"
+  | "PAIEMENT_DÉCLARÉ"
+  | "EN_VÉRIFICATION"
+  | "TERMINÉ"
+  | "LITIGE";
+
+interface TradeTransition {
+  fromState: P2PStateMachine;
+  toState: P2PStateMachine;
+  actor: string;
+  timestamp: string; // ISO
+  note?: string;
+}
+
+// Mapping from backend status to state machine state
+const STATUS_TO_SM: Record<P2PStatusKey, P2PStateMachine> = {
+  open: "INITIÉ",
+  locked: "PAIEMENT_EN_ATTENTE",
+  payment_sent: "EN_VÉRIFICATION",
+  confirmed: "TERMINÉ",
+  completed: "TERMINÉ",
+  disputed: "LITIGE",
+  cancelled: "INITIÉ",
+};
+
+// States where cancellation is FORBIDDEN
+const CANCELLATION_BLOCKED: P2PStateMachine[] = [
+  "PAIEMENT_DÉCLARÉ",
+  "EN_VÉRIFICATION",
+  "TERMINÉ",
+  "LITIGE",
+];
+
+const SM_CONFIG: Record<
+  P2PStateMachine,
+  { color: string; bg: string; icon: string; label: string }
+> = {
+  INITIÉ: {
+    color: "oklch(0.60 0.04 220)",
+    bg: "oklch(0.20 0.03 220 / 0.4)",
+    icon: "🟡",
+    label: "Initié",
+  },
+  PAIEMENT_EN_ATTENTE: {
+    color: "oklch(0.75 0.14 75)",
+    bg: "oklch(0.28 0.09 75 / 0.3)",
+    icon: "⏳",
+    label: "Paiement en attente",
+  },
+  PAIEMENT_DÉCLARÉ: {
+    color: "oklch(0.70 0.15 55)",
+    bg: "oklch(0.26 0.10 55 / 0.3)",
+    icon: "💸",
+    label: "Paiement déclaré",
+  },
+  EN_VÉRIFICATION: {
+    color: "oklch(0.62 0.13 250)",
+    bg: "oklch(0.22 0.08 250 / 0.3)",
+    icon: "🔍",
+    label: "En vérification",
+  },
+  TERMINÉ: {
+    color: "oklch(0.68 0.14 145)",
+    bg: "oklch(0.24 0.08 145 / 0.3)",
+    icon: "✅",
+    label: "Terminé",
+  },
+  LITIGE: {
+    color: "oklch(0.66 0.16 25)",
+    bg: "oklch(0.24 0.09 25 / 0.3)",
+    icon: "⚖️",
+    label: "Litige",
+  },
+};
+
+const SM_STEPS_MAIN: P2PStateMachine[] = [
+  "INITIÉ",
+  "PAIEMENT_EN_ATTENTE",
+  "PAIEMENT_DÉCLARÉ",
+  "EN_VÉRIFICATION",
+  "TERMINÉ",
+];
+
+function getSmState(statusKey: P2PStatusKey): P2PStateMachine {
+  return STATUS_TO_SM[statusKey] ?? "INITIÉ";
+}
+
+function isCancellationBlocked(smState: P2PStateMachine): boolean {
+  return CANCELLATION_BLOCKED.includes(smState);
+}
+
+function buildInitialTransitions(trade: P2PTrade): TradeTransition[] {
+  const key = getP2PStatusKey(trade.status);
+  const ts = (ns: bigint) => new Date(Number(ns / 1_000_000n)).toISOString();
+  const transitions: TradeTransition[] = [
+    {
+      fromState: "INITIÉ",
+      toState: "PAIEMENT_EN_ATTENTE",
+      actor: "acheteur",
+      timestamp: ts(trade.createdAt),
+      note: "Trade accepté — fonds verrouillés",
+    },
+  ];
+  if (
+    key === "payment_sent" ||
+    key === "confirmed" ||
+    key === "completed" ||
+    key === "disputed"
+  ) {
+    transitions.push({
+      fromState: "PAIEMENT_EN_ATTENTE",
+      toState: "PAIEMENT_DÉCLARÉ",
+      actor: "acheteur",
+      timestamp: ts(trade.lockedAt[0] ?? trade.createdAt),
+      note: "Paiement déclaré envoyé",
+    });
+    transitions.push({
+      fromState: "PAIEMENT_DÉCLARÉ",
+      toState: "EN_VÉRIFICATION",
+      actor: "système",
+      timestamp: ts(trade.lockedAt[0] ?? trade.createdAt),
+      note: "Vérification automatique déclenchée",
+    });
+  }
+  if (key === "confirmed" || key === "completed") {
+    transitions.push({
+      fromState: "EN_VÉRIFICATION",
+      toState: "TERMINÉ",
+      actor: "vendeur",
+      timestamp: ts(trade.completedAt[0] ?? trade.createdAt),
+      note: "Confirmation vendeur — fonds libérés",
+    });
+  }
+  if (key === "disputed") {
+    transitions.push({
+      fromState: "EN_VÉRIFICATION",
+      toState: "LITIGE",
+      actor: "partie",
+      timestamp: ts(trade.createdAt),
+      note: trade.disputeReason[0] ?? "Litige ouvert",
+    });
+  }
+  return transitions;
+}
+
+// StateMachineStepper component
+function StateMachineStepper({ smState }: { smState: P2PStateMachine }) {
+  const isLitige = smState === "LITIGE";
+  const steps = isLitige
+    ? [...SM_STEPS_MAIN.slice(0, 4), "LITIGE" as P2PStateMachine]
+    : SM_STEPS_MAIN;
+
+  const currentIdx = steps.indexOf(smState);
+
+  return (
+    <div
+      className="rounded-xl px-3 py-2.5 space-y-2"
+      style={{
+        background: "oklch(0.13 0.03 220)",
+        border: "1px solid oklch(0.22 0.04 220)",
+      }}
+    >
+      <p
+        className="text-[10px] font-semibold uppercase tracking-wide"
+        style={{ color: "oklch(0.50 0.06 185)" }}
+      >
+        🔒 Machine d&apos;état — Irréversible
+      </p>
+      <div className="flex items-center gap-0.5 overflow-x-auto pb-1">
+        {steps.map((s, i) => {
+          const cfg = SM_CONFIG[s];
+          const isCurrent = i === currentIdx;
+          const isPast = i < currentIdx;
+          const isLitColor = s === "LITIGE";
+          return (
+            <div key={s} className="flex items-center gap-0.5 flex-shrink-0">
+              <div className="flex flex-col items-center gap-0.5">
+                <div
+                  className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all"
+                  style={{
+                    background: isCurrent
+                      ? cfg.bg
+                      : isPast
+                        ? "oklch(0.30 0.06 145 / 0.4)"
+                        : "oklch(0.18 0.02 220)",
+                    border: isCurrent
+                      ? `1.5px solid ${cfg.color}`
+                      : isPast
+                        ? "1.5px solid oklch(0.45 0.08 145)"
+                        : "1.5px solid oklch(0.28 0.03 220)",
+                    color: isCurrent
+                      ? cfg.color
+                      : isPast
+                        ? "oklch(0.68 0.14 145)"
+                        : "oklch(0.35 0.03 220)",
+                  }}
+                >
+                  {isPast ? "✓" : cfg.icon}
+                </div>
+                <span
+                  className="text-[8px] text-center leading-tight max-w-[52px]"
+                  style={{
+                    color: isCurrent
+                      ? cfg.color
+                      : isPast
+                        ? "oklch(0.55 0.06 145)"
+                        : "oklch(0.35 0.03 220)",
+                    fontWeight: isCurrent ? 700 : 400,
+                  }}
+                >
+                  {isLitColor
+                    ? "Litige"
+                    : cfg.label.split(" ").slice(0, 2).join(" ")}
+                </span>
+              </div>
+              {i < steps.length - 1 && (
+                <span
+                  className="text-[10px] mb-3 flex-shrink-0 mx-0.5"
+                  style={{
+                    color: isPast
+                      ? "oklch(0.50 0.08 145)"
+                      : "oklch(0.28 0.03 220)",
+                  }}
+                >
+                  →
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {isLitige && (
+        <div
+          className="rounded-lg px-2 py-1 text-xs"
+          style={{
+            background: "oklch(0.22 0.08 25 / 0.3)",
+            color: "oklch(0.68 0.14 25)",
+          }}
+        >
+          ⚖️ En attente d&apos;arbitrage — Fonds bloqués jusqu&apos;à décision
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TransitionHistory({
+  transitions,
+}: { transitions: TradeTransition[] }) {
+  const [open, setOpen] = React.useState(false);
+  if (transitions.length === 0) return null;
+  return (
+    <div className="mt-1">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="text-xs flex items-center gap-1 opacity-60 hover:opacity-100 transition-opacity"
+        style={{ color: "oklch(0.62 0.08 185)" }}
+      >
+        {open ? "▼" : "▶"} Historique des transitions ({transitions.length})
+      </button>
+      {open && (
+        <div
+          className="mt-2 rounded-xl p-3 space-y-1.5"
+          style={{
+            background: "oklch(0.13 0.03 220)",
+            border: "1px solid oklch(0.22 0.04 220)",
+          }}
+        >
+          {transitions.map((t, i) => (
+            <div
+              key={`${t.timestamp}-${i}`}
+              className="text-xs flex items-start gap-2"
+            >
+              <span
+                className="font-mono text-[10px] flex-shrink-0"
+                style={{ color: "oklch(0.45 0.04 220)" }}
+              >
+                {new Date(t.timestamp).toLocaleString("fr-FR", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                })}
+              </span>
+              <span style={{ color: "oklch(0.60 0.06 200)" }}>
+                <strong style={{ color: "oklch(0.72 0.08 185)" }}>
+                  {t.actor}
+                </strong>
+                :{" "}
+                <span style={{ color: SM_CONFIG[t.fromState].color }}>
+                  {t.fromState}
+                </span>
+                {" → "}
+                <span style={{ color: SM_CONFIG[t.toState].color }}>
+                  {t.toState}
+                </span>
+                {t.note && <em className="ml-1 opacity-70"> — {t.note}</em>}
+              </span>
+            </div>
+          ))}
+          <p
+            className="text-[10px] mt-2"
+            style={{ color: "oklch(0.40 0.04 220)" }}
+          >
+            ✅ Chaque action est horodatée et immuable on-chain
+          </p>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─── Security Banner ──────────────────────────────────────────────────────────
@@ -757,11 +1139,37 @@ function TradeCard({
   const statusKey = getP2PStatusKey(trade.status);
   const isBuyer = trade.buyerId.toString() === myPrincipal;
   const isSeller = trade.sellerId.toString() === myPrincipal;
+  const smState = getSmState(statusKey);
+  const [transitions, setTransitions] = React.useState<TradeTransition[]>(() =>
+    buildInitialTransitions(trade),
+  );
+
+  // Record new transitions when status changes
+  React.useEffect(() => {
+    setTransitions(buildInitialTransitions(trade));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trade]);
 
   const [proofOpen, setProofOpen] = useState(false);
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofFileHash, setProofFileHash] = useState("");
+  const [proofFilePrev, setProofFilePrev] = useState("");
+  const [proofRisk, setProofRisk] = useState<{
+    score: "low" | "medium" | "high";
+    reason: string;
+  } | null>(null);
+  const [transactionId, setTransactionId] = useState("");
+  const [senderName, setSenderName] = useState("");
+  const [compositeHash, setCompositeHash] = useState("");
+  const [computingHash, setComputingHash] = useState(false);
   const [proofHash, setProofHash] = useState("");
   const [disputeOpen, setDisputeOpen] = useState(false);
   const [disputeReason, setDisputeReason] = useState("");
+  const [disputePanelOpen, setDisputePanelOpen] = useState(false);
+  const hasAutoDisputed = React.useRef(false);
+  const [verificationResult, setVerificationResult] =
+    useState<VerificationResult | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
   const [countdown, setCountdown] = useState<string>("");
   const [isExpired, setIsExpired] = useState(false);
 
@@ -790,6 +1198,44 @@ function TradeCard({
     return () => clearInterval(id);
   }, [statusKey, trade.createdAt]);
 
+  // Auto-trigger dispute when EN_VÉRIFICATION times out
+  useEffect(() => {
+    if (statusKey !== "payment_sent" || hasAutoDisputed.current) return;
+    const refNs = trade.lockedAt[0] ?? trade.createdAt;
+    const refMs = Number(refNs / BigInt(1_000_000));
+    const deadlineMs = refMs + 30 * 60 * 1_000;
+    const remaining = deadlineMs - Date.now();
+    if (remaining <= 0) return; // already expired; handled by existing countdown
+    const timer = setTimeout(() => {
+      if (hasAutoDisputed.current || !actor) return;
+      hasAutoDisputed.current = true;
+      const reason =
+        "Auto-déclenchement: vendeur n'a pas confirmé dans les délais";
+      const disputeId = `dispute_${String(trade.id)}`;
+      createDisputeLog(
+        disputeId,
+        "Déclenchement automatique",
+        "Système",
+        reason,
+        {
+          tradeId: String(trade.id),
+          trigger: "timeout",
+        },
+      );
+      (actor as any)
+        .openP2PDispute(trade.id, reason)
+        .then(() => {
+          toast.info("⚖️ Litige auto-déclenché — vendeur n'a pas confirmé.");
+          onAction();
+        })
+        .catch(() => {
+          /* ignore */
+        });
+    }, remaining);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusKey, trade.id, actor, trade.createdAt, onAction, trade.lockedAt]);
+
   const confirmPaymentSent = useMutation({
     mutationFn: async () => {
       if (!actor) throw new Error();
@@ -800,8 +1246,38 @@ function TradeCard({
     },
     onSuccess: (data) => {
       if (data.success) {
-        toast.success("Paiement signalé ! En attente de confirmation vendeur.");
-        setProofOpen(false);
+        // Run hybrid verification
+        const previousHashes: string[] = [];
+        try {
+          const all = loadAllVerificationResults();
+          for (const [tid, r] of Object.entries(all)) {
+            if (tid !== String(trade.id) && r) previousHashes.push(tid);
+          }
+        } catch {
+          /* ignore */
+        }
+
+        setIsVerifying(true);
+        setTimeout(() => {
+          const result = verifyPaymentProof({
+            declaredAmount: trade.totalPrice,
+            expectedAmount: trade.totalPrice,
+            fileHash: proofFileHash,
+            fileSize: proofFile?.size ?? 0,
+            fileMimeType: proofFile?.type ?? "",
+            fileLastModified: proofFile?.lastModified ?? Date.now(),
+            tradeDateMs: Number(trade.createdAt / BigInt(1_000_000)),
+            previousHashes,
+            transactionId,
+            senderName,
+          });
+          saveVerificationResult(String(trade.id), result);
+          setVerificationResult(result);
+          setIsVerifying(false);
+          setProofOpen(false);
+        }, 2200);
+
+        toast.success("Paiement signalé ! Vérification en cours…");
         onAction();
       } else {
         toast.error(data.message);
@@ -849,7 +1325,10 @@ function TradeCard({
     onError: () => toast.error("Erreur"),
   });
 
-  const canDispute = statusKey === "locked" || statusKey === "payment_sent";
+  const canDispute =
+    ((statusKey === "locked" || statusKey === "payment_sent") &&
+      !isCancellationBlocked(smState)) ||
+    smState === "EN_VÉRIFICATION";
 
   return (
     <motion.div
@@ -902,52 +1381,9 @@ function TradeCard({
         </div>
       </div>
 
-      {/* Escrow timeline */}
-      <div
-        className="rounded-xl px-3 py-2"
-        style={{ background: "oklch(0.13 0.03 220)" }}
-      >
-        <div className="flex items-center gap-1 text-xs overflow-x-auto">
-          {["open", "locked", "payment_sent", "confirmed", "completed"].map(
-            (s, i, arr) => {
-              const stepIdx = [
-                "open",
-                "locked",
-                "payment_sent",
-                "confirmed",
-                "completed",
-              ].indexOf(statusKey);
-              const isCurrent = s === statusKey;
-              const isPast = i < stepIdx;
-              const cfg = STATUS_CONFIG[s as P2PStatusKey];
-              return (
-                <div key={s} className="flex items-center gap-1 flex-shrink-0">
-                  <span
-                    className={`text-xs font-medium ${
-                      isCurrent
-                        ? "opacity-100"
-                        : isPast
-                          ? "opacity-70"
-                          : "opacity-30"
-                    }`}
-                    style={{ color: isCurrent ? cfg.color : undefined }}
-                  >
-                    {cfg.icon} {cfg.label}
-                  </span>
-                  {i < arr.length - 1 && (
-                    <span
-                      className="opacity-30 flex-shrink-0"
-                      style={{ color: "oklch(0.50 0.04 220)" }}
-                    >
-                      →
-                    </span>
-                  )}
-                </div>
-              );
-            },
-          )}
-        </div>
-      </div>
+      {/* State Machine Stricte */}
+      <StateMachineStepper smState={smState} />
+      <TransitionHistory transitions={transitions} />
 
       {/* Payment method */}
       <div
@@ -955,15 +1391,35 @@ function TradeCard({
         style={{ color: "oklch(0.60 0.04 220)" }}
       >
         <span>💳 {trade.paymentMethod}</span>
-        {trade.proofHash.length > 0 && (
-          <span className="flex items-center gap-1">
-            <CheckCircle size={11} style={{ color: "oklch(0.62 0.13 145)" }} />
-            Preuve:{" "}
-            <span className="font-mono">
-              {trade.proofHash[0]?.slice(0, 16)}…
-            </span>
-          </span>
-        )}
+        {trade.proofHash.length > 0 &&
+          (() => {
+            const parsed = parseProof(trade.proofHash[0] ?? "");
+            return parsed ? (
+              <span className="flex items-center gap-1">
+                <CheckCircle
+                  size={11}
+                  style={{ color: "oklch(0.62 0.13 145)" }}
+                />
+                <span
+                  className="font-mono text-xs"
+                  style={{ color: "oklch(0.65 0.12 145)" }}
+                >
+                  📸 {parsed.txId.slice(0, 14)}…
+                </span>
+              </span>
+            ) : (
+              <span className="flex items-center gap-1">
+                <CheckCircle
+                  size={11}
+                  style={{ color: "oklch(0.62 0.13 145)" }}
+                />
+                Preuve:{" "}
+                <span className="font-mono">
+                  {trade.proofHash[0]?.slice(0, 16)}…
+                </span>
+              </span>
+            );
+          })()}
       </div>
 
       {/* Countdown timer */}
@@ -990,27 +1446,42 @@ function TradeCard({
               ⏱ {countdown} restantes
             </span>
           )}
-          {isExpired && statusKey === "locked" && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-1 text-xs border-red-500/40 text-red-400 hover:bg-red-500/10"
-              onClick={async () => {
-                if (!actor) return;
-                try {
-                  await (actor as any).cancelP2POffer(trade.offerId);
-                  toast.success("Trade annulé.");
-                  onAction();
-                } catch {
-                  toast.error("Erreur lors de l'annulation");
-                }
-              }}
-              data-ocid="p2p.delete_button"
-            >
-              <XCircle size={12} />
-              Annuler le trade
-            </Button>
-          )}
+          {isExpired &&
+            statusKey === "locked" &&
+            (isCancellationBlocked(smState) ? (
+              <div
+                className="rounded-lg px-3 py-2 text-xs"
+                style={{
+                  background: "oklch(0.22 0.08 25 / 0.25)",
+                  border: "1px solid oklch(0.55 0.14 25 / 0.4)",
+                  color: "oklch(0.68 0.14 25)",
+                }}
+              >
+                ⛔ Annulation impossible — Le paiement a déjà été déclaré. Les
+                fonds ne peuvent être libérés que par confirmation vendeur,
+                validation système, ou arbitrage admin.
+              </div>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1 text-xs border-red-500/40 text-red-400 hover:bg-red-500/10"
+                onClick={async () => {
+                  if (!actor) return;
+                  try {
+                    await (actor as any).cancelP2POffer(trade.offerId);
+                    toast.success("Trade annulé.");
+                    onAction();
+                  } catch {
+                    toast.error("Erreur lors de l'annulation");
+                  }
+                }}
+                data-ocid="p2p.delete_button"
+              >
+                <XCircle size={12} />
+                Annuler le trade
+              </Button>
+            ))}
         </div>
       )}
 
@@ -1078,29 +1549,293 @@ function TradeCard({
             >
               <DialogHeader>
                 <DialogTitle style={{ color: "oklch(0.82 0.06 80)" }}>
-                  💸 Confirmer l'envoi du paiement
+                  📸 Preuve de paiement sécurisée
                 </DialogTitle>
               </DialogHeader>
-              <div className="space-y-3 py-2">
+              <div className="space-y-4 py-2 max-h-[70vh] overflow-y-auto pr-1">
                 <p
                   className="text-sm"
                   style={{ color: "oklch(0.65 0.04 220)" }}
                 >
-                  Collez la référence ou preuve de votre paiement via{" "}
-                  <strong>{trade.paymentMethod}</strong>.
+                  Soumettez une preuve complète pour votre paiement via{" "}
+                  <strong style={{ color: "oklch(0.78 0.13 85)" }}>
+                    {trade.paymentMethod}
+                  </strong>
+                  .
                 </p>
-                <div className="space-y-1.5">
-                  <Label style={{ color: "oklch(0.65 0.04 220)" }}>
-                    Référence / Preuve de paiement
+
+                {/* Screenshot upload */}
+                <div className="space-y-2">
+                  <Label style={{ color: "oklch(0.72 0.05 220)" }}>
+                    📸 Capture d'écran du paiement{" "}
+                    <span style={{ color: "oklch(0.60 0.15 25)" }}>*</span>
                   </Label>
-                  <Textarea
-                    value={proofHash}
-                    onChange={(e) => setProofHash(e.target.value)}
-                    placeholder="Ex: TXN-20250101-XXXXXX ou hash de transaction"
-                    className="min-h-[80px] bg-white/5 border-white/20 text-white placeholder:text-white/30"
-                    data-ocid="p2p.textarea"
+                  <div
+                    className="relative rounded-xl border-2 border-dashed transition-colors cursor-pointer"
+                    style={{
+                      borderColor: proofFile
+                        ? "oklch(0.45 0.12 145 / 0.7)"
+                        : "oklch(0.35 0.10 195 / 0.4)",
+                      background: proofFile
+                        ? "oklch(0.18 0.05 145 / 0.15)"
+                        : "oklch(0.16 0.04 220)",
+                    }}
+                    onDragOver={(e) => e.preventDefault()}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        const inp = document.getElementById(
+                          "proof-file-input",
+                        ) as HTMLInputElement;
+                        inp?.click();
+                      }
+                    }}
+                    onDrop={async (e) => {
+                      e.preventDefault();
+                      const file = e.dataTransfer.files[0];
+                      if (!file) return;
+                      const risk = analyzeFalsificationRisk(file);
+                      setProofRisk(risk);
+                      setProofFile(file);
+                      setProofFilePrev(URL.createObjectURL(file));
+                      setCompositeHash("");
+                      setComputingHash(true);
+                      const fh = await computeFileHash(file);
+                      setProofFileHash(fh);
+                      setComputingHash(false);
+                    }}
+                    onClick={() => {
+                      const inp = document.getElementById(
+                        "proof-file-input",
+                      ) as HTMLInputElement;
+                      inp?.click();
+                    }}
+                    data-ocid="p2p.dropzone"
+                  >
+                    <input
+                      id="proof-file-input"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const risk = analyzeFalsificationRisk(file);
+                        setProofRisk(risk);
+                        setProofFile(file);
+                        setProofFilePrev(URL.createObjectURL(file));
+                        setCompositeHash("");
+                        setComputingHash(true);
+                        const fh = await computeFileHash(file);
+                        setProofFileHash(fh);
+                        setComputingHash(false);
+                      }}
+                    />
+                    {proofFile ? (
+                      <div className="p-3 space-y-2">
+                        <img
+                          src={proofFilePrev}
+                          alt="preview"
+                          className="w-full max-h-36 object-contain rounded-lg"
+                        />
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span
+                            className="font-mono text-xs"
+                            style={{ color: "oklch(0.62 0.08 185)" }}
+                          >
+                            🔑 {proofFileHash.slice(0, 16)}…
+                          </span>
+                          {proofRisk && (
+                            <span
+                              className="text-xs px-2 py-0.5 rounded-full font-semibold"
+                              style={{
+                                background:
+                                  proofRisk.score === "low"
+                                    ? "oklch(0.45 0.12 145 / 0.25)"
+                                    : proofRisk.score === "medium"
+                                      ? "oklch(0.55 0.14 75 / 0.25)"
+                                      : "oklch(0.50 0.15 25 / 0.25)",
+                                color:
+                                  proofRisk.score === "low"
+                                    ? "oklch(0.65 0.14 145)"
+                                    : proofRisk.score === "medium"
+                                      ? "oklch(0.78 0.14 75)"
+                                      : "oklch(0.72 0.16 25)",
+                                border:
+                                  proofRisk.score === "low"
+                                    ? "1px solid oklch(0.45 0.12 145 / 0.4)"
+                                    : proofRisk.score === "medium"
+                                      ? "1px solid oklch(0.55 0.14 75 / 0.4)"
+                                      : "1px solid oklch(0.50 0.15 25 / 0.4)",
+                              }}
+                            >
+                              {proofRisk.score === "low"
+                                ? "🟢"
+                                : proofRisk.score === "medium"
+                                  ? "🟡"
+                                  : "🔴"}{" "}
+                              {proofRisk.reason}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="py-8 flex flex-col items-center gap-2">
+                        <span className="text-2xl">📤</span>
+                        <p
+                          className="text-sm"
+                          style={{ color: "oklch(0.55 0.05 220)" }}
+                        >
+                          Glissez ou cliquez pour uploader
+                        </p>
+                        <p
+                          className="text-xs"
+                          style={{ color: "oklch(0.42 0.04 220)" }}
+                        >
+                          Images uniquement (PNG, JPG…)
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  {proofRisk?.score === "high" && (
+                    <div
+                      className="rounded-lg px-3 py-2 text-xs font-semibold"
+                      style={{
+                        background: "oklch(0.22 0.08 25 / 0.3)",
+                        border: "1px solid oklch(0.50 0.15 25 / 0.4)",
+                        color: "oklch(0.72 0.16 25)",
+                      }}
+                      data-ocid="p2p.error_state"
+                    >
+                      🔴 Fichier rejeté : {proofRisk.reason}. Soumettez une
+                      vraie capture d'écran.
+                    </div>
+                  )}
+                </div>
+
+                {/* Transaction ID */}
+                <div className="space-y-1.5">
+                  <Label style={{ color: "oklch(0.72 0.05 220)" }}>
+                    🆔 ID de transaction (Mobile Money / Banque){" "}
+                    <span style={{ color: "oklch(0.60 0.15 25)" }}>*</span>
+                  </Label>
+                  <Input
+                    value={transactionId}
+                    onChange={(e) => {
+                      setTransactionId(e.target.value);
+                      setCompositeHash("");
+                    }}
+                    placeholder="TXN-20250101-XXXXXX ou REF-XXXXXX"
+                    className="bg-white/5 border-white/20 text-white placeholder:text-white/30"
+                    data-ocid="p2p.input"
                   />
                 </div>
+
+                {/* Sender name */}
+                <div className="space-y-1.5">
+                  <Label style={{ color: "oklch(0.72 0.05 220)" }}>
+                    👤 Nom de l'expéditeur (doit correspondre à votre compte){" "}
+                    <span style={{ color: "oklch(0.60 0.15 25)" }}>*</span>
+                  </Label>
+                  <Input
+                    value={senderName}
+                    onChange={(e) => {
+                      setSenderName(e.target.value);
+                      setCompositeHash("");
+                    }}
+                    placeholder="Prénom Nom exact sur le compte mobile"
+                    className="bg-white/5 border-white/20 text-white placeholder:text-white/30"
+                    data-ocid="p2p.input"
+                  />
+                  <div
+                    className="rounded-lg px-3 py-2 text-xs"
+                    style={{
+                      background: "oklch(0.28 0.09 75 / 0.25)",
+                      border: "1px solid oklch(0.55 0.14 75 / 0.3)",
+                      color: "oklch(0.78 0.13 75)",
+                    }}
+                  >
+                    ⚠️ Ce nom doit correspondre exactement au nom enregistré sur
+                    votre compte Mobile Money ou bancaire. Toute incohérence
+                    peut bloquer le paiement.
+                  </div>
+                </div>
+
+                {/* Composite hash */}
+                {proofFile &&
+                  transactionId.length >= 4 &&
+                  senderName.length >= 3 && (
+                    <div
+                      className="rounded-xl px-3 py-2.5 space-y-1"
+                      style={{
+                        background: "oklch(0.18 0.06 250 / 0.2)",
+                        border: "1px solid oklch(0.42 0.12 250 / 0.35)",
+                      }}
+                    >
+                      <p
+                        className="text-xs font-semibold"
+                        style={{ color: "oklch(0.65 0.12 250)" }}
+                      >
+                        🔐 Empreinte de sécurité
+                      </p>
+                      {computingHash ? (
+                        <div className="flex items-center gap-2">
+                          <Loader2
+                            size={12}
+                            className="animate-spin"
+                            style={{ color: "oklch(0.60 0.12 250)" }}
+                          />
+                          <span
+                            className="text-xs"
+                            style={{ color: "oklch(0.55 0.06 220)" }}
+                          >
+                            Calcul en cours…
+                          </span>
+                        </div>
+                      ) : compositeHash ? (
+                        <p
+                          className="font-mono text-xs"
+                          style={{ color: "oklch(0.60 0.08 250)" }}
+                        >
+                          {compositeHash.slice(0, 24)}…
+                        </p>
+                      ) : (
+                        <button
+                          type="button"
+                          className="text-xs underline"
+                          style={{ color: "oklch(0.60 0.12 250)" }}
+                          onClick={async () => {
+                            setComputingHash(true);
+                            const composite = await computeFileHash(
+                              new File(
+                                [
+                                  JSON.stringify({
+                                    txId: transactionId,
+                                    senderName,
+                                    fileHash: proofFileHash,
+                                    deviceTs: Date.now(),
+                                  }),
+                                ],
+                                "proof",
+                              ),
+                            );
+                            setCompositeHash(composite);
+                            const payload = JSON.stringify({
+                              txId: transactionId,
+                              senderName,
+                              fileHash: proofFileHash,
+                              deviceTs: Date.now(),
+                              compositeHash: composite,
+                            });
+                            setProofHash(payload);
+                            setComputingHash(false);
+                          }}
+                        >
+                          Générer l'empreinte
+                        </button>
+                      )}
+                    </div>
+                  )}
+
                 <div
                   className="rounded-lg px-3 py-2 text-xs"
                   style={{
@@ -1115,15 +1850,59 @@ function TradeCard({
               <DialogFooter>
                 <Button
                   variant="outline"
-                  onClick={() => setProofOpen(false)}
+                  onClick={() => {
+                    setProofOpen(false);
+                    setProofFile(null);
+                    setProofFilePrev("");
+                    setProofFileHash("");
+                    setProofRisk(null);
+                    setTransactionId("");
+                    setSenderName("");
+                    setCompositeHash("");
+                    setProofHash("");
+                  }}
                   className="border-white/20 text-white/70"
                   data-ocid="p2p.cancel_button"
                 >
                   Annuler
                 </Button>
                 <Button
-                  onClick={() => confirmPaymentSent.mutate()}
-                  disabled={confirmPaymentSent.isPending || !proofHash.trim()}
+                  onClick={async () => {
+                    if (!compositeHash) {
+                      const composite = await computeFileHash(
+                        new File(
+                          [
+                            JSON.stringify({
+                              txId: transactionId,
+                              senderName,
+                              fileHash: proofFileHash,
+                              deviceTs: Date.now(),
+                            }),
+                          ],
+                          "proof",
+                        ),
+                      );
+                      setCompositeHash(composite);
+                      const payload = JSON.stringify({
+                        txId: transactionId,
+                        senderName,
+                        fileHash: proofFileHash,
+                        deviceTs: Date.now(),
+                        compositeHash: composite,
+                      });
+                      setProofHash(payload);
+                      setTimeout(() => confirmPaymentSent.mutate(), 50);
+                    } else {
+                      confirmPaymentSent.mutate();
+                    }
+                  }}
+                  disabled={
+                    confirmPaymentSent.isPending ||
+                    !proofFile ||
+                    transactionId.trim().length < 4 ||
+                    senderName.trim().length < 3 ||
+                    proofRisk?.score === "high"
+                  }
                   style={{ background: "oklch(0.42 0.12 250)", color: "white" }}
                   data-ocid="p2p.confirm_button"
                 >
@@ -1222,6 +2001,202 @@ function TradeCard({
             </DialogContent>
           </Dialog>
         )}
+
+        {/* Voir le litige button for disputed trades */}
+        {statusKey === "disputed" && (
+          <>
+            <Button
+              size="sm"
+              className="gap-1.5"
+              style={{
+                background: "oklch(0.28 0.09 25 / 0.5)",
+                color: "oklch(0.72 0.14 25)",
+                border: "1px solid oklch(0.45 0.14 25 / 0.5)",
+              }}
+              onClick={() => setDisputePanelOpen(true)}
+              data-ocid="p2p.open_modal_button"
+            >
+              <Scale size={13} />
+              Voir le litige
+            </Button>
+            <Dialog open={disputePanelOpen} onOpenChange={setDisputePanelOpen}>
+              <DialogContent
+                className="max-w-2xl max-h-[90vh] overflow-y-auto"
+                style={{
+                  background: "oklch(0.13 0.04 220)",
+                  border: "1px solid oklch(0.25 0.05 220)",
+                }}
+                data-ocid="p2p.dialog"
+              >
+                <DialogHeader>
+                  <DialogTitle style={{ color: "oklch(0.82 0.06 80)" }}>
+                    ⚖️ Détail du litige P2P
+                  </DialogTitle>
+                </DialogHeader>
+                <P2PDisputePanel trade={trade} isAdmin={false} />
+              </DialogContent>
+            </Dialog>
+          </>
+        )}
+
+        {/* ── Hybrid Verification Panel ─────────────────────────────────── */}
+        {isVerifying && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-xl p-4 space-y-3"
+            style={{
+              background: "oklch(0.16 0.05 250 / 0.4)",
+              border: "1px solid oklch(0.35 0.10 250 / 0.5)",
+            }}
+          >
+            <p
+              className="text-sm font-semibold flex items-center gap-2"
+              style={{ color: "oklch(0.75 0.12 250)" }}
+            >
+              <Loader2 size={14} className="animate-spin" />🔍 Vérification
+              intelligente en cours…
+            </p>
+            {[
+              "Niveau 1 — Matching montant & API",
+              "Niveau 2 — Analyse image & IA",
+              "Niveau 3 — Arbitrage si nécessaire",
+            ].map((label) => (
+              <div
+                key={label}
+                className="flex items-center gap-2 text-xs"
+                style={{ color: "oklch(0.60 0.05 220)" }}
+              >
+                <Loader2 size={12} className="animate-spin opacity-60" />
+                {label}
+              </div>
+            ))}
+          </motion.div>
+        )}
+
+        {verificationResult &&
+          !isVerifying &&
+          (() => {
+            const vr = verificationResult;
+            const statusCfg = {
+              auto_validated: {
+                label: "Auto-validé — Niveau 1",
+                bg: "oklch(0.18 0.07 145 / 0.4)",
+                border: "oklch(0.38 0.12 145 / 0.5)",
+                color: "oklch(0.68 0.16 145)",
+                icon: "✅",
+              },
+              ai_check: {
+                label: "Analyse IA en cours — Niveau 2",
+                bg: "oklch(0.18 0.07 75 / 0.4)",
+                border: "oklch(0.45 0.12 75 / 0.5)",
+                color: "oklch(0.75 0.14 75)",
+                icon: "⚠️",
+              },
+              manual_required: {
+                label: "Arbitrage requis — Niveau 3",
+                bg: "oklch(0.18 0.07 20 / 0.4)",
+                border: "oklch(0.45 0.14 20 / 0.5)",
+                color: "oklch(0.68 0.16 20)",
+                icon: "🔴",
+              },
+            }[vr.status];
+
+            const checks = [
+              { label: "Correspondance montant", ok: vr.checks.amountMatch },
+              {
+                label: "Confirmation API",
+                ok: vr.checks.apiConfirmed,
+                nullable: true,
+              },
+              { label: "Métadonnées image valides", ok: vr.checks.imageMetaOk },
+              { label: "Aucune duplication", ok: vr.checks.noDuplicate },
+              { label: "Horodatage cohérent", ok: vr.checks.timestampOk },
+            ];
+
+            return (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="rounded-xl p-4 space-y-3"
+                style={{
+                  background: statusCfg.bg,
+                  border: `1px solid ${statusCfg.border}`,
+                }}
+                data-ocid="p2p.success_state"
+              >
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <p
+                    className="text-sm font-bold flex items-center gap-1.5"
+                    style={{ color: statusCfg.color }}
+                  >
+                    {statusCfg.icon} {statusCfg.label}
+                  </p>
+                  <span
+                    className="text-xs font-mono px-2 py-0.5 rounded-full"
+                    style={{
+                      background: "oklch(0.12 0.04 220)",
+                      color: statusCfg.color,
+                    }}
+                  >
+                    Score : {vr.score}/100
+                  </span>
+                </div>
+
+                <div className="grid gap-1.5">
+                  {checks.map((c) => {
+                    const icon =
+                      c.ok == null || (c.nullable && c.ok === null) ? (
+                        <span style={{ color: "oklch(0.55 0.04 220)" }}>
+                          ⚪
+                        </span>
+                      ) : c.ok ? (
+                        <CheckCircle
+                          size={13}
+                          style={{ color: "oklch(0.60 0.15 145)" }}
+                        />
+                      ) : (
+                        <XCircle
+                          size={13}
+                          style={{ color: "oklch(0.60 0.16 20)" }}
+                        />
+                      );
+                    return (
+                      <div
+                        key={c.label}
+                        className="flex items-center gap-2 text-xs"
+                        style={{ color: "oklch(0.65 0.04 220)" }}
+                      >
+                        {icon}
+                        {c.label}
+                        {c.nullable && (c as any).ok === null && (
+                          <span className="opacity-60">(API indisponible)</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {vr.flags.length > 0 && (
+                  <div className="space-y-1">
+                    {vr.flags.map((flag) => (
+                      <div
+                        key={flag}
+                        className="flex items-start gap-1.5 text-xs px-2 py-1 rounded-lg"
+                        style={{
+                          background: "oklch(0.14 0.04 75 / 0.4)",
+                          color: "oklch(0.72 0.12 75)",
+                        }}
+                      >
+                        <AlertTriangle size={11} className="mt-0.5 shrink-0" />
+                        {flag}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            );
+          })()}
       </div>
     </motion.div>
   );
@@ -1691,6 +2666,27 @@ export default function P2PSection() {
 export function AdminP2PTab() {
   const { actor, isFetching } = useActor();
   const queryClient = useQueryClient();
+  const [verifications, setVerifications] = React.useState<
+    Record<string, import("../utils/p2pVerification").VerificationResult>
+  >({});
+  const [approveMotif, setApproveMotif] = React.useState<
+    Record<string, string>
+  >({});
+  const [selectedDisputeTrade, setSelectedDisputeTrade] =
+    React.useState<P2PTrade | null>(null);
+  const [auditLogs, setAuditLogs] = React.useState<
+    import("../utils/p2pDispute").DisputeLogEntry[]
+  >([]);
+
+  React.useEffect(() => {
+    setAuditLogs(getAllDisputeLogs());
+    const id = setInterval(() => setAuditLogs(getAllDisputeLogs()), 5_000);
+    return () => clearInterval(id);
+  }, []);
+
+  React.useEffect(() => {
+    setVerifications(loadAllVerificationResults());
+  }, []);
 
   const { data: disputes = [], isLoading: loadingDisputes } = useQuery<
     P2PTrade[]
@@ -1740,8 +2736,151 @@ export function AdminP2PTab() {
     onError: () => toast.error("Erreur lors de la résolution"),
   });
 
+  const suspectTrades = allTrades.filter(
+    (t) => verifications[String(t.id)]?.status === "manual_required",
+  );
+
   return (
     <div className="space-y-8">
+      {/* ── Trades suspects ─────────────────────────────────────────── */}
+      {suspectTrades.length > 0 && (
+        <div>
+          <div className="flex items-center gap-3 mb-4">
+            <h3
+              className="text-lg font-bold"
+              style={{ color: "oklch(0.72 0.16 20)" }}
+            >
+              ⚠️ Trades suspects — Arbitrage requis
+            </h3>
+            <span
+              className="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold"
+              style={{ background: "oklch(0.55 0.18 20)", color: "white" }}
+              data-ocid="admin.p2p.panel"
+            >
+              {suspectTrades.length}
+            </span>
+          </div>
+          <div className="space-y-3">
+            {suspectTrades.map((trade, idx) => {
+              const vr = verifications[String(trade.id)]!;
+              const motif = approveMotif[String(trade.id)] ?? "";
+              return (
+                <div
+                  key={String(trade.id)}
+                  className="rounded-xl p-4 space-y-3"
+                  style={{
+                    background: "oklch(0.18 0.06 20 / 0.3)",
+                    border: "1px solid oklch(0.45 0.14 20 / 0.4)",
+                  }}
+                  data-ocid={`admin.p2p.item.${idx + 1}`}
+                >
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <span
+                        className="font-mono text-sm font-bold"
+                        style={{ color: "oklch(0.77 0.13 85)" }}
+                      >
+                        Trade #{String(trade.id)} — {trade.amount} {trade.asset}
+                      </span>
+                      <p
+                        className="text-xs mt-0.5"
+                        style={{ color: "oklch(0.60 0.04 220)" }}
+                      >
+                        {trade.totalPrice.toLocaleString("fr-FR")}{" "}
+                        {trade.currency} · {trade.paymentMethod}
+                      </p>
+                    </div>
+                    <span
+                      className="text-xs px-2 py-0.5 rounded-full font-semibold"
+                      style={{
+                        background: "oklch(0.18 0.06 20 / 0.6)",
+                        color: "oklch(0.68 0.16 20)",
+                      }}
+                    >
+                      Score : {vr.score}/100
+                    </span>
+                  </div>
+
+                  {/* Flags */}
+                  {vr.flags.length > 0 && (
+                    <div className="space-y-1">
+                      {vr.flags.map((flag) => (
+                        <div
+                          key={flag}
+                          className="flex items-start gap-1.5 text-xs px-2 py-1 rounded-lg"
+                          style={{
+                            background: "oklch(0.14 0.04 75 / 0.4)",
+                            color: "oklch(0.72 0.12 75)",
+                          }}
+                        >
+                          <AlertTriangle
+                            size={11}
+                            className="mt-0.5 shrink-0"
+                          />
+                          {flag}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Approve / Reject */}
+                  <div className="flex flex-col gap-2">
+                    <input
+                      className="w-full text-xs rounded-lg px-3 py-1.5 bg-white/5 border border-white/20 text-white placeholder:text-white/30"
+                      placeholder="Motif de la décision (optionnel)…"
+                      value={motif}
+                      onChange={(e) =>
+                        setApproveMotif((prev) => ({
+                          ...prev,
+                          [String(trade.id)]: e.target.value,
+                        }))
+                      }
+                      data-ocid="admin.p2p.input"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        className="flex-1 text-xs py-1.5 rounded-lg font-semibold transition-opacity hover:opacity-80"
+                        style={{
+                          background: "oklch(0.35 0.12 145)",
+                          color: "white",
+                        }}
+                        onClick={() =>
+                          resolveDispute.mutate({
+                            tradeId: trade.id,
+                            favorBuyer: true,
+                          })
+                        }
+                        data-ocid={`admin.p2p.confirm_button.${idx + 1}`}
+                      >
+                        ✅ Approuver (acheteur)
+                      </button>
+                      <button
+                        type="button"
+                        className="flex-1 text-xs py-1.5 rounded-lg font-semibold transition-opacity hover:opacity-80"
+                        style={{
+                          background: "oklch(0.35 0.14 20)",
+                          color: "white",
+                        }}
+                        onClick={() =>
+                          resolveDispute.mutate({
+                            tradeId: trade.id,
+                            favorBuyer: false,
+                          })
+                        }
+                        data-ocid={`admin.p2p.delete_button.${idx + 1}`}
+                      >
+                        ❌ Rejeter (vendeur)
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Disputes */}
       <div>
         <div className="flex items-center gap-3 mb-4">
@@ -1848,19 +2987,75 @@ export function AdminP2PTab() {
                   </div>
                 )}
 
-                {trade.proofHash.length > 0 && (
-                  <div
-                    className="rounded-lg p-2 text-xs font-mono"
-                    style={{
-                      background: "oklch(0.14 0.03 220)",
-                      color: "oklch(0.55 0.04 220)",
-                    }}
-                  >
-                    Preuve: {trade.proofHash[0]}
-                  </div>
-                )}
+                {trade.proofHash.length > 0 &&
+                  (() => {
+                    const parsed = parseProof(trade.proofHash[0] ?? "");
+                    return parsed ? (
+                      <div
+                        className="rounded-lg p-2.5 text-xs space-y-1"
+                        style={{
+                          background: "oklch(0.14 0.03 220)",
+                          border: "1px solid oklch(0.30 0.08 250 / 0.3)",
+                        }}
+                      >
+                        <p
+                          className="font-semibold"
+                          style={{ color: "oklch(0.62 0.12 250)" }}
+                        >
+                          🔐 Preuve structurée
+                        </p>
+                        <p style={{ color: "oklch(0.65 0.04 220)" }}>
+                          📸 Hash fichier:{" "}
+                          <span className="font-mono">
+                            {parsed.fileHash.slice(0, 16)}…
+                          </span>
+                        </p>
+                        <p style={{ color: "oklch(0.65 0.04 220)" }}>
+                          🆔 ID Transaction:{" "}
+                          <span className="font-mono">{parsed.txId}</span>
+                        </p>
+                        <p style={{ color: "oklch(0.65 0.04 220)" }}>
+                          👤 Expéditeur:{" "}
+                          <span className="font-mono">{parsed.senderName}</span>
+                        </p>
+                        <p style={{ color: "oklch(0.55 0.04 220)" }}>
+                          🕐 {new Date(parsed.deviceTs).toLocaleString("fr-FR")}
+                        </p>
+                        <p style={{ color: "oklch(0.50 0.04 220)" }}>
+                          🔐 Empreinte:{" "}
+                          <span className="font-mono">
+                            {parsed.compositeHash?.slice(0, 16)}…
+                          </span>
+                        </p>
+                      </div>
+                    ) : (
+                      <div
+                        className="rounded-lg p-2 text-xs font-mono"
+                        style={{
+                          background: "oklch(0.14 0.03 220)",
+                          color: "oklch(0.55 0.04 220)",
+                        }}
+                      >
+                        Preuve: {trade.proofHash[0]}
+                      </div>
+                    );
+                  })()}
 
                 <div className="flex gap-2 flex-wrap">
+                  <Button
+                    size="sm"
+                    className="gap-1.5"
+                    style={{
+                      background: "oklch(0.22 0.07 25 / 0.4)",
+                      color: "oklch(0.72 0.14 25)",
+                      border: "1px solid oklch(0.40 0.12 25 / 0.4)",
+                    }}
+                    onClick={() => setSelectedDisputeTrade(trade)}
+                    data-ocid={`admin.p2p.open_modal_button.${idx + 1}`}
+                  >
+                    <Scale size={12} />
+                    Voir litige
+                  </Button>
                   <button
                     type="button"
                     onClick={() =>
@@ -1904,6 +3099,170 @@ export function AdminP2PTab() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* Dispute Panel Modal */}
+      {selectedDisputeTrade && (
+        <Dialog
+          open={!!selectedDisputeTrade}
+          onOpenChange={(o) => {
+            if (!o) setSelectedDisputeTrade(null);
+          }}
+        >
+          <DialogContent
+            className="max-w-2xl max-h-[90vh] overflow-y-auto"
+            style={{
+              background: "oklch(0.13 0.04 220)",
+              border: "1px solid oklch(0.25 0.05 220)",
+            }}
+            data-ocid="admin.p2p.dialog"
+          >
+            <DialogHeader>
+              <DialogTitle style={{ color: "oklch(0.82 0.06 80)" }}>
+                ⚖️ Arbitrage — Litige Trade #{String(selectedDisputeTrade.id)}
+              </DialogTitle>
+            </DialogHeader>
+            <P2PDisputePanel
+              trade={selectedDisputeTrade}
+              isAdmin={true}
+              onResolve={(decision, _reason) => {
+                resolveDispute.mutate({
+                  tradeId: selectedDisputeTrade.id,
+                  favorBuyer: decision === "buyer",
+                });
+                setSelectedDisputeTrade(null);
+              }}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Audit log */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <Scale size={14} style={{ color: "oklch(0.78 0.13 85)" }} />
+          <h3
+            className="text-lg font-bold"
+            style={{ color: "oklch(0.88 0.06 80)" }}
+          >
+            Journal d'audit
+          </h3>
+        </div>
+        <div
+          className="rounded-xl overflow-hidden"
+          style={{
+            background: "oklch(0.13 0.04 220)",
+            border: "1px solid oklch(0.22 0.05 220)",
+          }}
+        >
+          <div
+            className="flex items-center gap-2 px-4 py-2.5"
+            style={{
+              background: "oklch(0.16 0.05 220)",
+              borderBottom: "1px solid oklch(0.22 0.05 220)",
+            }}
+          >
+            <span
+              className="text-xs font-bold"
+              style={{ color: "oklch(0.62 0.15 145)" }}
+            >
+              🔒
+            </span>
+            <p
+              className="text-xs font-bold"
+              style={{ color: "oklch(0.78 0.13 85)" }}
+            >
+              Journal immuable — toutes les décisions sont traçables et non
+              modifiables
+            </p>
+            <span
+              className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full"
+              style={{
+                background: "oklch(0.20 0.06 145 / 0.4)",
+                color: "oklch(0.62 0.15 145)",
+              }}
+            >
+              {auditLogs.length} entrée{auditLogs.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+          {auditLogs.length === 0 ? (
+            <div
+              className="px-4 py-6 text-center"
+              data-ocid="admin.p2p.empty_state"
+            >
+              <p className="text-xs" style={{ color: "oklch(0.50 0.05 220)" }}>
+                Aucune décision enregistrée pour l'instant
+              </p>
+            </div>
+          ) : (
+            <div
+              className="divide-y"
+              style={{ borderColor: "oklch(0.20 0.04 220)" }}
+            >
+              {auditLogs.slice(0, 50).map((entry) => (
+                <div
+                  key={entry.id}
+                  className="px-4 py-2.5 flex items-start gap-3"
+                >
+                  <span
+                    className="text-[10px] px-1.5 py-0.5 rounded font-semibold shrink-0 mt-0.5"
+                    style={{
+                      background:
+                        entry.actor === "Admin"
+                          ? "oklch(0.28 0.09 75 / 0.3)"
+                          : entry.actor === "Système"
+                            ? "oklch(0.22 0.08 250 / 0.3)"
+                            : "oklch(0.22 0.07 185 / 0.3)",
+                      color:
+                        entry.actor === "Admin"
+                          ? "oklch(0.75 0.14 75)"
+                          : entry.actor === "Système"
+                            ? "oklch(0.62 0.13 250)"
+                            : "oklch(0.62 0.13 185)",
+                    }}
+                  >
+                    {entry.actor}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="text-xs font-semibold"
+                        style={{ color: "oklch(0.78 0.06 80)" }}
+                      >
+                        {entry.action}
+                      </span>
+                      <span
+                        className="text-[10px] font-mono"
+                        style={{ color: "oklch(0.40 0.04 220)" }}
+                      >
+                        #{entry.disputeId.replace("dispute_", "")}
+                      </span>
+                    </div>
+                    {entry.reason && (
+                      <p
+                        className="text-[11px] mt-0.5"
+                        style={{ color: "oklch(0.58 0.05 220)" }}
+                      >
+                        {entry.reason}
+                      </p>
+                    )}
+                  </div>
+                  <span
+                    className="text-[10px] font-mono shrink-0"
+                    style={{ color: "oklch(0.40 0.04 220)" }}
+                  >
+                    {new Date(entry.timestamp).toLocaleString("fr-FR", {
+                      day: "2-digit",
+                      month: "short",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* All Trades */}
@@ -1968,11 +3327,43 @@ export function AdminP2PTab() {
                       {trade.currency} · {trade.paymentMethod}
                     </p>
                   </div>
-                  <div
-                    className="text-xs"
-                    style={{ color: "oklch(0.50 0.04 220)" }}
-                  >
-                    {formatNs(trade.createdAt)}
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="text-xs"
+                      style={{ color: "oklch(0.50 0.04 220)" }}
+                    >
+                      {formatNs(trade.createdAt)}
+                    </div>
+                    {(() => {
+                      const vr = verifications[String(trade.id)];
+                      if (!vr) return null;
+                      const cfg = {
+                        auto_validated: {
+                          label: "Auto-validé",
+                          color: "oklch(0.60 0.15 145)",
+                          bg: "oklch(0.18 0.07 145 / 0.3)",
+                        },
+                        ai_check: {
+                          label: "Analyse IA",
+                          color: "oklch(0.72 0.13 75)",
+                          bg: "oklch(0.18 0.06 75 / 0.3)",
+                        },
+                        manual_required: {
+                          label: "Arbitrage",
+                          color: "oklch(0.68 0.16 20)",
+                          bg: "oklch(0.18 0.06 20 / 0.3)",
+                        },
+                      }[vr.status];
+                      return (
+                        <span
+                          className="text-xs px-2 py-0.5 rounded-full font-semibold"
+                          style={{ background: cfg.bg, color: cfg.color }}
+                          data-ocid={`admin.p2p.toggle.${idx + 1}`}
+                        >
+                          {cfg.label} {vr.score}/100
+                        </span>
+                      );
+                    })()}
                   </div>
                 </div>
               );

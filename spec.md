@@ -1,30 +1,31 @@
-# KongoKash — Anti-Fraude Actif
+# KongoKash
 
 ## Current State
-KongoKash has basic anti-fraud measures: proof of receipt hashing, P2P state machine, proof of payment with SHA-256, multi-level verification (auto/AI/manual). No active fraud detection for multi-accounts, suspicious patterns, or IP tracking.
+Le module P2P existe avec escrow, machine d'état stricte, preuve de paiement, vérification hybride, système de litige, anti-fraude, journalisation complète et Mobile Money. Il n'y a aucun moyen pour l'acheteur et le vendeur de communiquer directement dans une transaction.
 
 ## Requested Changes (Diff)
 
 ### Add
-- **Device Fingerprint** module: generates a persistent fingerprint per device (screen, timezone, userAgent, canvas, webGL, fonts) and stores it in IndexedDB
-- **Multi-account detection**: when a new user connects, compare their fingerprint against all known fingerprints — flag if same device has multiple accounts
-- **Suspicious pattern detection**: track repetitive behaviors (multiple failed P2P trades, repeated dispute openings, rapid successive reservations with cancellations)
-- **IP tracking simulation**: record and flag suspicious IP activity (multiple accounts from same IP)
-- **Sanctions system**: 3 levels — Blocage immédiat (immediate block), Gel temporaire (temporary freeze, configurable duration), Blacklist globale (global blacklist)
-- **Admin Anti-Fraude dashboard tab**: view flagged accounts, apply/lift sanctions, view fraud logs
-- **User-facing block**: blocked users see a clear message explaining their status and appeal process
-- **Fraud score**: each user gets a live fraud score (0–100), updated automatically based on behavior
+- Composant `P2PChat` : interface de chat intégrée dans chaque transaction P2P active
+- Messages horodatés avec identité de l'expéditeur (Acheteur / Vendeur / Système)
+- Chaque message est loggué dans le journal d'audit P2P existant (`p2pAuditLog.ts`) avec action `MESSAGE_ENVOYÉ`
+- Stockage des messages en mémoire par trade ID (Map locale)
+- Indicateur de nouveaux messages (badge) sur chaque trade actif
+- Messages système automatiques aux étapes clés (trade accepté, paiement déclaré, litige ouvert)
+- Côté admin : messages visibles dans le détail d'un trade litigieux
 
 ### Modify
-- Admin Dashboard: add "Anti-Fraude 🛡️" tab with fraud alerts, user sanctions, and audit log
-- User authentication flow: check fraud status on login, block access if sanctioned
+- Section P2P : ajouter un bouton/onglet "💬 Chat" sur chaque trade actif (états : PAIEMENT_EN_ATTENTE, PAIEMENT_DÉCLARÉ, EN_VÉRIFICATION, LITIGE)
+- Journal d'audit : afficher les messages du chat dans la timeline
+- Admin P2P litiges : afficher la conversation complète lors de l'arbitrage
 
 ### Remove
-- Nothing removed
+- Rien
 
 ## Implementation Plan
-1. Create `fraudDetection.ts` utility: device fingerprint generation, pattern analysis, fraud score calculation
-2. Add fraud state to backend mock (user fraud scores, sanctions, blacklist)
-3. Add Anti-Fraude tab in AdminDashboard with flagged users, sanction controls, and audit log
-4. Integrate fraud check on user actions (P2P, reservations, login)
-5. Add blocked user UI state with appeal message
+1. Créer un module `p2pChat.ts` : structure de données des messages, stockage par trade, fonctions send/get/clear
+2. Intégrer les messages système automatiques aux transitions d'état P2P existantes
+3. Créer le composant `P2PChat.tsx` : bulles de chat, champ de saisie, scroll automatique, distinction visuel acheteur/vendeur/système
+4. Injecter `P2PChat` dans la vue de chaque trade actif dans le composant P2P principal
+5. Logger chaque message envoyé dans `p2pAuditLog.ts`
+6. Afficher les messages dans l'onglet Admin Litiges pour faciliter l'arbitrage

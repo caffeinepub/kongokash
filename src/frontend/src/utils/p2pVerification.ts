@@ -211,3 +211,47 @@ export function loadAllVerificationResults(): Record<
   }
   return results;
 }
+
+// ── Auto-Release Log ──────────────────────────────────────────────────────────
+
+export type AutoReleaseCondition =
+  | "VENDEUR_CONFIRMÉ"
+  | "PREUVE_VALIDÉE_AUTO"
+  | "TIMEOUT_PREUVE_COHÉRENTE";
+
+export interface AutoReleaseEntry {
+  id: string;
+  tradeId: string;
+  amount: number;
+  asset: string;
+  condition: AutoReleaseCondition;
+  actor: string;
+  timestamp: string; // ISO
+  score?: number;
+}
+
+const AUTO_RELEASE_KEY = "kk_p2p_auto_releases";
+const MAX_ENTRIES = 50;
+
+export function saveAutoRelease(entry: AutoReleaseEntry): void {
+  try {
+    const existing = loadAutoReleases();
+    const updated = [entry, ...existing].slice(0, MAX_ENTRIES);
+    localStorage.setItem(AUTO_RELEASE_KEY, JSON.stringify(updated));
+  } catch {
+    // silent
+  }
+}
+
+export function loadAutoReleases(): AutoReleaseEntry[] {
+  try {
+    const raw = localStorage.getItem(AUTO_RELEASE_KEY);
+    return raw ? (JSON.parse(raw) as AutoReleaseEntry[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function getRecentAutoReleases(limit = 5): AutoReleaseEntry[] {
+  return loadAutoReleases().slice(0, limit);
+}

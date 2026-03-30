@@ -70,6 +70,7 @@ import {
   useUpdateExternalTransferStatus,
 } from "../hooks/useQueries";
 import { getActiveAlertsCount } from "../utils/fraudDetection";
+import { getAllAuditLogs } from "../utils/p2pAuditLog";
 import AntiFraudDashboard from "./AntiFraudDashboard";
 import { EscrowDisputeTab } from "./EscrowPaymentInfo";
 import { UrgencesInstitutionnellesTab } from "./InstitutionalMultiSigWallet";
@@ -740,6 +741,278 @@ function RetraitsAdminTab() {
   );
 }
 
+// ─── Admin Audit Tab ───────────────────────────────────────────────────────
+function AdminAuditTab() {
+  const [search, setSearch] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const allLogs = getAllAuditLogs();
+  const filtered = search.trim()
+    ? allLogs.filter(
+        (e) =>
+          e.tradeId.toLowerCase().includes(search.toLowerCase()) ||
+          e.actorPrincipal.toLowerCase().includes(search.toLowerCase()),
+      )
+    : allLogs;
+
+  const uniqueTrades = new Set(allLogs.map((e) => e.tradeId)).size;
+  const uniqueActors = new Set(allLogs.map((e) => e.actorPrincipal)).size;
+
+  const ACTION_LABELS: Record<string, string> = {
+    OFFRE_CRÉÉE: "Offre créée",
+    TRANSACTION_LANCÉE: "Transaction lancée",
+    OFFRE_ACCEPTÉE: "Offre acceptée",
+    PAIEMENT_DÉCLARÉ: "Paiement déclaré",
+    PREUVE_SOUMISE: "Preuve soumise",
+    VÉRIFICATION_NIVEAU_1: "Vérification auto",
+    VÉRIFICATION_NIVEAU_2: "Analyse IA",
+    VÉRIFICATION_NIVEAU_3: "Arbitrage",
+    PAIEMENT_CONFIRMÉ: "Paiement confirmé",
+    FONDS_LIBÉRÉS: "Fonds libérés",
+    LITIGE_OUVERT: "Litige ouvert",
+    LITIGE_RÉSOLU: "Litige résolu",
+    LIBÉRATION_AUTO: "Libération auto",
+    ANNULATION: "Annulation",
+  };
+
+  const ROLE_COLORS: Record<string, string> = {
+    Acheteur: "oklch(0.70 0.12 250)",
+    Vendeur: "oklch(0.65 0.14 145)",
+    Système: "oklch(0.60 0.04 220)",
+    Admin: "oklch(0.68 0.14 290)",
+  };
+
+  function formatTs(iso: string) {
+    const d = new Date(iso);
+    return d.toLocaleString("fr-CD", {
+      dateStyle: "short",
+      timeStyle: "medium",
+    });
+  }
+
+  function shortHash(h: string) {
+    return h.length > 16 ? `${h.slice(0, 8)}…${h.slice(-8)}` : h;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3
+          className="text-lg font-bold mb-1"
+          style={{ color: "oklch(0.88 0.05 80)" }}
+        >
+          Journal d'Audit Complet — Toutes les transactions P2P
+        </h3>
+        <p className="text-sm" style={{ color: "oklch(0.60 0.04 220)" }}>
+          Toutes les actions sont immuables, signées et horodatées.
+        </p>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: "Entrées totales", value: allLogs.length, icon: "📋" },
+          { label: "Trades uniques", value: uniqueTrades, icon: "🔄" },
+          { label: "Acteurs uniques", value: uniqueActors, icon: "👤" },
+        ].map((s) => (
+          <div
+            key={s.label}
+            className="rounded-xl p-3 text-center"
+            style={{
+              background: "oklch(0.16 0.04 220)",
+              border: "1px solid oklch(0.25 0.04 220)",
+            }}
+          >
+            <p className="text-xl">{s.icon}</p>
+            <p
+              className="text-2xl font-bold"
+              style={{ color: "oklch(0.75 0.08 185)" }}
+            >
+              {s.value}
+            </p>
+            <p className="text-xs" style={{ color: "oklch(0.55 0.04 220)" }}>
+              {s.label}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {/* Search */}
+      <input
+        type="text"
+        placeholder="Rechercher par Trade ID ou Principal…"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className="w-full px-3 py-2 rounded-lg text-sm"
+        style={{
+          background: "oklch(0.16 0.04 220)",
+          border: "1px solid oklch(0.28 0.05 220)",
+          color: "oklch(0.85 0.04 220)",
+          outline: "none",
+        }}
+        data-ocid="audit.search_input"
+      />
+
+      {/* Table */}
+      {filtered.length === 0 ? (
+        <div
+          className="rounded-xl p-8 text-center"
+          style={{
+            background: "oklch(0.14 0.04 220)",
+            border: "1px solid oklch(0.22 0.04 220)",
+          }}
+          data-ocid="audit.empty_state"
+        >
+          <p className="text-2xl mb-2">📋</p>
+          <p style={{ color: "oklch(0.55 0.04 220)" }} className="text-sm">
+            Aucune entrée d'audit
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map((entry, idx) => (
+            <div
+              key={entry.id}
+              className="rounded-xl p-3"
+              style={{
+                background: "oklch(0.15 0.04 220)",
+                border: "1px solid oklch(0.23 0.04 220)",
+              }}
+              data-ocid={`audit.item.${idx + 1}`}
+            >
+              <div className="flex items-start justify-between gap-2 flex-wrap">
+                <div className="space-y-0.5 flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span
+                      className="text-sm font-medium"
+                      style={{ color: "oklch(0.85 0.04 220)" }}
+                    >
+                      {ACTION_LABELS[entry.action] ?? entry.action}
+                    </span>
+                    <span
+                      className="text-xs px-1.5 py-0.5 rounded-full"
+                      style={{
+                        color:
+                          ROLE_COLORS[entry.actorRole] ??
+                          "oklch(0.60 0.04 220)",
+                      }}
+                    >
+                      {entry.actorRole}
+                    </span>
+                  </div>
+                  <div className="flex gap-3 flex-wrap">
+                    <span
+                      className="text-xs"
+                      style={{ color: "oklch(0.55 0.04 220)" }}
+                    >
+                      Trade #{entry.tradeId.slice(0, 12)}
+                    </span>
+                    <span
+                      className="text-xs"
+                      style={{ color: "oklch(0.48 0.05 185)" }}
+                    >
+                      {shortHash(entry.actorPrincipal)}
+                    </span>
+                    <span
+                      className="text-xs"
+                      style={{ color: "oklch(0.48 0.04 220)" }}
+                    >
+                      {formatTs(entry.timestamp)}
+                    </span>
+                  </div>
+                  <div
+                    className="text-xs font-mono"
+                    style={{ color: "oklch(0.42 0.06 185)" }}
+                  >
+                    #{shortHash(entry.entryHash)}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setExpandedId(expandedId === entry.id ? null : entry.id)
+                  }
+                  className="text-xs px-2 py-1 rounded-lg"
+                  style={{
+                    background: "oklch(0.20 0.05 185 / 0.5)",
+                    color: "oklch(0.65 0.10 185)",
+                  }}
+                  data-ocid="audit.secondary_button"
+                >
+                  {expandedId === entry.id ? "Réduire" : "Détails"}
+                </button>
+              </div>
+
+              {expandedId === entry.id && (
+                <div
+                  className="mt-2 rounded-lg p-3 text-xs font-mono space-y-1"
+                  style={{
+                    background: "oklch(0.12 0.03 220)",
+                    border: "1px solid oklch(0.20 0.04 220)",
+                  }}
+                >
+                  <div>
+                    <span style={{ color: "oklch(0.50 0.06 185)" }}>
+                      acteur:{" "}
+                    </span>
+                    <span style={{ color: "oklch(0.72 0.04 220)" }}>
+                      {entry.actorPrincipal}
+                    </span>
+                  </div>
+                  <div>
+                    <span style={{ color: "oklch(0.50 0.06 185)" }}>
+                      entryHash:{" "}
+                    </span>
+                    <span style={{ color: "oklch(0.62 0.10 185)" }}>
+                      {entry.entryHash}
+                    </span>
+                  </div>
+                  <div>
+                    <span style={{ color: "oklch(0.50 0.06 185)" }}>
+                      prevHash:{" "}
+                    </span>
+                    <span style={{ color: "oklch(0.50 0.08 185)" }}>
+                      {entry.prevHash}
+                    </span>
+                  </div>
+                  <div>
+                    <span style={{ color: "oklch(0.50 0.06 185)" }}>
+                      signature:{" "}
+                    </span>
+                    <span style={{ color: "oklch(0.58 0.10 75)" }}>
+                      {entry.signature}
+                    </span>
+                  </div>
+                  {Object.keys(entry.data).length > 0 && (
+                    <div>
+                      <span style={{ color: "oklch(0.50 0.06 185)" }}>
+                        données:{" "}
+                      </span>
+                      <pre
+                        className="mt-0.5 whitespace-pre-wrap break-all"
+                        style={{ color: "oklch(0.62 0.04 220)" }}
+                      >
+                        {JSON.stringify(entry.data, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <p
+        className="text-xs text-center py-2"
+        style={{ color: "oklch(0.40 0.05 185)" }}
+      >
+        🔒 Toutes les entrées sont immuables et vérifiables on-chain
+      </p>
+    </div>
+  );
+}
+
 export default function AdminDashboard() {
   const { actor, isFetching } = useActor();
   const queryClient = useQueryClient();
@@ -1109,6 +1382,11 @@ export default function AdminDashboard() {
                 value: "p2p",
                 label: "P2P 🔄",
                 icon: <RefreshCw size={14} />,
+              },
+              {
+                value: "audit",
+                label: "Audit P2P 📊",
+                icon: <Shield size={14} />,
               },
               {
                 value: "retraits",
@@ -2364,6 +2642,10 @@ export default function AdminDashboard() {
           {/* ── Tab P2P ─────────────────────────────────────────────────────── */}
           <TabsContent value="p2p" data-ocid="admin.p2p.panel">
             <AdminP2PTab />
+          </TabsContent>
+
+          <TabsContent value="audit" data-ocid="admin.audit.panel">
+            <AdminAuditTab />
           </TabsContent>
 
           {/* ── Tab Anti-Fraude ──────────────────────────────────────────────── */}

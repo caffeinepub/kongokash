@@ -31,6 +31,7 @@ import {
   type VerificationResult,
   loadVerificationResult,
 } from "../utils/p2pVerification";
+import P2PChat from "./P2PChat";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -732,6 +733,21 @@ export default function P2PDisputePanel({ trade, isAdmin, onResolve }: Props) {
       {/* Verification summary */}
       <VerificationSummary tradeId={String(trade.id)} />
 
+      {/* Chat conversation */}
+      <div>
+        <p
+          className="text-xs font-semibold mb-2"
+          style={{ color: "oklch(0.55 0.05 220)" }}
+        >
+          💬 Conversation du trade
+        </p>
+        <P2PChat
+          tradeId={String(trade.id)}
+          myPrincipal={buyerId}
+          myRole="Acheteur"
+          readOnly={true}
+        />
+      </div>
       {/* Immutable log */}
       <DisputeTimeline disputeId={disputeId} />
 

@@ -38,18 +38,39 @@ import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useActor } from "../hooks/useActor";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
+import type { OperatorId } from "../mobileMoneyOperators";
+import { appendAuditEntry, getAuditLogs } from "../utils/p2pAuditLog";
+import {
+  addSystemMessage,
+  getChatMessages,
+  getUnreadCount,
+} from "../utils/p2pChat";
 import {
   shouldAutoTriggerDispute as _shouldAutoTriggerDispute,
   createDisputeLog,
   getAllDisputeLogs,
 } from "../utils/p2pDispute";
 import {
+  type AutoReleaseCondition,
+  type AutoReleaseEntry,
   type VerificationResult,
+  getRecentAutoReleases,
   loadAllVerificationResults,
   loadVerificationResult,
+  saveAutoRelease,
   saveVerificationResult,
   verifyPaymentProof,
 } from "../utils/p2pVerification";
+import AuditLogPanel from "./AuditLogPanel";
+import {
+  CancellationImpossibleBanner,
+  NetworkStatus,
+  OperatorMismatchAlert,
+  OperatorSelector,
+  SMSParserField,
+  useIsSlowNetwork,
+} from "./MobileMoneyP2PExtensions";
+import P2PChat from "./P2PChat";
 import P2PDisputePanel from "./P2PDisputePanel";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -153,7 +174,7 @@ const STATUS_CONFIG: Record<
 };
 
 const ASSETS = ["BTC", "ETH", "USDT", "ICP", "OKP"];
-const PAYMENT_METHODS = ["Airtel Money", "M-Pesa", "Virement Bancaire"];
+// PAYMENT_METHODS handled by OperatorSelector
 
 function StatusBadge({ status }: { status: Record<string, null> }) {
   const key = getP2PStatusKey(status);
@@ -713,6 +734,9 @@ function CreateOfferDialog({ onCreated }: { onCreated: () => void }) {
   const [amount, setAmount] = useState("");
   const [price, setPrice] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("Airtel Money");
+  const [selectedOperatorId, setSelectedOperatorId] =
+    useState<OperatorId>("airtel");
+  const [receptionNumber, setReceptionNumber] = useState("");
   const [minAmt, setMinAmt] = useState("");
   const [maxAmt, setMaxAmt] = useState("");
 
@@ -832,30 +856,21 @@ function CreateOfferDialog({ onCreated }: { onCreated: () => void }) {
             />
           </div>
 
-          <div className="space-y-1.5">
-            <Label style={{ color: "oklch(0.65 0.04 220)" }}>
-              Méthode de paiement
-            </Label>
-            <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-              <SelectTrigger
-                style={{
-                  background: "oklch(0.18 0.04 220)",
-                  border: "1px solid oklch(0.28 0.05 220)",
-                  color: "white",
-                }}
-                data-ocid="p2p.select"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PAYMENT_METHODS.map((m) => (
-                  <SelectItem key={m} value={m}>
-                    {m}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <OperatorSelector
+            selectedOperator={selectedOperatorId}
+            onChange={(op) => {
+              setSelectedOperatorId(op);
+              const methodMap: Record<OperatorId, string> = {
+                airtel: "Airtel Money",
+                mpesa: "M-Pesa",
+                orange: "Orange Money",
+                vodacom: "Vodacom Cash",
+              };
+              setPaymentMethod(methodMap[op]);
+            }}
+            receptionNumber={receptionNumber}
+            onNumberChange={setReceptionNumber}
+          />
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
@@ -973,6 +988,24 @@ function AcceptOfferDialog({
       if (data.success) {
         toast.success(
           `Trade lancé ! ID: #${data.tradeId} — Les fonds sont maintenant verrouillés.`,
+        );
+        const _myPrincipalAccept =
+          identity?.getPrincipal().toString() ?? "INCONNU";
+        appendAuditEntry({
+          tradeId: String(data.tradeId),
+          actorPrincipal: _myPrincipalAccept,
+          actorRole: "Acheteur",
+          action: "TRANSACTION_LANCÉE",
+          data: {
+            asset: offer.asset,
+            amount: Number(amount),
+            totalPrice: Number(amount) * offer.pricePerUnit,
+            paymentMethod: offer.paymentMethod,
+          },
+        });
+        addSystemMessage(
+          String(data.tradeId),
+          "🔒 Transaction lancée — les fonds sont verrouillés dans l'escrow. Veuillez effectuer votre paiement.",
         );
         setOpen(false);
         onAccepted();
@@ -1151,6 +1184,15 @@ function TradeCard({
   }, [trade]);
 
   const [proofOpen, setProofOpen] = useState(false);
+  const isSlowNet = useIsSlowNetwork();
+  const [smsOperatorId] = useState<string | null>(() => {
+    const m = trade.paymentMethod.toLowerCase();
+    if (m.includes("airtel")) return "airtel";
+    if (m.includes("mpesa") || m.includes("m-pesa")) return "mpesa";
+    if (m.includes("orange")) return "orange";
+    if (m.includes("vodacom cash")) return "vodacom";
+    return null;
+  });
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [proofFileHash, setProofFileHash] = useState("");
   const [proofFilePrev, setProofFilePrev] = useState("");
@@ -1167,6 +1209,12 @@ function TradeCard({
   const [disputeReason, setDisputeReason] = useState("");
   const [disputePanelOpen, setDisputePanelOpen] = useState(false);
   const hasAutoDisputed = React.useRef(false);
+  const hasAutoReleased = React.useRef(false);
+  const [autoReleaseStatus, setAutoReleaseStatus] = React.useState<{
+    condition: AutoReleaseCondition | null;
+    countdown: string;
+    score?: number;
+  }>({ condition: null, countdown: "" });
   const [verificationResult, setVerificationResult] =
     useState<VerificationResult | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -1198,43 +1246,215 @@ function TradeCard({
     return () => clearInterval(id);
   }, [statusKey, trade.createdAt]);
 
-  // Auto-trigger dispute when EN_VÉRIFICATION times out
+  // ── Libération automatique sécurisée (3 conditions) ───────────────────────
+  // Condition 1: PREUVE_VALIDÉE_AUTO (score ≥ 85) → libération immédiate
+  // Condition 2: TIMEOUT_PREUVE_COHÉRENTE (score 50-84 + timeout) → libération différée
+  // Condition 3: score < 50 ou pas de preuve → litige automatique
   useEffect(() => {
-    if (statusKey !== "payment_sent" || hasAutoDisputed.current) return;
+    if (statusKey !== "payment_sent") return;
+
+    const savedVr = loadVerificationResult(String(trade.id));
+    const vr = verificationResult ?? savedVr;
+
     const refNs = trade.lockedAt[0] ?? trade.createdAt;
     const refMs = Number(refNs / BigInt(1_000_000));
     const deadlineMs = refMs + 30 * 60 * 1_000;
     const remaining = deadlineMs - Date.now();
-    if (remaining <= 0) return; // already expired; handled by existing countdown
-    const timer = setTimeout(() => {
-      if (hasAutoDisputed.current || !actor) return;
-      hasAutoDisputed.current = true;
-      const reason =
-        "Auto-déclenchement: vendeur n'a pas confirmé dans les délais";
-      const disputeId = `dispute_${String(trade.id)}`;
+
+    if (!vr) {
+      // Pas de preuve → auto-litige à expiration
+      if (hasAutoDisputed.current || remaining <= 0) return;
+      const timer = setTimeout(() => {
+        if (hasAutoDisputed.current || !actor) return;
+        hasAutoDisputed.current = true;
+        const reason =
+          "Auto-déclenchement: vendeur n'a pas confirmé dans les délais";
+        const disputeId = `dispute_${String(trade.id)}`;
+        createDisputeLog(
+          disputeId,
+          "Déclenchement automatique",
+          "Système",
+          reason,
+          {
+            tradeId: String(trade.id),
+            trigger: "timeout_no_proof",
+          },
+        );
+        (actor as any)
+          .openP2PDispute(trade.id, reason)
+          .then(() => {
+            toast.info("⚖️ Litige auto-déclenché — aucune preuve soumise.");
+            onAction();
+          })
+          .catch(() => {});
+      }, remaining);
+      return () => clearTimeout(timer);
+    }
+
+    if (vr.score >= 85) {
+      // PREUVE_VALIDÉE_AUTO — libération immédiate
+      if (hasAutoReleased.current) return;
+      hasAutoReleased.current = true;
+      setAutoReleaseStatus({
+        condition: "PREUVE_VALIDÉE_AUTO",
+        countdown: "",
+        score: vr.score,
+      });
+      const arEntry: AutoReleaseEntry = {
+        id: `ar_${String(trade.id)}_${Date.now()}`,
+        tradeId: String(trade.id),
+        amount: trade.amount,
+        asset: trade.asset,
+        condition: "PREUVE_VALIDÉE_AUTO",
+        actor: "Système (auto)",
+        timestamp: new Date().toISOString(),
+        score: vr.score,
+      };
+      saveAutoRelease(arEntry);
       createDisputeLog(
-        disputeId,
-        "Déclenchement automatique",
+        `auto_release_${String(trade.id)}`,
+        "Libération automatique",
         "Système",
-        reason,
+        `PREUVE_VALIDÉE_AUTO — score ${vr.score}/100`,
         {
           tradeId: String(trade.id),
-          trigger: "timeout",
+          condition: "PREUVE_VALIDÉE_AUTO",
+          score: vr.score,
         },
       );
+      if (actor) {
+        (actor as any)
+          .sellerConfirmPaymentReceived(trade.id)
+          .then((res: { success: boolean; message: string }) => {
+            if (res.success) {
+              toast.success(
+                `⚡ Fonds libérés automatiquement — preuve validée (score ${vr.score}/100)`,
+              );
+              onAction();
+            }
+          })
+          .catch(() => {});
+      }
+      return;
+    }
+
+    if (vr.score >= 50) {
+      // TIMEOUT_PREUVE_COHÉRENTE — libération après délai restant si vendeur ne confirme pas
+      if (hasAutoReleased.current) return;
+
+      const tickCountdown = () => {
+        const rem = deadlineMs - Date.now();
+        if (rem <= 0) {
+          setAutoReleaseStatus({
+            condition: "TIMEOUT_PREUVE_COHÉRENTE",
+            countdown: "",
+            score: vr.score,
+          });
+        } else {
+          const mins = Math.floor(rem / 60_000);
+          const secs = Math.floor((rem % 60_000) / 1_000);
+          setAutoReleaseStatus({
+            condition: "TIMEOUT_PREUVE_COHÉRENTE",
+            countdown: `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`,
+            score: vr.score,
+          });
+        }
+      };
+      tickCountdown();
+      const tickId = setInterval(tickCountdown, 1_000);
+
+      const triggerAutoRelease = () => {
+        if (hasAutoReleased.current || !actor) return;
+        hasAutoReleased.current = true;
+        const arEntry: AutoReleaseEntry = {
+          id: `ar_${String(trade.id)}_${Date.now()}`,
+          tradeId: String(trade.id),
+          amount: trade.amount,
+          asset: trade.asset,
+          condition: "TIMEOUT_PREUVE_COHÉRENTE",
+          actor: "Système (auto)",
+          timestamp: new Date().toISOString(),
+          score: vr.score,
+        };
+        saveAutoRelease(arEntry);
+        createDisputeLog(
+          `auto_release_${String(trade.id)}`,
+          "Libération automatique",
+          "Système",
+          `TIMEOUT_PREUVE_COHÉRENTE — délai expiré, score ${vr.score}/100`,
+          {
+            tradeId: String(trade.id),
+            condition: "TIMEOUT_PREUVE_COHÉRENTE",
+            score: vr.score,
+          },
+        );
+        (actor as any)
+          .sellerConfirmPaymentReceived(trade.id)
+          .then((res: { success: boolean; message: string }) => {
+            if (res.success) {
+              toast.success(
+                "🔒 Fonds libérés automatiquement — preuve cohérente, délai expiré",
+              );
+              onAction();
+            }
+          })
+          .catch(() => {});
+      };
+
+      if (remaining <= 0) {
+        clearInterval(tickId);
+        triggerAutoRelease();
+        return () => clearInterval(tickId);
+      }
+
+      const releaseTimer = setTimeout(() => {
+        clearInterval(tickId);
+        triggerAutoRelease();
+      }, remaining);
+
+      return () => {
+        clearInterval(tickId);
+        clearTimeout(releaseTimer);
+      };
+    }
+
+    // score < 50 — auto-litige immédiat
+    if (hasAutoDisputed.current) return;
+    hasAutoDisputed.current = true;
+    const reason = `Auto-litige: score de vérification insuffisant (${vr.score}/100)`;
+    const disputeId = `dispute_${String(trade.id)}`;
+    createDisputeLog(
+      disputeId,
+      "Déclenchement automatique",
+      "Système",
+      reason,
+      {
+        tradeId: String(trade.id),
+        trigger: "low_score",
+        score: vr.score,
+      },
+    );
+    if (actor) {
       (actor as any)
         .openP2PDispute(trade.id, reason)
         .then(() => {
-          toast.info("⚖️ Litige auto-déclenché — vendeur n'a pas confirmé.");
+          toast.warning("⚖️ Litige auto-déclenché — score insuffisant.");
           onAction();
         })
-        .catch(() => {
-          /* ignore */
-        });
-    }, remaining);
-    return () => clearTimeout(timer);
+        .catch(() => {});
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusKey, trade.id, actor, trade.createdAt, onAction, trade.lockedAt]);
+  }, [
+    statusKey,
+    verificationResult,
+    trade.id,
+    trade.amount,
+    trade.asset,
+    actor,
+    trade.createdAt,
+    onAction,
+    trade.lockedAt,
+  ]);
 
   const confirmPaymentSent = useMutation({
     mutationFn: async () => {
@@ -1277,6 +1497,20 @@ function TradeCard({
           setProofOpen(false);
         }, 2200);
 
+        appendAuditEntry({
+          tradeId: String(trade.id),
+          actorPrincipal: myPrincipal || "INCONNU",
+          actorRole: "Acheteur",
+          action: "PAIEMENT_DÉCLARÉ",
+          data: {
+            proofHash: proofHash.trim(),
+            timestamp: new Date().toISOString(),
+          },
+        });
+        addSystemMessage(
+          String(trade.id),
+          "💸 Paiement déclaré par l'acheteur — en attente de confirmation du vendeur.",
+        );
         toast.success("Paiement signalé ! Vérification en cours…");
         onAction();
       } else {
@@ -1296,7 +1530,47 @@ function TradeCard({
     },
     onSuccess: (data) => {
       if (data.success) {
-        toast.success("Paiement confirmé ! Fonds libérés à l'acheteur.");
+        // Log VENDEUR_CONFIRMÉ libération
+        const arEntry: AutoReleaseEntry = {
+          id: `ar_seller_${String(trade.id)}_${Date.now()}`,
+          tradeId: String(trade.id),
+          amount: trade.amount,
+          asset: trade.asset,
+          condition: "VENDEUR_CONFIRMÉ",
+          actor: "Vendeur",
+          timestamp: new Date().toISOString(),
+        };
+        saveAutoRelease(arEntry);
+        createDisputeLog(
+          `vendeur_confirme_${String(trade.id)}`,
+          "Confirmation vendeur",
+          "Vendeur",
+          "VENDEUR_CONFIRMÉ — fonds libérés par le vendeur",
+          { tradeId: String(trade.id), condition: "VENDEUR_CONFIRMÉ" },
+        );
+        setAutoReleaseStatus({ condition: "VENDEUR_CONFIRMÉ", countdown: "" });
+        appendAuditEntry({
+          tradeId: String(trade.id),
+          actorPrincipal: myPrincipal || "INCONNU",
+          actorRole: "Vendeur",
+          action: "PAIEMENT_CONFIRMÉ",
+          data: { releasedAt: new Date().toISOString() },
+        });
+        addSystemMessage(
+          String(trade.id),
+          "✅ Paiement confirmé — les fonds vont être libérés.",
+        );
+        appendAuditEntry({
+          tradeId: String(trade.id),
+          actorPrincipal: "SYSTÈME",
+          actorRole: "Système",
+          action: "FONDS_LIBÉRÉS",
+          data: {
+            condition: "VENDEUR_CONFIRMÉ",
+            releasedAt: new Date().toISOString(),
+          },
+        });
+        toast.success("✅ Paiement confirmé ! Fonds libérés à l'acheteur.");
         onAction();
       } else {
         toast.error(data.message);
@@ -1315,6 +1589,20 @@ function TradeCard({
     },
     onSuccess: (data) => {
       if (data.success) {
+        appendAuditEntry({
+          tradeId: String(trade.id),
+          actorPrincipal: myPrincipal || "INCONNU",
+          actorRole: isSeller ? "Vendeur" : "Acheteur",
+          action: "LITIGE_OUVERT",
+          data: {
+            reason: disputeReason.trim(),
+            openedAt: new Date().toISOString(),
+          },
+        });
+        addSystemMessage(
+          String(trade.id),
+          "⚖️ Litige ouvert — un administrateur va examiner cette transaction.",
+        );
         toast.success("Litige ouvert. Notre équipe examinera sous 48h.");
         setDisputeOpen(false);
         onAction();
@@ -1384,6 +1672,10 @@ function TradeCard({
       {/* State Machine Stricte */}
       <StateMachineStepper smState={smState} />
       <TransitionHistory transitions={transitions} />
+
+      {(statusKey === "payment_sent" ||
+        statusKey === "confirmed" ||
+        statusKey === "disputed") && <CancellationImpossibleBanner />}
 
       {/* Payment method */}
       <div
@@ -1485,6 +1777,132 @@ function TradeCard({
         </div>
       )}
 
+      {/* ── Indicateur de libération automatique ─────────────────────── */}
+      {statusKey === "payment_sent" && autoReleaseStatus.condition && (
+        <motion.div
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-xl px-3 py-2.5 space-y-1"
+          style={{
+            background:
+              autoReleaseStatus.condition === "PREUVE_VALIDÉE_AUTO"
+                ? "oklch(0.18 0.07 145 / 0.35)"
+                : autoReleaseStatus.condition === "VENDEUR_CONFIRMÉ"
+                  ? "oklch(0.18 0.07 145 / 0.35)"
+                  : "oklch(0.20 0.08 185 / 0.30)",
+            border:
+              autoReleaseStatus.condition === "PREUVE_VALIDÉE_AUTO" ||
+              autoReleaseStatus.condition === "VENDEUR_CONFIRMÉ"
+                ? "1px solid oklch(0.45 0.12 145 / 0.5)"
+                : "1px solid oklch(0.42 0.12 185 / 0.5)",
+          }}
+          data-ocid="p2p.success_state"
+        >
+          {autoReleaseStatus.condition === "PREUVE_VALIDÉE_AUTO" && (
+            <div className="flex items-center gap-2">
+              <span
+                className="text-sm font-bold"
+                style={{ color: "oklch(0.68 0.16 145)" }}
+              >
+                ⚡ Preuve validée automatiquement — fonds libérés
+              </span>
+              {autoReleaseStatus.score !== undefined && (
+                <span
+                  className="text-xs px-1.5 py-0.5 rounded-full font-mono"
+                  style={{
+                    background: "oklch(0.14 0.04 220)",
+                    color: "oklch(0.62 0.14 145)",
+                  }}
+                >
+                  {autoReleaseStatus.score}/100
+                </span>
+              )}
+            </div>
+          )}
+          {autoReleaseStatus.condition === "VENDEUR_CONFIRMÉ" && (
+            <p
+              className="text-sm font-bold"
+              style={{ color: "oklch(0.68 0.16 145)" }}
+            >
+              ✅ Vendeur confirmé — fonds libérés
+            </p>
+          )}
+          {autoReleaseStatus.condition === "TIMEOUT_PREUVE_COHÉRENTE" && (
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p
+                  className="text-sm font-bold"
+                  style={{ color: "oklch(0.65 0.12 185)" }}
+                >
+                  🔒 Preuve cohérente détectée
+                </p>
+                {autoReleaseStatus.score !== undefined && (
+                  <span
+                    className="text-xs px-1.5 py-0.5 rounded-full font-mono"
+                    style={{
+                      background: "oklch(0.14 0.04 220)",
+                      color: "oklch(0.62 0.12 185)",
+                    }}
+                  >
+                    Score {autoReleaseStatus.score}/100
+                  </span>
+                )}
+              </div>
+              {autoReleaseStatus.countdown ? (
+                <p
+                  className="text-xs"
+                  style={{
+                    color:
+                      autoReleaseStatus.countdown < "05:00"
+                        ? "oklch(0.65 0.16 25)"
+                        : "oklch(0.60 0.05 220)",
+                  }}
+                >
+                  Libération automatique dans{" "}
+                  <strong
+                    style={{
+                      color:
+                        autoReleaseStatus.countdown < "05:00"
+                          ? "oklch(0.68 0.18 25)"
+                          : "oklch(0.72 0.12 185)",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    {autoReleaseStatus.countdown}
+                  </strong>{" "}
+                  si le vendeur ne confirme pas
+                </p>
+              ) : (
+                <p className="text-xs" style={{ color: "oklch(0.65 0.16 25)" }}>
+                  ⏰ Délai expiré — libération en cours…
+                </p>
+              )}
+            </div>
+          )}
+        </motion.div>
+      )}
+
+      {/* Indicateur attente vendeur (EN_VÉRIFICATION sans auto-release status) */}
+      {statusKey === "payment_sent" && !autoReleaseStatus.condition && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <div
+            className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg"
+            style={{
+              background: "oklch(0.20 0.06 250 / 0.3)",
+              color: "oklch(0.65 0.10 250)",
+              border: "1px solid oklch(0.40 0.10 250 / 0.3)",
+            }}
+          >
+            <Loader2 size={11} className="animate-spin" />
+            <span>
+              {isVerifying
+                ? "⚡ Vérification automatique en cours…"
+                : `⏳ Attente confirmation vendeur${countdown ? ` (${countdown})` : ""}`}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Payment instructions for buyer when locked */}
       {isBuyer && statusKey === "locked" && (
         <div
@@ -1564,8 +1982,30 @@ function TradeCard({
                   .
                 </p>
 
+                {/* SMS Parser */}
+                <SMSParserField
+                  operatorId={smsOperatorId}
+                  isSlowNetwork={isSlowNet}
+                  onParsed={(result) => {
+                    if (result.txId) setTransactionId(result.txId);
+                    if (result.sender) setSenderName(result.sender);
+                  }}
+                />
+
+                {/* Operator mismatch alert */}
+                <OperatorMismatchAlert
+                  buyerOperator={smsOperatorId}
+                  sellerPaymentMethod={trade.paymentMethod}
+                />
+
                 {/* Screenshot upload */}
-                <div className="space-y-2">
+                <div
+                  className="space-y-2"
+                  style={{
+                    opacity: isSlowNet ? 0.5 : 1,
+                    pointerEvents: isSlowNet ? ("none" as const) : undefined,
+                  }}
+                >
                   <Label style={{ color: "oklch(0.72 0.05 220)" }}>
                     📸 Capture d'écran du paiement{" "}
                     <span style={{ color: "oklch(0.60 0.15 25)" }}>*</span>
@@ -2198,6 +2638,72 @@ function TradeCard({
             );
           })()}
       </div>
+      {/* ── Chat P2P ──────────────────────────────────────────────────────── */}
+      {statusKey !== "completed" &&
+        statusKey !== "cancelled" &&
+        (() => {
+          const LAST_SEEN_KEY = `kk_p2p_chat_lastseen_${String(trade.id)}`;
+          const lastSeen = localStorage.getItem(LAST_SEEN_KEY);
+          const unread = getUnreadCount(String(trade.id), lastSeen);
+          const myRole: "Acheteur" | "Vendeur" = isSeller
+            ? "Vendeur"
+            : "Acheteur";
+          return (
+            <details
+              className="mt-3"
+              onToggle={(e) => {
+                if ((e.currentTarget as HTMLDetailsElement).open) {
+                  localStorage.setItem(LAST_SEEN_KEY, new Date().toISOString());
+                }
+              }}
+            >
+              <summary
+                className="cursor-pointer text-sm flex items-center gap-2"
+                style={{ color: "oklch(0.62 0.13 185)" }}
+                data-ocid="p2p.chat.open_modal_button"
+              >
+                <span className="flex items-center gap-1.5">
+                  💬 Chat
+                  {unread > 0 && (
+                    <span
+                      className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                      style={{
+                        background: "oklch(0.62 0.16 25)",
+                        color: "white",
+                      }}
+                    >
+                      {unread}
+                    </span>
+                  )}
+                </span>
+              </summary>
+              <div className="mt-2">
+                <P2PChat
+                  tradeId={String(trade.id)}
+                  myPrincipal={myPrincipal}
+                  myRole={myRole}
+                />
+              </div>
+            </details>
+          );
+        })()}
+      {/* ── Audit Journal ──────────────────────────────────────────────────── */}
+      <details className="mt-1">
+        <summary
+          className="cursor-pointer text-sm"
+          style={{ color: "oklch(0.55 0.08 185)" }}
+          data-ocid="audit.open_modal_button"
+        >
+          📋 Journal d'Audit — {getAuditLogs(String(trade.id)).length} actions
+          enregistrées
+        </summary>
+        <div className="mt-2">
+          <AuditLogPanel
+            tradeId={String(trade.id)}
+            actorPrincipal={myPrincipal}
+          />
+        </div>
+      </details>
     </motion.div>
   );
 }
@@ -2588,6 +3094,7 @@ export default function P2PSection() {
 
   return (
     <div className="space-y-4">
+      <NetworkStatus />
       <P2PSecurityBanner />
       <EscrowFlowDiagram />
 
@@ -2678,9 +3185,22 @@ export function AdminP2PTab() {
     import("../utils/p2pDispute").DisputeLogEntry[]
   >([]);
 
+  const [autoReleases, setAutoReleases] = React.useState<AutoReleaseEntry[]>(
+    [],
+  );
+
   React.useEffect(() => {
     setAuditLogs(getAllDisputeLogs());
     const id = setInterval(() => setAuditLogs(getAllDisputeLogs()), 5_000);
+    return () => clearInterval(id);
+  }, []);
+
+  React.useEffect(() => {
+    setAutoReleases(getRecentAutoReleases(5));
+    const id = setInterval(
+      () => setAutoReleases(getRecentAutoReleases(5)),
+      5_000,
+    );
     return () => clearInterval(id);
   }, []);
 
@@ -3135,6 +3655,127 @@ export function AdminP2PTab() {
             />
           </DialogContent>
         </Dialog>
+      )}
+
+      {/* ── Libérations automatiques récentes ─────────────────────── */}
+      {autoReleases.length > 0 && (
+        <div>
+          <div className="flex items-center gap-3 mb-4">
+            <h3
+              className="text-lg font-bold"
+              style={{ color: "oklch(0.72 0.12 185)" }}
+            >
+              ⚡ Libérations automatiques récentes
+            </h3>
+            <span
+              className="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold"
+              style={{ background: "oklch(0.42 0.12 185)", color: "white" }}
+            >
+              {autoReleases.length}
+            </span>
+          </div>
+          <div
+            className="rounded-xl overflow-hidden"
+            style={{ border: "1px solid oklch(0.28 0.06 220)" }}
+          >
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ background: "oklch(0.18 0.05 220)" }}>
+                  {["Trade ID", "Montant", "Condition", "Acteur", "Date"].map(
+                    (h) => (
+                      <th
+                        key={h}
+                        className="px-3 py-2 text-left text-xs font-semibold"
+                        style={{ color: "oklch(0.55 0.04 220)" }}
+                      >
+                        {h}
+                      </th>
+                    ),
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {autoReleases.map((ar, idx) => {
+                  const condColor =
+                    ar.condition === "PREUVE_VALIDÉE_AUTO"
+                      ? "oklch(0.65 0.14 145)"
+                      : ar.condition === "VENDEUR_CONFIRMÉ"
+                        ? "oklch(0.65 0.12 160)"
+                        : "oklch(0.65 0.12 185)";
+                  const condIcon =
+                    ar.condition === "PREUVE_VALIDÉE_AUTO"
+                      ? "⚡"
+                      : ar.condition === "VENDEUR_CONFIRMÉ"
+                        ? "✅"
+                        : "🔒";
+                  return (
+                    <tr
+                      key={ar.id}
+                      style={{
+                        background:
+                          idx % 2 === 0
+                            ? "oklch(0.15 0.04 220)"
+                            : "oklch(0.17 0.04 220)",
+                        borderTop: "1px solid oklch(0.22 0.04 220)",
+                      }}
+                      data-ocid={`admin.auto_release.item.${idx + 1}`}
+                    >
+                      <td
+                        className="px-3 py-2 font-mono text-xs"
+                        style={{ color: "oklch(0.72 0.10 85)" }}
+                      >
+                        #{ar.tradeId}
+                      </td>
+                      <td
+                        className="px-3 py-2 text-xs"
+                        style={{ color: "oklch(0.75 0.05 220)" }}
+                      >
+                        {ar.amount} {ar.asset}
+                        {ar.score !== undefined && (
+                          <span
+                            className="ml-1.5 text-xs"
+                            style={{ color: "oklch(0.50 0.05 220)" }}
+                          >
+                            ({ar.score}/100)
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        <span
+                          className="text-xs px-2 py-0.5 rounded-full font-semibold"
+                          style={{
+                            background: `${condColor.replace(")", " / 0.15)")}`,
+                            color: condColor,
+                            border: `1px solid ${condColor.replace(")", " / 0.35)")}`,
+                          }}
+                        >
+                          {condIcon} {ar.condition}
+                        </span>
+                      </td>
+                      <td
+                        className="px-3 py-2 text-xs"
+                        style={{ color: "oklch(0.60 0.05 220)" }}
+                      >
+                        {ar.actor}
+                      </td>
+                      <td
+                        className="px-3 py-2 text-xs font-mono"
+                        style={{ color: "oklch(0.55 0.04 220)" }}
+                      >
+                        {new Date(ar.timestamp).toLocaleString("fr-FR", {
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
       {/* Audit log */}

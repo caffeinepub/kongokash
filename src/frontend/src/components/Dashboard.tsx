@@ -66,7 +66,9 @@ function addOpacity(color: string, opacity: string) {
   return color.endsWith(")") ? `${color.slice(0, -1)} / ${opacity})` : color;
 }
 
-export default function Dashboard() {
+export default function Dashboard({
+  initialTab = "portfolio",
+}: { initialTab?: string }) {
   const { identity } = useInternetIdentity();
   const {
     data: wallet,
@@ -228,7 +230,7 @@ export default function Dashboard() {
           </motion.div>
         )}
 
-        <Tabs defaultValue="portfolio" data-ocid="dashboard.tab">
+        <Tabs defaultValue={initialTab} data-ocid="dashboard.tab">
           <TabsList className="mb-8 w-full sm:w-auto">
             <TabsTrigger
               value="portfolio"

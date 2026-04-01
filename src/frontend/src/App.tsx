@@ -3,8 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import AdminDashboard from "./components/AdminDashboard";
 import BanquesSection from "./components/BanquesSection";
-import BuySellSection from "./components/BuySellSection";
-import Dashboard from "./components/Dashboard";
+import DashboardHome from "./components/DashboardHome";
 import FirstAdminSetup from "./components/FirstAdminSetup";
 import Footer from "./components/Footer";
 import HeroSection from "./components/HeroSection";
@@ -12,16 +11,31 @@ import MarketOverview from "./components/MarketOverview";
 import MobileMoneySection from "./components/MobileMoneySection";
 import Navbar from "./components/Navbar";
 import OkapiSection from "./components/OkapiSection";
+import P2PPage from "./components/P2PPage";
+import ProfilPage from "./components/ProfilPage";
 import ReservationsSection from "./components/ReservationsSection";
+import TransactionsPage from "./components/TransactionsPage";
 import VisionSection from "./components/VisionSection";
+import WalletPage from "./components/WalletPage";
 import { useActor } from "./hooks/useActor";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
 import { ReservationNotifProvider } from "./hooks/useReservationNotifications";
 import { checkUserSanction, runAutoDetection } from "./utils/fraudDetection";
 
+export type TabId =
+  | "accueil"
+  | "wallet"
+  | "p2p"
+  | "transactions"
+  | "profil"
+  | "reservations"
+  | "okapi"
+  | "banques";
+
 export default function App() {
   const { identity } = useInternetIdentity();
   const { actor, isFetching } = useActor();
+  const [activeTab, setActiveTab] = useState<TabId>("accueil");
 
   const { data: adminAssigned = null } = useQuery({
     queryKey: ["isAdminAssigned"],
@@ -47,17 +61,21 @@ export default function App() {
 
   const sanction = userId ? checkUserSanction(userId) : { blocked: false };
 
-  const scrollToSection = (id: string) => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
+  // When user logs in, navigate to accueil (dashboard home)
+  useEffect(() => {
+    if (identity && activeTab === "accueil") {
+      // already on accueil, no action needed
     }
-  };
+  }, [identity, activeTab]);
 
   if (adminAssigned === false) {
     return (
       <ReservationNotifProvider>
-        <Navbar onSectionClick={scrollToSection} isAdmin={false} />
+        <Navbar
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          isAdmin={false}
+        />
         <FirstAdminSetup />
         <Toaster richColors position="top-right" />
       </ReservationNotifProvider>
@@ -141,24 +159,117 @@ export default function App() {
     );
   }
 
+  const renderPageContent = () => {
+    if (!identity) {
+      // Non-authenticated: show landing page
+      return (
+        <>
+          <HeroSection onGetStarted={() => {}} onViewMarkets={() => {}} />
+          <VisionSection />
+          <MarketOverview />
+          <OkapiSection />
+          <ReservationsSection />
+          <MobileMoneySection />
+          <BanquesSection />
+        </>
+      );
+    }
+
+    switch (activeTab) {
+      case "accueil":
+        return (
+          <div
+            className="min-h-[calc(100vh-4rem)] bg-slate-950"
+            data-ocid="accueil.page"
+          >
+            <DashboardHome onNavigate={(tab) => setActiveTab(tab as TabId)} />
+          </div>
+        );
+      case "wallet":
+        return (
+          <div
+            className="min-h-[calc(100vh-4rem)] bg-slate-950"
+            data-ocid="wallet.page"
+          >
+            <WalletPage />
+          </div>
+        );
+      case "p2p":
+        return (
+          <div
+            className="min-h-[calc(100vh-4rem)] bg-slate-950"
+            data-ocid="p2p.page"
+          >
+            <P2PPage />
+          </div>
+        );
+      case "transactions":
+        return (
+          <div
+            className="min-h-[calc(100vh-4rem)] bg-slate-950"
+            data-ocid="transactions.page"
+          >
+            <TransactionsPage />
+          </div>
+        );
+      case "profil":
+        return (
+          <div
+            className="min-h-[calc(100vh-4rem)] bg-slate-950"
+            data-ocid="profil.page"
+          >
+            <ProfilPage />
+          </div>
+        );
+      case "reservations":
+        return (
+          <div
+            className="min-h-[calc(100vh-4rem)] bg-slate-950 py-4"
+            data-ocid="reservations.page"
+          >
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
+              <div className="mb-6">
+                <h1 className="font-display font-bold text-2xl text-white">
+                  Réservations
+                </h1>
+                <p className="text-slate-400 text-sm mt-1">
+                  Hôtels, parcs nationaux, vols et structures partenaires.
+                </p>
+              </div>
+            </div>
+            <ReservationsSection />
+          </div>
+        );
+      case "okapi":
+        return (
+          <div className="min-h-[calc(100vh-4rem)]" data-ocid="okapi.page">
+            <OkapiSection />
+          </div>
+        );
+      case "banques":
+        return (
+          <div className="min-h-[calc(100vh-4rem)]" data-ocid="banques.page">
+            <BanquesSection />
+            <MobileMoneySection />
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <ReservationNotifProvider>
       <div className="min-h-screen flex flex-col">
-        <Navbar onSectionClick={scrollToSection} isAdmin={isAdmin} />
+        <Navbar
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          isAdmin={isAdmin}
+        />
         <main className="flex-1">
-          <HeroSection
-            onGetStarted={() => scrollToSection("buysell")}
-            onViewMarkets={() => scrollToSection("market")}
-          />
-          <VisionSection />
-          <MarketOverview />
-          <ReservationsSection />
-          <Dashboard />
-          <OkapiSection />
-          <BuySellSection />
-          <MobileMoneySection />
-          <BanquesSection />
-          {isAdmin && identity && <AdminDashboard />}
+          {renderPageContent()}
+          {/* Admin dashboard accessible from profil or when admin */}
+          {isAdmin && identity && activeTab === "profil" && <AdminDashboard />}
         </main>
         <Footer />
         <Toaster richColors position="top-right" />

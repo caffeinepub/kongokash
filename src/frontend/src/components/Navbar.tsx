@@ -1,18 +1,40 @@
 import { Button } from "@/components/ui/button";
-import { Menu, Shield, X } from "lucide-react";
+import {
+  BarChart3,
+  Home,
+  List,
+  Menu,
+  Repeat2,
+  Shield,
+  User,
+  Wallet,
+  X,
+} from "lucide-react";
 import { useState } from "react";
+import type { TabId } from "../App";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useProfile } from "../hooks/useQueries";
 import AuthModal from "./AuthModal";
 import NotificationCenter from "./NotificationCenter";
 
 interface NavbarProps {
-  onSectionClick: (section: string) => void;
+  activeTab: TabId;
+  onTabChange: (tab: TabId) => void;
   isAdmin?: boolean;
 }
 
+const MAIN_TABS: Array<{ id: TabId; label: string; icon: React.ElementType }> =
+  [
+    { id: "accueil", label: "Accueil", icon: Home },
+    { id: "wallet", label: "Wallet", icon: Wallet },
+    { id: "p2p", label: "P2P", icon: Repeat2 },
+    { id: "transactions", label: "Transactions", icon: List },
+    { id: "profil", label: "Profil", icon: User },
+  ];
+
 export default function Navbar({
-  onSectionClick,
+  activeTab,
+  onTabChange,
   isAdmin = false,
 }: NavbarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -30,28 +52,23 @@ export default function Navbar({
     setAuthOpen(true);
   };
 
-  const navLinks = [
-    { label: "Accueil", id: "hero" },
-    { label: "Échange", id: "buysell" },
-    { label: "Réservations", id: "reservations" },
-    { label: "Portefeuille", id: "dashboard" },
-    { label: "Okapi", id: "okapi" },
-    { label: "Banques", id: "banques" },
-    { label: "Support", id: "footer" },
-  ];
+  const handleTabClick = (tab: TabId) => {
+    onTabChange(tab);
+    setMenuOpen(false);
+  };
 
   return (
     <>
       <header
-        className="sticky top-0 z-50 w-full"
+        className="sticky top-0 z-50 w-full border-b border-white/10"
         style={{ background: "oklch(0.27 0.07 195)" }}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
           {/* Logo */}
           <button
             type="button"
-            onClick={() => onSectionClick("hero")}
-            className="flex items-center gap-2 group"
+            onClick={() => handleTabClick("accueil")}
+            className="flex items-center gap-2 group shrink-0"
             data-ocid="nav.link"
           >
             <img
@@ -61,53 +78,88 @@ export default function Navbar({
             />
           </button>
 
-          {/* Desktop nav */}
-          <nav className="hidden md:flex items-center gap-1">
-            {navLinks.map((link) => (
-              <button
-                type="button"
-                key={link.id}
-                onClick={() => onSectionClick(link.id)}
-                className="px-3 py-2 text-sm font-medium text-white/80 hover:text-white hover:bg-white/10 rounded-md transition-colors"
-                data-ocid="nav.link"
-              >
-                {link.label}
-              </button>
-            ))}
-            {isAdmin && (
-              <button
-                type="button"
-                onClick={() => onSectionClick("admin")}
-                className="px-3 py-2 text-sm font-medium flex items-center gap-1.5 rounded-md transition-colors"
-                style={{
-                  color: "oklch(0.77 0.13 85)",
-                  background: "oklch(0.77 0.13 85 / 0.12)",
-                }}
-                data-ocid="nav.link"
-              >
-                <Shield size={13} />
-                Admin
-              </button>
-            )}
-          </nav>
+          {/* Desktop tabs — only when logged in */}
+          {identity ? (
+            <nav className="hidden md:flex items-center gap-0.5">
+              {MAIN_TABS.map((tab) => {
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => handleTabClick(tab.id)}
+                    className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      isActive
+                        ? "text-white"
+                        : "text-white/60 hover:text-white hover:bg-white/10"
+                    }`}
+                    style={
+                      isActive
+                        ? {
+                            background: "oklch(0.52 0.12 160 / 0.3)",
+                            color: "oklch(0.88 0.06 160)",
+                            borderBottom: "2px solid oklch(0.77 0.13 85)",
+                          }
+                        : {}
+                    }
+                    data-ocid={`nav.${tab.id}.tab`}
+                  >
+                    <tab.icon size={14} />
+                    {tab.label}
+                  </button>
+                );
+              })}
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => handleTabClick("profil")}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all"
+                  style={{
+                    color: "oklch(0.77 0.13 85)",
+                    background: "oklch(0.77 0.13 85 / 0.12)",
+                  }}
+                  data-ocid="nav.admin.link"
+                >
+                  <Shield size={13} />
+                  Admin
+                </button>
+              )}
+            </nav>
+          ) : (
+            // Non-authenticated: show minimal nav
+            <nav className="hidden md:flex items-center gap-1">
+              {[
+                { label: "Accueil", id: "accueil" as TabId },
+                { label: "Okapi", id: "okapi" as TabId },
+                { label: "Réservations", id: "reservations" as TabId },
+                { label: "Banques", id: "banques" as TabId },
+              ].map((link) => (
+                <button
+                  key={link.id}
+                  type="button"
+                  onClick={() => handleTabClick(link.id)}
+                  className="px-3 py-2 text-sm font-medium text-white/80 hover:text-white hover:bg-white/10 rounded-md transition-colors"
+                  data-ocid="nav.link"
+                >
+                  {link.label}
+                </button>
+              ))}
+            </nav>
+          )}
 
           {/* Auth buttons + notifications */}
           <div className="hidden md:flex items-center gap-2">
             {identity && <NotificationCenter />}
             {identity ? (
               <div className="flex items-center gap-3">
-                <span className="text-white/70 text-sm">
-                  {profile?.displayName || "Mon compte"}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={clear}
-                  className="border-white/30 text-white hover:bg-white/10 hover:text-white"
-                  data-ocid="nav.button"
+                <button
+                  type="button"
+                  onClick={() => handleTabClick("profil")}
+                  className="text-white/70 text-sm hover:text-white transition-colors"
+                  data-ocid="nav.profil.link"
                 >
-                  Déconnexion
-                </Button>
+                  {profile?.displayName || "Mon profil"}
+                </button>
               </div>
             ) : (
               <>
@@ -144,55 +196,62 @@ export default function Navbar({
           </button>
         </div>
 
-        {/* Mobile menu */}
+        {/* Mobile dropdown menu */}
         {menuOpen && (
           <div
             className="md:hidden px-4 pb-4 border-t border-white/10"
-            style={{ background: "oklch(0.27 0.07 195)" }}
+            style={{ background: "oklch(0.24 0.08 195)" }}
           >
-            {navLinks.map((link) => (
-              <button
-                type="button"
-                key={link.id}
-                onClick={() => {
-                  onSectionClick(link.id);
-                  setMenuOpen(false);
-                }}
-                className="block w-full text-left px-3 py-2 text-white/80 hover:text-white text-sm"
-                data-ocid="nav.link"
-              >
-                {link.label}
-              </button>
-            ))}
-            {isAdmin && (
-              <button
-                type="button"
-                onClick={() => {
-                  onSectionClick("admin");
-                  setMenuOpen(false);
-                }}
-                className="block w-full text-left px-3 py-2 text-sm flex items-center gap-1.5"
-                style={{ color: "oklch(0.77 0.13 85)" }}
-                data-ocid="nav.link"
-              >
-                <Shield size={13} />
-                Admin
-              </button>
-            )}
-            <div className="flex gap-2 mt-3 items-center">
-              {identity && <NotificationCenter />}
-              {identity ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={clear}
-                  className="border-white/30 text-white"
-                  data-ocid="nav.button"
-                >
-                  Déconnexion
-                </Button>
-              ) : (
-                <>
+            {identity ? (
+              <>
+                {MAIN_TABS.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => handleTabClick(tab.id)}
+                    className={`flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium mt-1 transition-colors ${
+                      activeTab === tab.id
+                        ? "text-white bg-white/10"
+                        : "text-white/70 hover:text-white hover:bg-white/5"
+                    }`}
+                    data-ocid={`nav.${tab.id}.tab`}
+                  >
+                    <tab.icon size={16} />
+                    {tab.label}
+                  </button>
+                ))}
+                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/10">
+                  <NotificationCenter />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={clear}
+                    className="border-white/30 text-white"
+                    data-ocid="nav.button"
+                  >
+                    Déconnexion
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                {[
+                  { label: "Accueil", id: "accueil" as TabId },
+                  { label: "Okapi", id: "okapi" as TabId },
+                  { label: "Réservations", id: "reservations" as TabId },
+                  { label: "Banques", id: "banques" as TabId },
+                ].map((link) => (
+                  <button
+                    key={link.id}
+                    type="button"
+                    onClick={() => handleTabClick(link.id)}
+                    className="block w-full text-left px-3 py-2 text-white/80 hover:text-white text-sm"
+                    data-ocid="nav.link"
+                  >
+                    {link.label}
+                  </button>
+                ))}
+                <div className="flex gap-2 mt-3">
                   <Button
                     variant="outline"
                     size="sm"
@@ -211,12 +270,42 @@ export default function Navbar({
                   >
                     S'inscrire
                   </Button>
-                </>
-              )}
-            </div>
+                </div>
+              </>
+            )}
           </div>
         )}
       </header>
+
+      {/* Mobile bottom tab bar — only when logged in */}
+      {identity && (
+        <nav
+          className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-slate-700 safe-area-pb"
+          style={{ background: "oklch(0.27 0.07 195)" }}
+          data-ocid="nav.panel"
+        >
+          <div className="flex items-center justify-around py-2">
+            {MAIN_TABS.map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => handleTabClick(tab.id)}
+                  className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-all ${
+                    isActive ? "text-white" : "text-white/50"
+                  }`}
+                  style={isActive ? { color: "oklch(0.77 0.13 85)" } : {}}
+                  data-ocid={`nav.${tab.id}.tab`}
+                >
+                  <tab.icon size={20} />
+                  <span className="text-[10px] font-medium">{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+      )}
 
       <AuthModal
         open={authOpen}

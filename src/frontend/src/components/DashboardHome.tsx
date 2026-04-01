@@ -1,11 +1,19 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowDownLeft,
   ArrowUpRight,
+  Check,
+  Copy,
   Eye,
   EyeOff,
   RefreshCw,
@@ -16,13 +24,9 @@ import {
 import { motion } from "motion/react";
 import { useState } from "react";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
-
-import {
-  useExchangeRates,
-  usePortfolioValue,
-  useProfile,
-  useTransactions,
-} from "../hooks/useQueries";
+import { useNonCustodialWallet } from "../hooks/useNonCustodialWallet";
+import { useProfile } from "../hooks/useQueries";
+import { useWalletContext } from "../hooks/useWalletContext";
 import OnboardingFlow from "./OnboardingFlow";
 import { StatusBadge } from "./ui/StatusBadge";
 
@@ -54,68 +58,29 @@ const TX_STATUS_MAP: Record<
   cancelled: "cancelled",
 };
 
-const MOCK_ACTIVITY = [
-  {
-    id: "m1",
-    icon: "↓",
-    iconBg: "bg-emerald-900/40",
-    iconColor: "text-emerald-400",
-    title: "Dépôt Airtel Money",
-    subtitle: "28 Mar 2026",
-    amount: "+50 000 CDF",
-    positive: true,
-    status: "success" as const,
-    statusLabel: "Confirmé",
-  },
-  {
-    id: "m2",
-    icon: "₿",
-    iconBg: "bg-amber-900/40",
-    iconColor: "text-amber-400",
-    title: "Achat BTC",
-    subtitle: "27 Mar 2026",
-    amount: "-120 000 CDF",
-    positive: false,
-    status: "success" as const,
-    statusLabel: "Confirmé",
-  },
-  {
-    id: "m3",
-    icon: "₮",
-    iconBg: "bg-blue-900/40",
-    iconColor: "text-blue-400",
-    title: "Trade P2P USDT",
-    subtitle: "26 Mar 2026",
-    amount: "+85 000 CDF",
-    positive: true,
-    status: "success" as const,
-    statusLabel: "Confirmé",
-  },
-  {
-    id: "m4",
-    icon: "↑",
-    iconBg: "bg-rose-900/40",
-    iconColor: "text-rose-400",
-    title: "Retrait M-Pesa",
-    subtitle: "25 Mar 2026",
-    amount: "-30 000 CDF",
-    positive: false,
-    status: "pending" as const,
-    statusLabel: "En attente",
-  },
-  {
-    id: "m5",
-    icon: "🏨",
-    iconBg: "bg-purple-900/40",
-    iconColor: "text-purple-400",
-    title: "Réservation Hôtel Okapi",
-    subtitle: "24 Mar 2026",
-    amount: "-45 000 CDF",
-    positive: false,
-    status: "success" as const,
-    statusLabel: "Confirmé",
-  },
-];
+// Simple deterministic QR-like visual from address string
+function AddressQRVisual({ address }: { address: string }) {
+  const size = 7;
+  const cells: Array<{ id: string; filled: boolean }> = [];
+  for (let i = 0; i < size * size; i++) {
+    const charCode = address.charCodeAt(i % address.length);
+    cells.push({ id: `c${i}`, filled: (charCode + i * 7) % 3 !== 0 });
+  }
+  return (
+    <div
+      className="inline-grid gap-0.5 p-3 rounded-xl bg-white mx-auto"
+      style={{ gridTemplateColumns: `repeat(${size}, 1fr)` }}
+    >
+      {cells.map((cell) => (
+        <div
+          key={cell.id}
+          className="w-5 h-5 rounded-sm"
+          style={{ background: cell.filled ? "#0f172a" : "#fff" }}
+        />
+      ))}
+    </div>
+  );
+}
 
 interface DashboardHomeProps {
   onNavigate: (tab: string) => void;
@@ -123,25 +88,31 @@ interface DashboardHomeProps {
 
 export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
   const { identity } = useInternetIdentity();
-
-  const { data: portfolio, isLoading: portfolioLoading } = usePortfolioValue();
-  const { data: transactions, isLoading: txLoading } = useTransactions();
+  const { totalCDF, totalUSD, transactions, rates, isLoading, refresh } =
+    useWalletContext();
   const { data: profile } = useProfile();
+  const { walletAddress } = useNonCustodialWallet();
 
-  const { data: rates } = useExchangeRates();
   const [balanceVisible, setBalanceVisible] = useState(true);
   const [onboardingDismissed, setOnboardingDismissed] = useState(
     () => localStorage.getItem("kk_onboarding_dismissed") === "1",
   );
-
-  const totalCDF = portfolio?.totalCDF ?? 0;
-  const totalUSD = portfolio?.totalUSD ?? 0;
+  const [receiveOpen, setReceiveOpen] = useState(false);
+  const [addressCopied, setAddressCopied] = useState(false);
 
   const recentTx = (transactions ?? []).slice(0, 5);
 
   const handleDismissOnboarding = () => {
     localStorage.setItem("kk_onboarding_dismissed", "1");
     setOnboardingDismissed(true);
+  };
+
+  const handleCopyAddress = () => {
+    if (walletAddress) {
+      navigator.clipboard.writeText(walletAddress);
+      setAddressCopied(true);
+      setTimeout(() => setAddressCopied(false), 2000);
+    }
   };
 
   const principalShort = identity
@@ -152,30 +123,34 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
     {
       icon: ArrowDownLeft,
       label: "Déposer",
-      tab: "wallet",
+      action: "wallet:deposit",
       gradient: "from-emerald-600 to-emerald-700",
       shadow: "shadow-emerald-900/40",
+      onClick: () => onNavigate("wallet:deposit"),
     },
     {
       icon: Send,
       label: "Envoyer",
-      tab: "wallet",
+      action: "wallet:send",
       gradient: "from-blue-600 to-blue-700",
       shadow: "shadow-blue-900/40",
+      onClick: () => onNavigate("wallet:external"),
     },
     {
       icon: ArrowUpRight,
       label: "Recevoir",
-      tab: "wallet",
+      action: "wallet:receive",
       gradient: "from-teal-600 to-teal-700",
       shadow: "shadow-teal-900/40",
+      onClick: () => setReceiveOpen(true),
     },
     {
       icon: Repeat2,
-      label: "Échanger",
-      tab: "wallet",
+      label: "Acheter",
+      action: "p2p:buy",
       gradient: "from-amber-500 to-orange-600",
       shadow: "shadow-amber-900/40",
+      onClick: () => onNavigate("p2p:buy"),
     },
   ];
 
@@ -223,6 +198,9 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
     },
   ];
 
+  const displayAddress =
+    walletAddress ?? identity?.getPrincipal().toString() ?? null;
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-5">
       {/* Welcome bar */}
@@ -242,7 +220,7 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => window.location.reload()}
+          onClick={refresh}
           className="text-slate-400 hover:text-white"
           data-ocid="dashboard.secondary_button"
         >
@@ -273,7 +251,6 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
             boxShadow: "0 8px 32px oklch(0.30 0.10 195 / 0.4)",
           }}
         >
-          {/* Decorative circle */}
           <div
             className="absolute -right-12 -top-12 w-48 h-48 rounded-full opacity-10"
             style={{ background: "oklch(0.85 0.15 75)" }}
@@ -298,14 +275,14 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
                     {balanceVisible ? <Eye size={14} /> : <EyeOff size={14} />}
                   </button>
                 </div>
-                {portfolioLoading ? (
+                {isLoading ? (
                   <Skeleton className="h-10 w-52 bg-white/10" />
                 ) : (
                   <p className="font-display font-bold text-4xl text-white tracking-tight">
                     {balanceVisible ? formatCDF(totalCDF) : "••••••• FC"}
                   </p>
                 )}
-                {portfolioLoading ? (
+                {isLoading ? (
                   <Skeleton className="h-4 w-28 mt-2 bg-white/10" />
                 ) : (
                   <div className="flex items-center gap-3 mt-1.5">
@@ -328,7 +305,7 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
                   key={action.label}
                   type="button"
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => onNavigate(action.tab)}
+                  onClick={action.onClick}
                   className={`flex flex-col items-center gap-1.5 p-3 rounded-2xl bg-gradient-to-b ${action.gradient} shadow-lg ${action.shadow} hover:brightness-110 transition-all`}
                   data-ocid={`dashboard.primary_button.${i + 1}`}
                 >
@@ -416,7 +393,7 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
         </div>
         <Card className="border-slate-700/60 bg-slate-900">
           <CardContent className="p-0">
-            {txLoading ? (
+            {isLoading ? (
               <div className="p-4 space-y-3">
                 {[1, 2, 3].map((i) => (
                   <Skeleton key={i} className="h-14 w-full" />
@@ -486,50 +463,110 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
               </div>
             ) : (
               <div
-                className="divide-y divide-slate-800"
-                data-ocid="dashboard.list"
+                className="flex flex-col items-center py-10 text-slate-500 gap-2"
+                data-ocid="dashboard.empty_state"
               >
-                {MOCK_ACTIVITY.map((item, i) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between px-4 py-3.5 hover:bg-slate-800/50 transition-colors"
-                    data-ocid={`dashboard.item.${i + 1}`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`w-9 h-9 rounded-full flex items-center justify-center text-base ${item.iconBg} ${item.iconColor}`}
-                      >
-                        {item.icon}
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-white">
-                          {item.title}
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          {item.subtitle}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right flex flex-col items-end gap-1">
-                      <p
-                        className={`text-sm font-bold ${
-                          item.positive ? "text-emerald-400" : "text-rose-400"
-                        }`}
-                      >
-                        {item.amount}
-                      </p>
-                      <StatusBadge
-                        status={item.status}
-                        label={item.statusLabel}
-                      />
-                    </div>
-                  </div>
-                ))}
+                <span className="text-3xl">📭</span>
+                <p className="text-sm">Aucune transaction pour l'instant</p>
+                <button
+                  type="button"
+                  onClick={() => onNavigate("wallet:deposit")}
+                  className="text-teal-400 text-xs hover:underline"
+                  data-ocid="dashboard.link"
+                >
+                  Faire un premier dépôt →
+                </button>
+              </div>
+            )}
+            {recentTx.length > 0 && (
+              <div className="px-4 py-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => onNavigate("transactions")}
+                  className="text-xs text-teal-400 hover:text-teal-300 transition-colors"
+                  data-ocid="dashboard.link"
+                >
+                  Voir toutes les transactions →
+                </button>
               </div>
             )}
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* Receive dialog */}
+      <Dialog open={receiveOpen} onOpenChange={setReceiveOpen}>
+        <DialogContent
+          className="bg-slate-900 border-slate-700 text-white max-w-sm"
+          data-ocid="dashboard.dialog"
+        >
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center gap-2">
+              <ArrowUpRight size={18} className="text-teal-400" />
+              Recevoir des fonds
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {displayAddress ? (
+              <>
+                <div className="flex justify-center">
+                  <AddressQRVisual address={displayAddress} />
+                </div>
+                <p className="text-center text-xs text-slate-400">
+                  📱 Partagez cette adresse pour recevoir des fonds
+                </p>
+                <div className="rounded-xl bg-slate-800 border border-slate-700 p-3 space-y-2">
+                  <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">
+                    Votre adresse
+                  </p>
+                  <p className="font-mono text-xs text-teal-300 break-all leading-relaxed">
+                    {displayAddress}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopyAddress}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-all text-white"
+                  style={{
+                    background: addressCopied
+                      ? "oklch(0.45 0.14 145)"
+                      : "oklch(0.42 0.13 195)",
+                  }}
+                  data-ocid="dashboard.primary_button"
+                >
+                  {addressCopied ? (
+                    <>
+                      <Check size={16} /> Adresse copiée !
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={16} /> Copier l'adresse
+                    </>
+                  )}
+                </button>
+              </>
+            ) : (
+              <div className="text-center py-6 space-y-3">
+                <p className="text-slate-400 text-sm">
+                  Créez d'abord votre wallet sécurisé pour obtenir une adresse.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReceiveOpen(false);
+                    onNavigate("wallet");
+                  }}
+                  className="px-5 py-2 rounded-lg text-white text-sm font-medium transition-colors"
+                  style={{ background: "oklch(0.42 0.13 195)" }}
+                  data-ocid="dashboard.secondary_button"
+                >
+                  Créer mon wallet →
+                </button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

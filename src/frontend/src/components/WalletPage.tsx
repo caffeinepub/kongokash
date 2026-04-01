@@ -1,8 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { ArrowDownLeft, ArrowUpRight, Download, Send } from "lucide-react";
 import { motion } from "motion/react";
-import { useState } from "react";
-import { usePortfolioValue } from "../hooks/useQueries";
+import { useEffect, useState } from "react";
+import { useWalletContext } from "../hooks/useWalletContext";
 import Dashboard from "./Dashboard";
 
 function formatCDF(n: number) {
@@ -56,11 +56,19 @@ const WALLET_ACTIONS = [
   },
 ];
 
-export default function WalletPage() {
-  const { data: portfolio } = usePortfolioValue();
-  const [activeTab, setActiveTab] = useState("portfolio");
+interface WalletPageProps {
+  defaultSubTab?: string | null;
+}
 
-  const totalCDF = portfolio?.totalCDF ?? 0;
+export default function WalletPage({ defaultSubTab }: WalletPageProps) {
+  const { totalCDF } = useWalletContext();
+  const [activeTab, setActiveTab] = useState(defaultSubTab ?? "portfolio");
+
+  useEffect(() => {
+    if (defaultSubTab) {
+      setActiveTab(defaultSubTab);
+    }
+  }, [defaultSubTab]);
 
   return (
     <motion.div

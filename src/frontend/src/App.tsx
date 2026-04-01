@@ -20,6 +20,7 @@ import WalletPage from "./components/WalletPage";
 import { useActor } from "./hooks/useActor";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
 import { ReservationNotifProvider } from "./hooks/useReservationNotifications";
+import { WalletContextProvider } from "./hooks/useWalletContext";
 import { checkUserSanction, runAutoDetection } from "./utils/fraudDetection";
 
 export type TabId =
@@ -36,6 +37,7 @@ export default function App() {
   const { identity } = useInternetIdentity();
   const { actor, isFetching } = useActor();
   const [activeTab, setActiveTab] = useState<TabId>("accueil");
+  const [activeSubTab, setActiveSubTab] = useState<string | null>(null);
 
   const { data: adminAssigned = null } = useQuery({
     queryKey: ["isAdminAssigned"],
@@ -61,23 +63,32 @@ export default function App() {
 
   const sanction = userId ? checkUserSanction(userId) : { blocked: false };
 
-  // When user logs in, navigate to accueil (dashboard home)
+  const handleNavigate = (target: string) => {
+    const [tab, sub] = target.split(":");
+    setActiveTab(tab as TabId);
+    setActiveSubTab(sub ?? null);
+  };
+
+  // Reset subTab after a short delay so it doesn't persist on re-renders
   useEffect(() => {
-    if (identity && activeTab === "accueil") {
-      // already on accueil, no action needed
+    if (activeSubTab) {
+      const t = setTimeout(() => setActiveSubTab(null), 500);
+      return () => clearTimeout(t);
     }
-  }, [identity, activeTab]);
+  }, [activeSubTab]);
 
   if (adminAssigned === false) {
     return (
       <ReservationNotifProvider>
-        <Navbar
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          isAdmin={false}
-        />
-        <FirstAdminSetup />
-        <Toaster richColors position="top-right" />
+        <WalletContextProvider>
+          <Navbar
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            isAdmin={false}
+          />
+          <FirstAdminSetup />
+          <Toaster richColors position="top-right" />
+        </WalletContextProvider>
       </ReservationNotifProvider>
     );
   }
@@ -161,7 +172,6 @@ export default function App() {
 
   const renderPageContent = () => {
     if (!identity) {
-      // Non-authenticated: show landing page
       return (
         <>
           <HeroSection onGetStarted={() => {}} onViewMarkets={() => {}} />
@@ -182,7 +192,7 @@ export default function App() {
             className="min-h-[calc(100vh-4rem)] bg-slate-950"
             data-ocid="accueil.page"
           >
-            <DashboardHome onNavigate={(tab) => setActiveTab(tab as TabId)} />
+            <DashboardHome onNavigate={handleNavigate} />
           </div>
         );
       case "wallet":
@@ -191,7 +201,7 @@ export default function App() {
             className="min-h-[calc(100vh-4rem)] bg-slate-950"
             data-ocid="wallet.page"
           >
-            <WalletPage />
+            <WalletPage defaultSubTab={activeSubTab} />
           </div>
         );
       case "p2p":
@@ -200,7 +210,7 @@ export default function App() {
             className="min-h-[calc(100vh-4rem)] bg-slate-950"
             data-ocid="p2p.page"
           >
-            <P2PPage />
+            <P2PPage defaultView={activeSubTab} />
           </div>
         );
       case "transactions":
@@ -260,20 +270,23 @@ export default function App() {
 
   return (
     <ReservationNotifProvider>
-      <div className="min-h-screen flex flex-col">
-        <Navbar
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          isAdmin={isAdmin}
-        />
-        <main className="flex-1">
-          {renderPageContent()}
-          {/* Admin dashboard accessible from profil or when admin */}
-          {isAdmin && identity && activeTab === "profil" && <AdminDashboard />}
-        </main>
-        <Footer />
-        <Toaster richColors position="top-right" />
-      </div>
+      <WalletContextProvider>
+        <div className="min-h-screen flex flex-col">
+          <Navbar
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            isAdmin={isAdmin}
+          />
+          <main className="flex-1">
+            {renderPageContent()}
+            {isAdmin && identity && activeTab === "profil" && (
+              <AdminDashboard />
+            )}
+          </main>
+          <Footer />
+          <Toaster richColors position="top-right" />
+        </div>
+      </WalletContextProvider>
     </ReservationNotifProvider>
   );
 }

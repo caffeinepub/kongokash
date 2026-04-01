@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Shield, Star } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import P2PSection from "./P2PSection";
 
 const MOCK_OFFERS = [
@@ -115,10 +115,21 @@ const MOCK_OFFERS = [
 const ASSET_FILTERS = ["Tous", "USDT", "BTC", "ETH", "OKP"];
 const TYPE_FILTERS = ["Tous", "Acheter", "Vendre"];
 
-export default function P2PPage() {
+interface P2PPageProps {
+  defaultView?: string | null;
+}
+
+export default function P2PPage({ defaultView }: P2PPageProps) {
   const [assetFilter, setAssetFilter] = useState("Tous");
   const [typeFilter, setTypeFilter] = useState("Tous");
   const [showP2PSection, setShowP2PSection] = useState(false);
+
+  // When opened via quick action "Acheter", auto-filter to buy offers
+  useEffect(() => {
+    if (defaultView === "buy") {
+      setTypeFilter("Acheter");
+    }
+  }, [defaultView]);
 
   const filteredOffers = MOCK_OFFERS.filter((o) => {
     const assetMatch = assetFilter === "Tous" || o.asset === assetFilter;
@@ -184,9 +195,21 @@ export default function P2PPage() {
         </span>
       </div>
 
+      {/* Active filter indicator */}
+      {defaultView === "buy" && (
+        <motion.div
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center gap-2 px-3 py-2 rounded-xl border border-amber-700/30 bg-amber-900/10"
+        >
+          <span className="text-amber-400 text-xs font-medium">
+            ✨ Meilleures offres d'achat affichées — sélectionnées pour vous
+          </span>
+        </motion.div>
+      )}
+
       {/* Filter bar */}
       <div className="space-y-2">
-        {/* Asset filter */}
         <div className="flex gap-2 flex-wrap">
           {ASSET_FILTERS.map((f) => (
             <button
@@ -212,7 +235,6 @@ export default function P2PPage() {
             </button>
           ))}
         </div>
-        {/* Type filter */}
         <div className="flex gap-2">
           {TYPE_FILTERS.map((f) => (
             <button
@@ -259,7 +281,6 @@ export default function P2PPage() {
               <Card className="border-slate-700/60 bg-slate-900 hover:border-slate-600 transition-all hover:bg-slate-800/60">
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between mb-3">
-                    {/* Trader info */}
                     <div className="flex items-center gap-3">
                       <div
                         className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
@@ -285,7 +306,6 @@ export default function P2PPage() {
                         </div>
                       </div>
                     </div>
-                    {/* Type badge */}
                     <Badge
                       className="text-xs font-semibold px-2 py-1"
                       style={{
@@ -307,7 +327,6 @@ export default function P2PPage() {
                     </Badge>
                   </div>
 
-                  {/* Price */}
                   <div className="mb-3">
                     <p className="text-xs text-slate-500 mb-0.5">Prix</p>
                     <p className="text-xl font-bold text-white">
@@ -318,7 +337,6 @@ export default function P2PPage() {
                     </p>
                   </div>
 
-                  {/* Limits */}
                   <div className="flex items-center justify-between mb-3">
                     <p className="text-xs text-slate-500">
                       Min:{" "}
@@ -334,7 +352,6 @@ export default function P2PPage() {
                     </p>
                   </div>
 
-                  {/* Bottom row */}
                   <div className="flex items-center justify-between">
                     <span
                       className={`text-xs px-2.5 py-1 rounded-full font-medium ${offer.methodColor}`}

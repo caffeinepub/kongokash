@@ -1,38 +1,55 @@
-# KongoKash — Système Hybride P2P + KongoKash Direct
+# KongoKash — Module Conversion Monnaies Africaines
 
 ## Current State
 
-L'app dispose d'un module P2P (P2PPage.tsx / P2PSection.tsx) et d'un module BuySell (BuySellSection.tsx) distincts, mais la différence entre "achat instantané" et "marché entre utilisateurs" n'est pas clairement présentée comme deux systèmes séparés avec des avantages/inconvénients visibles. Il n'y a pas de logique UX qui recommande l'un ou l'autre selon le contexte, ni de comparaison de prix en temps réel entre les deux canaux.
+KongoKash dispose d'un système d'échange hybride (EchangeHub) avec deux canaux :
+- **KongoKash Direct** : achat/vente instantané de crypto (BTC, ETH, USDT, ICP, OKP) contre CDF
+- **P2P Marché** : échange entre utilisateurs avec escrow sécurisé
+
+Le priceEngine.ts gère les paires CDF/crypto. L'application n'a pas de module de conversion entre monnaies africaines fiat (CDF, FCFA, NGN, KES, GHS, XAF, XOF, ZAR).
+
+La navigation principale a 5 onglets : Accueil, Wallet, P2P, Transactions, Profil. L'onglet P2P affiche EchangeHub.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Nouveau composant `KongoKashDirect.tsx` : interface dédiée à l'achat/retrait instantané avec prix fixe (spread 1.5%), disponibilité immédiate (24/7), sans besoin d'un vendeur tiers
-- Moteur de prix simulé `priceEngine.ts` : prix P2P dynamiques (offres utilisateurs ±2-5% du marché), prix KongoKash Direct fixes (spot + spread configurable)
-- Page d'entrée hybride `EchangeHub.tsx` : sélecteur intelligent qui compare les deux options et recommande la meilleure selon le contexte (montant, heure, disponibilité)
-- Bannière de comparaison contextuelle : affiche Prix P2P vs Prix Direct avec l'économie possible ou la rapidité gagnée
-- Badge de disponibilité : "Disponible maintenant" pour Direct, "X offres actives" pour P2P
+- Nouveau composant `ConversionModule.tsx` — interface complète de conversion entre monnaies africaines
+- Nouveau utilitaire `africaCurrencies.ts` — taux de change simulés, logique de conversion via pivot USDT, liste des devises, agents
+- Onglet "Conversion" dans EchangeHub (3e mode aux côtés de Direct et P2P)
+- Deux modes dans ConversionModule :
+  - **Mode P2P** : liste d'offres d'agents disponibles pour échanger CDF ↔ FCFA/NGN/etc.
+  - **Mode KongoKash Direct** : conversion instantanée via liquidité interne (CDF → USDT → devise cible)
+- Interface utilisateur : sélection devise source + cible, saisie montant, affichage taux + montant converti, bouton convertir
+- Système d'agents : liste d'agents enregistrés avec devise, disponibilité, taux, volume
+- Logique de compensation interne : routing CDF → USDT → FCFA/XOF/XAF/NGN/KES/GHS/ZAR
+- Bannière explicative sur le principe (sans banques internationales)
 
 ### Modify
-- `P2PPage.tsx` : devient un onglet dans l'EchangeHub plutôt qu'une page isolée
-- `App.tsx` : l'onglet "p2p" de navigation pointe vers le nouvel EchangeHub (qui contient les deux systèmes)
-- `DashboardHome.tsx` : les actions rapides "Acheter" et "Vendre" ouvrent l'EchangeHub avec la recommandation contextuelle pré-selectionnée
+- `EchangeHub.tsx` : ajouter un 3e mode "conversion" avec carte de sélection dédiée
+- `App.tsx` : le TabId "p2p" englobe déjà EchangeHub, pas de changement de navigation nécessaire
+- `africaCurrencies.ts` (nouveau) : intégrer dans priceEngine ou créer séparément
 
 ### Remove
-- Rien supprimé — BuySellSection reste disponible dans le WalletPage pour l'échange interne
+- Rien à supprimer
 
 ## Implementation Plan
 
-1. Créer `src/frontend/src/utils/priceEngine.ts` — prix simulés pour P2P (dynamiques, variables) et KongoKash Direct (fixes + spread)
-2. Créer `src/frontend/src/components/KongoKashDirect.tsx` — formulaire d'achat/retrait instantané avec :
-   - Affichage du prix fixe (stable, garanti)
-   - Disponibilité 24/7
-   - Traitement immédiat
-   - Comparaison avec le meilleur prix P2P disponible
-3. Créer `src/frontend/src/components/EchangeHub.tsx` — hub central avec :
-   - Sélecteur de mode : P2P vs KongoKash Direct
-   - Comparateur de prix en temps réel
-   - Recommandation contextuelle intelligente ("Meilleur prix" vs "Disponible maintenant")
-   - Transition fluide entre les deux modes
-4. Modifier `App.tsx` — l'onglet `p2p` rend `EchangeHub` au lieu de `P2PPage`
-5. Modifier `DashboardHome.tsx` — actions rapides "Acheter" et "Vendre" pointent vers l'EchangeHub
+1. Créer `africaCurrencies.ts` avec :
+   - Devises africaines supportées : CDF, FCFA (XAF/XOF), NGN, KES, GHS, ZAR
+   - Taux CDF→USDT→devise cible (pivot USDT)
+   - Liste d'agents simulés avec nom, devise, disponibilité, taux, volume
+   - Fonctions : convertAmount(), getAgentOffers(), getBestRate()
+
+2. Créer `ConversionModule.tsx` avec :
+   - Sélecteur devise source (CDF par défaut) et devise cible (FCFA par défaut)
+   - Champ montant avec affichage en temps réel du résultat converti
+   - Taux affiché + décomposition (CDF → USDT → cible)
+   - Deux onglets internes : "Instantané" (KongoKash Direct) et "Via Agents" (P2P)
+   - Mode Instantané : bouton convertir direct, frais 0.8%, délai ~2 min
+   - Mode Agents : liste d'offres d'agents avec taux, méthode de paiement, bouton Contacter
+   - Bannière : "Échanges africains sans banques internationales"
+
+3. Modifier `EchangeHub.tsx` :
+   - Ajouter carte "Conversion 🌍" comme 3e option dans le sélecteur de mode
+   - Rendre la grille 3 colonnes sur desktop, 1 sur mobile
+   - Charger ConversionModule quand mode === 'conversion'

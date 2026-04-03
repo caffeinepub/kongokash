@@ -1,6 +1,13 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowRight, Shield, TrendingUp, Users, Zap } from "lucide-react";
+import {
+  ArrowRight,
+  Globe,
+  Shield,
+  TrendingUp,
+  Users,
+  Zap,
+} from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import {
@@ -11,10 +18,11 @@ import {
   getDirectPrice,
   getP2PBestPrice,
 } from "../utils/priceEngine";
+import ConversionModule from "./ConversionModule";
 import KongoKashDirect from "./KongoKashDirect";
 import P2PPage from "./P2PPage";
 
-type HubMode = "direct" | "p2p";
+type HubMode = "direct" | "p2p" | "conversion";
 
 interface EchangeHubProps {
   defaultView?: string | null;
@@ -23,6 +31,7 @@ interface EchangeHubProps {
 export default function EchangeHub({ defaultView }: EchangeHubProps) {
   const [activeMode, setActiveMode] = useState<HubMode>(() => {
     if (defaultView === "direct" || defaultView === "buy") return "direct";
+    if (defaultView === "conversion") return "conversion";
     return "p2p";
   });
   const [directSubTab, setDirectSubTab] = useState<"buy" | "sell">("buy");
@@ -37,6 +46,8 @@ export default function EchangeHub({ defaultView }: EchangeHubProps) {
       setDirectSubTab("sell");
     } else if (defaultView === "p2p") {
       setActiveMode("p2p");
+    } else if (defaultView === "conversion") {
+      setActiveMode("conversion");
     }
   }, [defaultView]);
 
@@ -60,8 +71,8 @@ export default function EchangeHub({ defaultView }: EchangeHubProps) {
         </p>
       </div>
 
-      {/* Mode selector — two large cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {/* Mode selector — three cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {/* KongoKash Direct card */}
         <motion.button
           type="button"
@@ -222,102 +233,191 @@ export default function EchangeHub({ defaultView }: EchangeHubProps) {
             </div>
           </div>
         </motion.button>
-      </div>
 
-      {/* Contextual recommendation banner */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={sampleComparison.recommended}
-          initial={{ opacity: 0, y: -6 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0 }}
-          className={`flex items-start gap-2.5 px-4 py-3 rounded-xl border text-sm ${
-            sampleComparison.recommended === "p2p"
-              ? "border-teal-700/30 bg-teal-950/20"
-              : "border-amber-700/20 bg-amber-950/10"
+        {/* Conversion Africaine card */}
+        <motion.button
+          type="button"
+          whileTap={{ scale: 0.98 }}
+          onClick={() => setActiveMode("conversion")}
+          className={`relative text-left p-4 rounded-2xl border transition-all ${
+            activeMode === "conversion"
+              ? "border-violet-500/60 shadow-lg"
+              : "border-slate-700 hover:border-violet-700/50"
           }`}
-          data-ocid="exchange.panel"
+          style={{
+            background:
+              activeMode === "conversion"
+                ? "linear-gradient(135deg, oklch(0.18 0.06 280 / 0.8), oklch(0.15 0.05 265 / 0.6))"
+                : "oklch(0.15 0.02 220)",
+            boxShadow:
+              activeMode === "conversion"
+                ? "0 4px 24px oklch(0.45 0.18 280 / 0.15)"
+                : "none",
+          }}
+          data-ocid="exchange.tab"
         >
-          <span className="text-lg leading-none flex-shrink-0">💡</span>
-          <span
-            className={
-              sampleComparison.recommended === "p2p"
-                ? "text-teal-300"
-                : "text-amber-300/90"
-            }
-          >
-            {sampleComparison.reason}
-          </span>
-          {sampleComparison.recommended !== activeMode && (
-            <button
-              type="button"
-              onClick={() => setActiveMode(sampleComparison.recommended)}
-              className={`ml-auto flex-shrink-0 flex items-center gap-1 text-xs font-semibold transition-colors ${
-                sampleComparison.recommended === "p2p"
-                  ? "text-teal-400 hover:text-teal-200"
-                  : "text-amber-400 hover:text-amber-200"
-              }`}
-              data-ocid="exchange.link"
-            >
-              Essayer{" "}
-              {sampleComparison.recommended === "p2p" ? "P2P" : "Direct"}
-              <ArrowRight size={12} />
-            </button>
+          {activeMode === "conversion" && (
+            <div
+              className="absolute inset-0 rounded-2xl opacity-20"
+              style={{
+                background:
+                  "radial-gradient(ellipse at top right, oklch(0.45 0.18 280), transparent 70%)",
+              }}
+            />
           )}
-        </motion.div>
-      </AnimatePresence>
-
-      {/* Comparison legend for non-technical users */}
-      <div className="grid grid-cols-2 gap-3">
-        <Card className="border-amber-700/20 bg-amber-950/10">
-          <CardContent className="p-3 space-y-1.5">
-            <div className="flex items-center gap-1.5">
-              <Zap size={12} className="text-amber-400" />
-              <span className="text-xs font-bold text-amber-300">Direct</span>
-            </div>
-            <ul className="text-xs text-slate-400 space-y-1">
-              <li className="flex items-center gap-1">
-                <span className="text-emerald-400">✓</span> Prix stable et
-                prévisible
-              </li>
-              <li className="flex items-center gap-1">
-                <span className="text-emerald-400">✓</span> Disponible
-                immédiatement
-              </li>
-              <li className="flex items-center gap-1">
-                <span className="text-emerald-400">✓</span> Idéal pour petits
-                montants
-              </li>
-            </ul>
-          </CardContent>
-        </Card>
-        <Card className="border-teal-700/20 bg-teal-950/10">
-          <CardContent className="p-3 space-y-1.5">
-            <div className="flex items-center gap-1.5">
-              <TrendingUp size={12} style={{ color: "oklch(0.72 0.12 160)" }} />
-              <span
-                className="text-xs font-bold"
-                style={{ color: "oklch(0.72 0.12 160)" }}
+          <div className="relative z-10">
+            <div className="flex items-start justify-between mb-2">
+              <div
+                className="w-9 h-9 rounded-full flex items-center justify-center"
+                style={{ background: "oklch(0.45 0.18 280)" }}
               >
-                P2P
-              </span>
+                <Globe size={16} className="text-white" />
+              </div>
+              <div className="flex flex-col items-end gap-1">
+                <Badge
+                  className="text-xs font-bold"
+                  style={{
+                    background:
+                      activeMode === "conversion"
+                        ? "oklch(0.45 0.18 280 / 0.35)"
+                        : "oklch(0.45 0.18 280 / 0.2)",
+                    color: "oklch(0.78 0.12 280)",
+                    border: "1px solid oklch(0.45 0.18 280 / 0.4)",
+                  }}
+                >
+                  Nouveau
+                </Badge>
+              </div>
             </div>
-            <ul className="text-xs text-slate-400 space-y-1">
-              <li className="flex items-center gap-1">
-                <span className="text-emerald-400">✓</span> Prix potentiellement
-                meilleur
-              </li>
-              <li className="flex items-center gap-1">
-                <span className="text-emerald-400">✓</span> Escrow sécurisé
-              </li>
-              <li className="flex items-center gap-1">
-                <span className="text-amber-400">~</span> Nécessite offre
-                disponible
-              </li>
-            </ul>
-          </CardContent>
-        </Card>
+            <h2 className="font-bold text-white text-base mb-0.5">
+              Conversion Africaine
+            </h2>
+            <p className="text-slate-400 text-xs mb-3">
+              CDF → FCFA · NGN · KES
+            </p>
+            <div
+              className="rounded-xl bg-slate-900/60 px-3 py-2"
+              style={{
+                border: "1px solid oklch(0.45 0.18 280 / 0.2)",
+              }}
+            >
+              <p className="text-xs text-slate-500 mb-0.5">Indicatif</p>
+              <p
+                className="text-lg font-bold"
+                style={{ color: "oklch(0.78 0.12 280)" }}
+              >
+                1 CDF = 0.21 FCFA
+              </p>
+            </div>
+          </div>
+        </motion.button>
       </div>
+
+      {/* Contextual recommendation banner — only for direct/p2p modes */}
+      {activeMode !== "conversion" && (
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={sampleComparison.recommended}
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className={`flex items-start gap-2.5 px-4 py-3 rounded-xl border text-sm ${
+              sampleComparison.recommended === "p2p"
+                ? "border-teal-700/30 bg-teal-950/20"
+                : "border-amber-700/20 bg-amber-950/10"
+            }`}
+            data-ocid="exchange.panel"
+          >
+            <span className="text-lg leading-none flex-shrink-0">💡</span>
+            <span
+              className={
+                sampleComparison.recommended === "p2p"
+                  ? "text-teal-300"
+                  : "text-amber-300/90"
+              }
+            >
+              {sampleComparison.reason}
+            </span>
+            {sampleComparison.recommended !== activeMode && (
+              <button
+                type="button"
+                onClick={() =>
+                  setActiveMode(
+                    sampleComparison.recommended as "direct" | "p2p",
+                  )
+                }
+                className={`ml-auto flex-shrink-0 flex items-center gap-1 text-xs font-semibold transition-colors ${
+                  sampleComparison.recommended === "p2p"
+                    ? "text-teal-400 hover:text-teal-200"
+                    : "text-amber-400 hover:text-amber-200"
+                }`}
+                data-ocid="exchange.link"
+              >
+                Essayer{" "}
+                {sampleComparison.recommended === "p2p" ? "P2P" : "Direct"}
+                <ArrowRight size={12} />
+              </button>
+            )}
+          </motion.div>
+        </AnimatePresence>
+      )}
+
+      {/* Comparison legend — only for direct/p2p modes */}
+      {activeMode !== "conversion" && (
+        <div className="grid grid-cols-2 gap-3">
+          <Card className="border-amber-700/20 bg-amber-950/10">
+            <CardContent className="p-3 space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <Zap size={12} className="text-amber-400" />
+                <span className="text-xs font-bold text-amber-300">Direct</span>
+              </div>
+              <ul className="text-xs text-slate-400 space-y-1">
+                <li className="flex items-center gap-1">
+                  <span className="text-emerald-400">✓</span> Prix stable et
+                  prévisible
+                </li>
+                <li className="flex items-center gap-1">
+                  <span className="text-emerald-400">✓</span> Disponible
+                  immédiatement
+                </li>
+                <li className="flex items-center gap-1">
+                  <span className="text-emerald-400">✓</span> Idéal pour petits
+                  montants
+                </li>
+              </ul>
+            </CardContent>
+          </Card>
+          <Card className="border-teal-700/20 bg-teal-950/10">
+            <CardContent className="p-3 space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <TrendingUp
+                  size={12}
+                  style={{ color: "oklch(0.72 0.12 160)" }}
+                />
+                <span
+                  className="text-xs font-bold"
+                  style={{ color: "oklch(0.72 0.12 160)" }}
+                >
+                  P2P
+                </span>
+              </div>
+              <ul className="text-xs text-slate-400 space-y-1">
+                <li className="flex items-center gap-1">
+                  <span className="text-emerald-400">✓</span> Prix
+                  potentiellement meilleur
+                </li>
+                <li className="flex items-center gap-1">
+                  <span className="text-emerald-400">✓</span> Escrow sécurisé
+                </li>
+                <li className="flex items-center gap-1">
+                  <span className="text-amber-400">~</span> Nécessite offre
+                  disponible
+                </li>
+              </ul>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Active mode content */}
       <div className="mt-2">
@@ -328,17 +428,23 @@ export default function EchangeHub({ defaultView }: EchangeHubProps) {
             background:
               activeMode === "direct"
                 ? "oklch(0.65 0.16 75 / 0.08)"
-                : "oklch(0.42 0.13 160 / 0.08)",
+                : activeMode === "p2p"
+                  ? "oklch(0.42 0.13 160 / 0.08)"
+                  : "oklch(0.45 0.18 280 / 0.08)",
             border:
               activeMode === "direct"
                 ? "1px solid oklch(0.65 0.16 75 / 0.2)"
-                : "1px solid oklch(0.42 0.13 160 / 0.2)",
+                : activeMode === "p2p"
+                  ? "1px solid oklch(0.42 0.13 160 / 0.2)"
+                  : "1px solid oklch(0.45 0.18 280 / 0.2)",
           }}
         >
           {activeMode === "direct" ? (
             <Zap size={14} className="text-amber-400" />
-          ) : (
+          ) : activeMode === "p2p" ? (
             <Shield size={14} style={{ color: "oklch(0.72 0.12 160)" }} />
+          ) : (
+            <Globe size={14} style={{ color: "oklch(0.78 0.12 280)" }} />
           )}
           <span
             className="text-sm font-bold"
@@ -346,23 +452,29 @@ export default function EchangeHub({ defaultView }: EchangeHubProps) {
               color:
                 activeMode === "direct"
                   ? "oklch(0.80 0.14 75)"
-                  : "oklch(0.72 0.12 160)",
+                  : activeMode === "p2p"
+                    ? "oklch(0.72 0.12 160)"
+                    : "oklch(0.78 0.12 280)",
             }}
           >
             {activeMode === "direct"
               ? "KongoKash Direct — Service instantané"
-              : "Marché P2P — Échange entre utilisateurs"}
+              : activeMode === "p2p"
+                ? "Marché P2P — Échange entre utilisateurs"
+                : "Conversion Africaine — Sans banques internationales"}
           </span>
-          <button
-            type="button"
-            onClick={() =>
-              setActiveMode(activeMode === "direct" ? "p2p" : "direct")
-            }
-            className="ml-auto text-xs text-slate-500 hover:text-slate-300 transition-colors flex items-center gap-1"
-            data-ocid="exchange.secondary_button"
-          >
-            Changer <ArrowRight size={10} />
-          </button>
+          {activeMode !== "conversion" && (
+            <button
+              type="button"
+              onClick={() =>
+                setActiveMode(activeMode === "direct" ? "p2p" : "direct")
+              }
+              className="ml-auto text-xs text-slate-500 hover:text-slate-300 transition-colors flex items-center gap-1"
+              data-ocid="exchange.secondary_button"
+            >
+              Changer <ArrowRight size={10} />
+            </button>
+          )}
         </div>
 
         <AnimatePresence mode="wait">
@@ -379,7 +491,7 @@ export default function EchangeHub({ defaultView }: EchangeHubProps) {
                 onSwitchToP2P={() => setActiveMode("p2p")}
               />
             </motion.div>
-          ) : (
+          ) : activeMode === "p2p" ? (
             <motion.div
               key="p2p"
               initial={{ opacity: 0, x: 12 }}
@@ -394,6 +506,16 @@ export default function EchangeHub({ defaultView }: EchangeHubProps) {
                 }}
                 embedded
               />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="conversion"
+              initial={{ opacity: 0, x: 14 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -14 }}
+              transition={{ duration: 0.2 }}
+            >
+              <ConversionModule />
             </motion.div>
           )}
         </AnimatePresence>

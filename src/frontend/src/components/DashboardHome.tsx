@@ -147,10 +147,10 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
     {
       icon: Repeat2,
       label: "Acheter",
-      action: "p2p:buy",
+      action: "p2p:direct",
       gradient: "from-amber-500 to-orange-600",
       shadow: "shadow-amber-900/40",
-      onClick: () => onNavigate("p2p:buy"),
+      onClick: () => onNavigate("p2p:direct"),
     },
   ];
 
@@ -317,6 +317,17 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
                   </span>
                 </motion.button>
               ))}
+            </div>
+            {/* P2P secondary link */}
+            <div className="flex justify-center mt-3">
+              <button
+                type="button"
+                onClick={() => onNavigate("p2p:p2p")}
+                className="text-xs text-teal-400/70 hover:text-teal-300 transition-colors flex items-center gap-1"
+                data-ocid="dashboard.link"
+              >
+                Acheter via P2P →
+              </button>
             </div>
           </CardContent>
         </Card>

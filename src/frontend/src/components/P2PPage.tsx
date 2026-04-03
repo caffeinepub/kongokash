@@ -8,7 +8,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Shield, Star } from "lucide-react";
+import { Plus, Shield, Star, Zap } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import P2PSection from "./P2PSection";
@@ -117,9 +117,15 @@ const TYPE_FILTERS = ["Tous", "Acheter", "Vendre"];
 
 interface P2PPageProps {
   defaultView?: string | null;
+  onSwitchToDirect?: () => void;
+  embedded?: boolean;
 }
 
-export default function P2PPage({ defaultView }: P2PPageProps) {
+export default function P2PPage({
+  defaultView,
+  onSwitchToDirect,
+  embedded,
+}: P2PPageProps) {
   const [assetFilter, setAssetFilter] = useState("Tous");
   const [typeFilter, setTypeFilter] = useState("Tous");
   const [showP2PSection, setShowP2PSection] = useState(false);
@@ -144,7 +150,9 @@ export default function P2PPage({ defaultView }: P2PPageProps) {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-5"
+      className={
+        embedded ? "space-y-5" : "max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-5"
+      }
     >
       {/* Header */}
       <div className="flex items-start justify-between">
@@ -194,6 +202,28 @@ export default function P2PPage({ defaultView }: P2PPageProps) {
           fonds ne sont libérés qu'après confirmation.
         </span>
       </div>
+
+      {/* KongoKash Direct shortcut */}
+      {onSwitchToDirect && (
+        <motion.div
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-amber-700/30 bg-amber-950/10"
+        >
+          <Zap size={14} className="text-amber-400 flex-shrink-0" />
+          <span className="text-amber-300/80 text-xs flex-1">
+            Vous préférez un prix fixe garanti ?
+          </span>
+          <button
+            type="button"
+            onClick={onSwitchToDirect}
+            className="text-xs font-semibold text-amber-300 hover:text-amber-200 transition-colors flex items-center gap-1 flex-shrink-0"
+            data-ocid="p2p.secondary_button"
+          >
+            KongoKash Direct →
+          </button>
+        </motion.div>
+      )}
 
       {/* Active filter indicator */}
       {defaultView === "buy" && (

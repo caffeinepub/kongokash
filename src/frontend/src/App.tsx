@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import AdminDashboard from "./components/AdminDashboard";
 import BanquesSection from "./components/BanquesSection";
 import DashboardHome from "./components/DashboardHome";
+import EchangeHub from "./components/EchangeHub";
 import FirstAdminSetup from "./components/FirstAdminSetup";
 import Footer from "./components/Footer";
 import HeroSection from "./components/HeroSection";
@@ -210,7 +211,7 @@ export default function App() {
             className="min-h-[calc(100vh-4rem)] bg-slate-950"
             data-ocid="p2p.page"
           >
-            <P2PPage defaultView={activeSubTab} />
+            <EchangeHub defaultView={activeSubTab} />
           </div>
         );
       case "transactions":

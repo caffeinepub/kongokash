@@ -1,38 +1,38 @@
-# KongoKash
+# KongoKash — Système Hybride P2P + KongoKash Direct
 
 ## Current State
-Version 71. App has 5-tab navigation (Accueil, Wallet, P2P, Transactions, Profil). DashboardHome shows portfolio balance (from `usePortfolioValue`), quick action buttons that all navigate to `wallet` tab, recent transactions (from `useTransactions`), and market rates (from `useExchangeRates`). WalletPage has its own balance display using `useWallet`. There is a `useWallet` hook providing per-asset balances and a `usePortfolioValue` hook providing total CDF/USD. DashboardHome uses MOCK_ACTIVITY as fallback when real transactions are empty.
+
+L'app dispose d'un module P2P (P2PPage.tsx / P2PSection.tsx) et d'un module BuySell (BuySellSection.tsx) distincts, mais la différence entre "achat instantané" et "marché entre utilisateurs" n'est pas clairement présentée comme deux systèmes séparés avec des avantages/inconvénients visibles. Il n'y a pas de logique UX qui recommande l'un ou l'autre selon le contexte, ni de comparaison de prix en temps réel entre les deux canaux.
 
 ## Requested Changes (Diff)
 
 ### Add
-- `useWalletStore` context/hook that serves as the **single source of truth** for wallet balances — shared between Dashboard, Wallet, and Transactions pages
-- Smart quick action handlers: each action opens a specific sub-view rather than just navigating to a tab
-  - "Déposer" → Wallet tab, deposit sub-tab pre-opened
-  - "Envoyer" → Wallet tab, external transfer sub-tab pre-opened
-  - "Recevoir" → inline modal/sheet showing wallet address + QR code immediately
-  - "Acheter" → P2P tab with best offers pre-filtered, or Wallet exchange sub-tab
-- Pre-filled "Recevoir" modal: shows non-custodial wallet address (from `useNonCustodialWallet`) with QR code SVG
-- Pre-filled "Envoyer" action: navigates to wallet with send form pre-ready
-- Real-time data refresh: after any mutation (buy, sell, deposit, withdraw), invalidate wallet + transactions + portfolio queries via QueryClient
-- Remove MOCK_ACTIVITY: always use real transactions from `useTransactions`, show empty state if no transactions
+- Nouveau composant `KongoKashDirect.tsx` : interface dédiée à l'achat/retrait instantané avec prix fixe (spread 1.5%), disponibilité immédiate (24/7), sans besoin d'un vendeur tiers
+- Moteur de prix simulé `priceEngine.ts` : prix P2P dynamiques (offres utilisateurs ±2-5% du marché), prix KongoKash Direct fixes (spot + spread configurable)
+- Page d'entrée hybride `EchangeHub.tsx` : sélecteur intelligent qui compare les deux options et recommande la meilleure selon le contexte (montant, heure, disponibilité)
+- Bannière de comparaison contextuelle : affiche Prix P2P vs Prix Direct avec l'économie possible ou la rapidité gagnée
+- Badge de disponibilité : "Disponible maintenant" pour Direct, "X offres actives" pour P2P
 
 ### Modify
-- DashboardHome: connect total balance exclusively from `useWallet` data (summing per-asset CDF equivalents using exchange rates) as single source — removing the separate `usePortfolioValue` dependency or aligning both
-- Quick action buttons in DashboardHome: each button now passes a `subTab` or `action` parameter via `onNavigate` callback, so parent App.tsx can open the correct sub-view
-- WalletPage: accept an optional `defaultSubTab` prop to auto-open a specific sub-tab when navigated from dashboard
-- App.tsx: extend `onNavigate` to handle `tab:subtab` navigation format (e.g. `wallet:deposit`, `wallet:send`, `p2p:buy`)
-- TransactionsPage: use same `useTransactions` data, no separate mock data
+- `P2PPage.tsx` : devient un onglet dans l'EchangeHub plutôt qu'une page isolée
+- `App.tsx` : l'onglet "p2p" de navigation pointe vers le nouvel EchangeHub (qui contient les deux systèmes)
+- `DashboardHome.tsx` : les actions rapides "Acheter" et "Vendre" ouvrent l'EchangeHub avec la recommandation contextuelle pré-selectionnée
 
 ### Remove
-- MOCK_ACTIVITY array from DashboardHome (replace with real data + empty state)
+- Rien supprimé — BuySellSection reste disponible dans le WalletPage pour l'échange interne
 
 ## Implementation Plan
-1. Create `src/hooks/useWalletContext.tsx` — a React context that wraps `useWallet`, `usePortfolioValue`, `useTransactions`, `useExchangeRates` and exposes computed totalCDF, totalUSD, per-asset balances, and a `refresh()` function that invalidates all related queries
-2. Wrap App with `WalletContextProvider`
-3. Update DashboardHome to use wallet context for balance, real transactions for activity
-4. Add "Recevoir" modal in DashboardHome using `useNonCustodialWallet` for address + inline QR SVG
-5. Update quick action `onNavigate` to pass sub-tab info (e.g. `wallet:deposit`)
-6. Update App.tsx to parse `tab:subtab` and pass `defaultSubTab` to WalletPage
-7. Update WalletPage to accept and honor `defaultSubTab` prop
-8. Ensure all mutations in WalletPage and P2PPage call `refresh()` or invalidate queries properly
+
+1. Créer `src/frontend/src/utils/priceEngine.ts` — prix simulés pour P2P (dynamiques, variables) et KongoKash Direct (fixes + spread)
+2. Créer `src/frontend/src/components/KongoKashDirect.tsx` — formulaire d'achat/retrait instantané avec :
+   - Affichage du prix fixe (stable, garanti)
+   - Disponibilité 24/7
+   - Traitement immédiat
+   - Comparaison avec le meilleur prix P2P disponible
+3. Créer `src/frontend/src/components/EchangeHub.tsx` — hub central avec :
+   - Sélecteur de mode : P2P vs KongoKash Direct
+   - Comparateur de prix en temps réel
+   - Recommandation contextuelle intelligente ("Meilleur prix" vs "Disponible maintenant")
+   - Transition fluide entre les deux modes
+4. Modifier `App.tsx` — l'onglet `p2p` rend `EchangeHub` au lieu de `P2PPage`
+5. Modifier `DashboardHome.tsx` — actions rapides "Acheter" et "Vendre" pointent vers l'EchangeHub

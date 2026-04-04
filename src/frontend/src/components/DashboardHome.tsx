@@ -122,32 +122,32 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
   const quickActions = [
     {
       icon: ArrowDownLeft,
-      label: "Déposer",
-      action: "wallet:deposit",
+      label: "Recevoir de l'argent",
+      sublabel: "Mobile Money / Banque",
       gradient: "from-emerald-600 to-emerald-700",
       shadow: "shadow-emerald-900/40",
       onClick: () => onNavigate("wallet:deposit"),
     },
     {
       icon: Send,
-      label: "Envoyer",
-      action: "wallet:send",
+      label: "Envoyer de l'argent",
+      sublabel: "Transfert externe",
       gradient: "from-blue-600 to-blue-700",
       shadow: "shadow-blue-900/40",
       onClick: () => onNavigate("wallet:external"),
     },
     {
       icon: ArrowUpRight,
-      label: "Recevoir",
-      action: "wallet:receive",
+      label: "Mon adresse",
+      sublabel: "Partager mon QR",
       gradient: "from-teal-600 to-teal-700",
       shadow: "shadow-teal-900/40",
       onClick: () => setReceiveOpen(true),
     },
     {
       icon: Repeat2,
-      label: "Acheter",
-      action: "p2p:direct",
+      label: "Acheter crypto",
+      sublabel: "Instantané",
       gradient: "from-amber-500 to-orange-600",
       shadow: "shadow-amber-900/40",
       onClick: () => onNavigate("p2p:direct"),
@@ -201,6 +201,11 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
   const displayAddress =
     walletAddress ?? identity?.getPrincipal().toString() ?? null;
 
+  const contextualSubtitle =
+    !onboardingDismissed && totalCDF === 0
+      ? "Commencez par créer votre porte-monnaie 👇"
+      : "KongoKash · Tableau de bord";
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-5">
       {/* Welcome bar */}
@@ -213,9 +218,7 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
           <h1 className="font-display font-bold text-2xl text-white">
             Bonjour, {profile?.displayName || principalShort || "Bienvenue"} 👋
           </h1>
-          <p className="text-slate-400 text-sm mt-0.5">
-            KongoKash · Tableau de bord
-          </p>
+          <p className="text-slate-400 text-sm mt-0.5">{contextualSubtitle}</p>
         </div>
         <Button
           variant="ghost"
@@ -306,15 +309,22 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
                   type="button"
                   whileTap={{ scale: 0.95 }}
                   onClick={action.onClick}
-                  className={`flex flex-col items-center gap-1.5 p-3 rounded-2xl bg-gradient-to-b ${action.gradient} shadow-lg ${action.shadow} hover:brightness-110 transition-all`}
+                  className={`flex flex-col items-center gap-1.5 p-3 rounded-2xl bg-gradient-to-b ${
+                    action.gradient
+                  } shadow-lg ${action.shadow} hover:brightness-110 transition-all`}
                   data-ocid={`dashboard.primary_button.${i + 1}`}
                 >
                   <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
                     <action.icon size={16} className="text-white" />
                   </div>
-                  <span className="text-xs font-semibold text-white">
-                    {action.label}
-                  </span>
+                  <div className="text-center">
+                    <span className="text-xs font-semibold text-white block leading-tight">
+                      {action.label}
+                    </span>
+                    <span className="text-[10px] text-white/60 block leading-tight mt-0.5">
+                      {action.sublabel}
+                    </span>
+                  </div>
                 </motion.button>
               ))}
             </div>
@@ -326,7 +336,7 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
                 className="text-xs text-teal-400/70 hover:text-teal-300 transition-colors flex items-center gap-1"
                 data-ocid="dashboard.link"
               >
-                Acheter via P2P →
+                Échanger entre personnes →
               </button>
             </div>
           </CardContent>
@@ -559,7 +569,7 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
             ) : (
               <div className="text-center py-6 space-y-3">
                 <p className="text-slate-400 text-sm">
-                  Créez d'abord votre wallet sécurisé pour obtenir une adresse.
+                  Créez d'abord votre porte-monnaie pour obtenir une adresse.
                 </p>
                 <button
                   type="button"
@@ -571,7 +581,7 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
                   style={{ background: "oklch(0.42 0.13 195)" }}
                   data-ocid="dashboard.secondary_button"
                 >
-                  Créer mon wallet →
+                  Créer mon porte-monnaie →
                 </button>
               </div>
             )}

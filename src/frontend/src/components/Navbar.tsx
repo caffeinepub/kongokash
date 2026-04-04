@@ -133,6 +133,7 @@ export default function Navbar({
                 { label: "Okapi", id: "okapi" as TabId },
                 { label: "Réservations", id: "reservations" as TabId },
                 { label: "Banques", id: "banques" as TabId },
+                { label: "À propos", id: "about" as TabId },
               ].map((link) => (
                 <button
                   key={link.id}
@@ -240,6 +241,7 @@ export default function Navbar({
                   { label: "Okapi", id: "okapi" as TabId },
                   { label: "Réservations", id: "reservations" as TabId },
                   { label: "Banques", id: "banques" as TabId },
+                  { label: "À propos", id: "about" as TabId },
                 ].map((link) => (
                   <button
                     key={link.id}

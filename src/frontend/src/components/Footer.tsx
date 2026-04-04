@@ -1,6 +1,10 @@
 import { SiFacebook, SiInstagram, SiTelegram, SiX } from "react-icons/si";
 
-export default function Footer() {
+interface FooterProps {
+  onNavigate?: (tab: string) => void;
+}
+
+export default function Footer({ onNavigate }: FooterProps) {
   const year = new Date().getFullYear();
   const hostname =
     typeof window !== "undefined" ? window.location.hostname : "";
@@ -77,6 +81,11 @@ export default function Footer() {
                   <button
                     type="button"
                     className="hover:text-white transition-colors text-left"
+                    onClick={
+                      item === "À propos"
+                        ? () => onNavigate?.("about")
+                        : undefined
+                    }
                     data-ocid="footer.link"
                   >
                     {item}

@@ -1,6 +1,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import AboutPage from "./components/AboutPage";
 import AdminDashboard from "./components/AdminDashboard";
 import BanquesSection from "./components/BanquesSection";
 import DashboardHome from "./components/DashboardHome";
@@ -32,7 +33,8 @@ export type TabId =
   | "profil"
   | "reservations"
   | "okapi"
-  | "banques";
+  | "banques"
+  | "about";
 
 export default function App() {
   const { identity } = useInternetIdentity();
@@ -264,6 +266,18 @@ export default function App() {
             <MobileMoneySection />
           </div>
         );
+      case "about":
+        return (
+          <div
+            className="min-h-[calc(100vh-4rem)] bg-slate-950"
+            data-ocid="about.page"
+          >
+            <AboutPage
+              onGetStarted={() => setActiveTab("wallet")}
+              onViewWhitepaper={() => setActiveTab("okapi")}
+            />
+          </div>
+        );
       default:
         return null;
     }
@@ -284,7 +298,7 @@ export default function App() {
               <AdminDashboard />
             )}
           </main>
-          <Footer />
+          <Footer onNavigate={(tab) => setActiveTab(tab as TabId)} />
           <Toaster richColors position="top-right" />
         </div>
       </WalletContextProvider>

@@ -1,55 +1,28 @@
-# KongoKash — Module Conversion Monnaies Africaines
+# KongoKash
 
 ## Current State
-
-KongoKash dispose d'un système d'échange hybride (EchangeHub) avec deux canaux :
-- **KongoKash Direct** : achat/vente instantané de crypto (BTC, ETH, USDT, ICP, OKP) contre CDF
-- **P2P Marché** : échange entre utilisateurs avec escrow sécurisé
-
-Le priceEngine.ts gère les paires CDF/crypto. L'application n'a pas de module de conversion entre monnaies africaines fiat (CDF, FCFA, NGN, KES, GHS, XAF, XOF, ZAR).
-
-La navigation principale a 5 onglets : Accueil, Wallet, P2P, Transactions, Profil. L'onglet P2P affiche EchangeHub.
+L'app dispose déjà d'un OnboardingFlow basique (3 étapes texte), une navigation 5 onglets, un DashboardHome avec actions rapides, et un WalletPage avec sous-onglets. L'interface est fonctionnelle mais reste technique (vocabulaire crypto, peu d'icônes visuelles, onboarding succinct).
 
 ## Requested Changes (Diff)
 
 ### Add
-- Nouveau composant `ConversionModule.tsx` — interface complète de conversion entre monnaies africaines
-- Nouveau utilitaire `africaCurrencies.ts` — taux de change simulés, logique de conversion via pivot USDT, liste des devises, agents
-- Onglet "Conversion" dans EchangeHub (3e mode aux côtés de Direct et P2P)
-- Deux modes dans ConversionModule :
-  - **Mode P2P** : liste d'offres d'agents disponibles pour échanger CDF ↔ FCFA/NGN/etc.
-  - **Mode KongoKash Direct** : conversion instantanée via liquidité interne (CDF → USDT → devise cible)
-- Interface utilisateur : sélection devise source + cible, saisie montant, affichage taux + montant converti, bouton convertir
-- Système d'agents : liste d'agents enregistrés avec devise, disponibilité, taux, volume
-- Logique de compensation interne : routing CDF → USDT → FCFA/XOF/XAF/NGN/KES/GHS/ZAR
-- Bannière explicative sur le principe (sans banques internationales)
+- Composant `OnboardingSimplified.tsx` : onboarding débutant en 3 étapes visuelles avec grandes icônes illustrées, texte simplifié, barre de progression animée, et un CTA clair par étape
+- Étape 1 : "Créer mon porte-monnaie" (icône coffre-fort, explication simple non-custodial)
+- Étape 2 : "Acheter ma première crypto" (icône pièce d'or, explication achat via Mobile Money)
+- Étape 3 : "Échanger avec quelqu'un" (icône flèches échange, explication P2P en langage simple)
+- Vocabulaire débutant : remplacer "wallet" → "porte-monnaie", "seed phrase" → "phrase secrète de récupération", "P2P" → "Échange entre personnes", "escrow" → "paiement sécurisé"
+- Badges étapes avec numéro + icône + titre court en français simple
 
 ### Modify
-- `EchangeHub.tsx` : ajouter un 3e mode "conversion" avec carte de sélection dédiée
-- `App.tsx` : le TabId "p2p" englobe déjà EchangeHub, pas de changement de navigation nécessaire
-- `africaCurrencies.ts` (nouveau) : intégrer dans priceEngine ou créer séparément
+- `OnboardingFlow.tsx` : refonte complète avec étapes visuelles grandes, icônes colorées, descriptions simplifiées, indicateurs de progression visuels
+- `DashboardHome.tsx` : améliorer l'onboarding intégré avec numéros d'étape, icônes illustratives plus grandes, et barre de progression visuelle
+- `WalletPage.tsx` : libellés des actions en langage simple ("Recevoir de l'argent", "Envoyer de l'argent", "Déposer", "Retirer")
 
 ### Remove
-- Rien à supprimer
+- Jargon technique superflu dans les descriptions d'onboarding
 
 ## Implementation Plan
-
-1. Créer `africaCurrencies.ts` avec :
-   - Devises africaines supportées : CDF, FCFA (XAF/XOF), NGN, KES, GHS, ZAR
-   - Taux CDF→USDT→devise cible (pivot USDT)
-   - Liste d'agents simulés avec nom, devise, disponibilité, taux, volume
-   - Fonctions : convertAmount(), getAgentOffers(), getBestRate()
-
-2. Créer `ConversionModule.tsx` avec :
-   - Sélecteur devise source (CDF par défaut) et devise cible (FCFA par défaut)
-   - Champ montant avec affichage en temps réel du résultat converti
-   - Taux affiché + décomposition (CDF → USDT → cible)
-   - Deux onglets internes : "Instantané" (KongoKash Direct) et "Via Agents" (P2P)
-   - Mode Instantané : bouton convertir direct, frais 0.8%, délai ~2 min
-   - Mode Agents : liste d'offres d'agents avec taux, méthode de paiement, bouton Contacter
-   - Bannière : "Échanges africains sans banques internationales"
-
-3. Modifier `EchangeHub.tsx` :
-   - Ajouter carte "Conversion 🌍" comme 3e option dans le sélecteur de mode
-   - Rendre la grille 3 colonnes sur desktop, 1 sur mobile
-   - Charger ConversionModule quand mode === 'conversion'
+1. Refondre `OnboardingFlow.tsx` : grandes cartes visuelles, icônes SVG/Lucide colorées, texte débutant, progression animée
+2. Améliorer `DashboardHome.tsx` : onboarding en pleine carte avec numéros d'étapes en cercles colorés, descriptions simplifiées
+3. Simplifier les libellés dans `WalletPage.tsx` actions
+4. S'assurer que le vocabulaire est cohérent partout (porte-monnaie, phrase secrète, échange sécurisé)

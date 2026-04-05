@@ -1,5 +1,12 @@
 import { Button } from "@/components/ui/button";
-import { ArrowRight, BookOpen, CheckCircle2, ShieldCheck } from "lucide-react";
+import {
+  ArrowRight,
+  BookOpen,
+  CheckCircle2,
+  Lock,
+  ShieldCheck,
+  X,
+} from "lucide-react";
 import { motion } from "motion/react";
 
 interface AboutPageProps {
@@ -7,78 +14,80 @@ interface AboutPageProps {
   onViewWhitepaper?: () => void;
 }
 
-const missionCards = [
+// ── Section: Ce que c'est / Ce que ce n'est pas ─────────────────────────────
+const WHAT_IT_IS = [
   {
-    icon: "🌍",
-    title: "Inclusion financière",
-    description:
-      "Donner accès à la finance décentralisée à chaque Congolais, même sans compte bancaire traditionnel. KongoKash est pour tous.",
-  },
-  {
-    icon: "💱",
-    title: "Paiement africain",
-    description:
-      "Échangez des cryptomonnaies contre des Francs Congolais (CDF) directement via Airtel Money, M-Pesa, Vodacom et Orange — sans intermédiaire coûteux.",
-  },
-  {
-    icon: "🏗️",
-    title: "Infrastructure neutre",
-    description:
-      "KongoKash est un protocole, pas une banque. Vos fonds vous appartiennent toujours. Nous ne contrôlons rien — et c'est voulu.",
-  },
-];
-
-const securityItems = [
-  {
-    icon: "🔑",
-    title: "Wallet Non-Custodial",
-    description:
-      "KongoKash ne détient jamais vos clés privées. Vous contrôlez vos fonds à 100% grâce à votre phrase secrète (seed phrase de 12 ou 24 mots). Ni KongoKash ni personne d'autre ne peut accéder à votre wallet.",
-    badge: "Contrôle total",
-    badgeColor: "oklch(0.52 0.12 160)",
+    icon: "🤝",
+    title: "Un réseau P2P",
+    desc: "KongoKash met en contact des acheteurs et des vendeurs directement — sans intermédiaire. Vous échangez entre personnes, pas avec une institution.",
   },
   {
     icon: "🔒",
-    title: "Chiffrement Avancé (scrypt + AES-256-GCM)",
-    description:
-      "Vos clés sont chiffrées localement avec scrypt (résistant aux attaques GPU/ASIC modernes) et AES-256-GCM — le même standard que les institutions bancaires et militaires mondiales.",
-    badge: "Standard militaire",
-    badgeColor: "oklch(0.55 0.15 270)",
+    title: "Un protocole escrow",
+    desc: "Chaque transaction est protégée par un contrat intelligent. Les fonds sont bloqués et libérés automatiquement — personne ne peut les détourner.",
   },
   {
-    icon: "🛡️",
-    title: "Escrow Smart Contract",
-    description:
-      "Chaque paiement de réservation est automatiquement verrouillé dans un smart contract immuable. Les fonds ne sont libérés qu'après confirmation du service — jamais avant, jamais sans votre accord.",
-    badge: "Protection escrow",
-    badgeColor: "oklch(0.65 0.14 85)",
+    icon: "📱",
+    title: "Un accès Mobile Money",
+    desc: "Airtel Money, M-Pesa, Orange, Vodacom. Vous n'avez pas besoin d'un compte bancaire. Votre téléphone suffit.",
+  },
+];
+
+const WHAT_IT_IS_NOT = [
+  {
+    label: "Une banque",
+    reason:
+      "KongoKash ne détient pas votre argent. Vos fonds restent sous votre contrôle.",
+  },
+  {
+    label: "Un exchange centralisé",
+    reason:
+      "Aucun serveur central, aucune entreprise ne peut geler vos fonds ou fermer votre compte.",
+  },
+  {
+    label: "Un wallet custodial",
+    reason:
+      "Ni KongoKash ni personne d'autre n'a accès à vos clés privées. Jamais.",
+  },
+];
+
+// ── Section: Sécurité expliquée simplement ──────────────────────────────────
+const SECURITY_SIMPLE = [
+  {
+    icon: "🏦",
+    title: "L'escrow : le coffre-fort neutre",
+    analogy:
+      "Imaginez un coffre-fort posé entre vous et l'acheteur. Vous verrouillez votre crypto dedans. L'acheteur paie en Mobile Money. Le coffre s'ouvre automatiquement une fois le paiement confirmé. Ni vous, ni l'acheteur, ni KongoKash ne peut forcer l'ouverture.",
+    badge: "Smart Contract",
+    badgeColor: "oklch(0.72 0.12 160)",
+  },
+  {
+    icon: "🔑",
+    title: "Wallet non-custodial : votre argent, vos clés",
+    analogy:
+      "Votre wallet, c'est comme un coffre dont vous seul avez la combinaison (votre phrase secrète de 12 mots). KongoKash n'a pas de double. Si vous perdez votre téléphone, vous récupérez tout avec votre phrase. Personne d'autre ne peut accéder à vos fonds.",
+    badge: "Non-Custodial",
+    badgeColor: "oklch(0.77 0.13 85)",
   },
   {
     icon: "🏛️",
-    title: "Hébergé sur ICP (Internet Computer)",
-    description:
-      "100% décentralisé sur l'Internet Computer Protocol. Aucun serveur central ne peut être saisi, censuré ou mis hors ligne. Ni KongoKash ni personne d'autre ne peut bloquer votre accès à vos fonds.",
-    badge: "100% Décentralisé",
+    title: "ICP : aucun serveur central",
+    analogy:
+      "L'application tourne sur l'Internet Computer — une blockchain décentralisée. Il n'y a aucun serveur que quelqu'un peut éteindre, pirater ou saisir. Votre accès est permanent.",
+    badge: "Décentralisé",
     badgeColor: "oklch(0.60 0.18 240)",
   },
   {
-    icon: "📋",
-    title: "KYC & Anti-Fraude Actif",
-    description:
-      "Vérification d'identité pour la sécurité de tous les utilisateurs. Système anti-fraude avancé : device fingerprinting, détection de multi-comptes, IPs suspectes et sanctions automatiques.",
-    badge: "Protection communauté",
-    badgeColor: "oklch(0.55 0.14 30)",
+    icon: "🔒",
+    title: "Chiffrement militaire",
+    analogy:
+      "Vos clés privées sont chiffrées avec scrypt + AES-256-GCM — les mêmes standards utilisés par les armées et les banques mondiales. Même si quelqu'un volait votre téléphone, il ne pourrait pas déchiffrer vos données sans votre mot de passe.",
+    badge: "AES-256-GCM",
+    badgeColor: "oklch(0.55 0.15 270)",
   },
 ];
 
-const trustBadges = [
-  { label: "Wallet Non-Custodial", icon: "🔑" },
-  { label: "Chiffrement scrypt + AES-256-GCM", icon: "🔒" },
-  { label: "Smart Contract Escrow", icon: "🛡️" },
-  { label: "100% Décentralisé (ICP)", icon: "🏛️" },
-  { label: "Audit Prévu 2026", icon: "✅" },
-];
-
+// ── Comparison ────────────────────────────────────────────────────────────────
 const comparisonRows = [
   {
     feature: "Contrôle des fonds",
@@ -112,27 +121,6 @@ const comparisonRows = [
   },
 ];
 
-const values = [
-  {
-    icon: "🔍",
-    title: "Transparence",
-    description:
-      "Tous nos smart contracts sont publics et vérifiables. Les frais, le flux des revenus et la trésorerie sont visibles on-chain par tous.",
-  },
-  {
-    icon: "🔐",
-    title: "Sécurité",
-    description:
-      "Chiffrement de niveau bancaire, wallet non-custodial, escrow automatique. Votre sécurité n'est jamais un compromis chez KongoKash.",
-  },
-  {
-    icon: "🤝",
-    title: "Accessibilité",
-    description:
-      "Conçu pour les Congolais, les touristes, et tous les Africains. Une interface simple, en français, accessible même avec une connexion lente.",
-  },
-];
-
 function CellIcon({ positive }: { positive: boolean | null }) {
   if (positive === true) return <span className="text-base">✅</span>;
   if (positive === false) return <span className="text-base">❌</span>;
@@ -147,7 +135,7 @@ export default function AboutPage({
     <div className="text-white">
       {/* ── Hero ── */}
       <section
-        className="relative overflow-hidden py-24 px-6"
+        className="relative overflow-hidden py-20 px-6"
         style={{
           background:
             "linear-gradient(150deg, oklch(0.14 0.06 195) 0%, oklch(0.18 0.08 190) 55%, oklch(0.16 0.05 200) 100%)",
@@ -170,124 +158,139 @@ export default function AboutPage({
             >
               À propos de KongoKash
             </span>
+
             <h1
-              className="font-display font-bold mb-5"
+              className="font-display font-bold mb-4"
               style={{
-                fontSize: "clamp(2rem, 4.5vw, 3.5rem)",
-                lineHeight: 1.15,
+                fontSize: "clamp(1.8rem, 4vw, 3rem)",
+                lineHeight: 1.2,
               }}
             >
-              La plateforme décentralisée pour
-              <br />
-              <span style={{ color: "oklch(0.77 0.13 85)" }}>
-                l'inclusion financière en Afrique
-              </span>
+              KongoKash, c'est quoi exactement ?
             </h1>
+
             <p
-              className="text-lg max-w-2xl mx-auto leading-relaxed"
+              className="text-xl font-semibold mb-3"
+              style={{ color: "oklch(0.77 0.13 85)" }}
+            >
+              Un réseau de paiement P2P africain.
+            </p>
+
+            <p
+              className="text-base max-w-2xl mx-auto leading-relaxed"
               style={{ color: "oklch(0.72 0.05 195)" }}
             >
-              KongoKash permet aux Congolais — locaux et touristes — d'acheter,
-              vendre et utiliser des cryptomonnaies avec des Francs Congolais
-              (CDF) ou des dollars (USD), sans intermédiaire centralisé,
-              directement depuis leur téléphone.
+              Vous échangez directement avec d'autres personnes — sans banque,
+              sans intermédiaire. Chaque transaction est protégée par un smart
+              contract. Vos fonds vous appartiennent à 100%.
             </p>
-          </motion.div>
-
-          {/* Trust badges strip */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.25 }}
-            className="flex flex-wrap justify-center gap-3 mt-10"
-          >
-            {trustBadges.map((badge) => (
-              <span
-                key={badge.label}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold"
-                style={{
-                  background: "oklch(0.52 0.12 160 / 0.15)",
-                  color: "oklch(0.78 0.14 160)",
-                  border: "1px solid oklch(0.52 0.12 160 / 0.35)",
-                }}
-                data-ocid="about.trust.panel"
-              >
-                {badge.icon} {badge.label}
-              </span>
-            ))}
           </motion.div>
         </div>
       </section>
 
-      {/* ── Mission ── */}
+      {/* ── Ce que c'est / Ce que ce n'est pas ── */}
       <section
-        className="py-20 px-6"
+        className="py-16 px-6"
         style={{ background: "oklch(0.12 0.05 195)" }}
       >
         <div className="max-w-7xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="text-center mb-12"
-          >
-            <h2
-              className="font-display font-bold mb-3"
-              style={{ fontSize: "clamp(1.6rem, 3vw, 2.4rem)" }}
+          <div className="grid lg:grid-cols-2 gap-10 items-start">
+            {/* Ce que c'est */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
             >
-              Notre{" "}
-              <span style={{ color: "oklch(0.77 0.13 85)" }}>Mission</span>
-            </h2>
-            <p className="text-white/60 max-w-xl mx-auto">
-              Construire une infrastructure financière décentralisée au service
-              du peuple congolais.
-            </p>
-          </motion.div>
-
-          <div className="grid md:grid-cols-3 gap-6">
-            {missionCards.map((card, i) => (
-              <motion.div
-                key={card.title}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: i * 0.12 }}
-                className="rounded-2xl p-7 flex flex-col gap-4"
-                style={{
-                  background: "oklch(0.18 0.07 195 / 0.7)",
-                  border: "1.5px solid oklch(0.77 0.13 85 / 0.25)",
-                }}
-                data-ocid={`about.mission.item.${i + 1}`}
+              <h2
+                className="font-display font-bold text-xl mb-6"
+                style={{ color: "oklch(0.72 0.12 160)" }}
               >
-                <div
-                  className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl"
-                  style={{
-                    background: "oklch(0.77 0.13 85 / 0.12)",
-                    border: "1px solid oklch(0.77 0.13 85 / 0.25)",
-                  }}
-                >
-                  {card.icon}
-                </div>
-                <h3
-                  className="font-display font-bold text-lg"
-                  style={{ color: "oklch(0.77 0.13 85)" }}
-                >
-                  {card.title}
-                </h3>
-                <p
-                  className="text-sm leading-relaxed"
-                  style={{ color: "oklch(0.72 0.05 195)" }}
-                >
-                  {card.description}
-                </p>
-              </motion.div>
-            ))}
+                ✅ KongoKash, c'est :
+              </h2>
+              <div className="space-y-4">
+                {WHAT_IT_IS.map((item, i) => (
+                  <div
+                    key={item.title}
+                    className="flex items-start gap-4 p-4 rounded-2xl"
+                    style={{
+                      background: "oklch(0.18 0.07 195 / 0.7)",
+                      border: "1.5px solid oklch(0.72 0.12 160 / 0.25)",
+                    }}
+                    data-ocid={`about.mission.item.${i + 1}`}
+                  >
+                    <span className="text-2xl shrink-0 mt-0.5">
+                      {item.icon}
+                    </span>
+                    <div>
+                      <h3 className="font-bold text-white text-sm mb-1">
+                        {item.title}
+                      </h3>
+                      <p
+                        className="text-sm leading-relaxed"
+                        style={{ color: "oklch(0.68 0.06 195)" }}
+                      >
+                        {item.desc}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+
+            {/* Ce que ce n'est pas */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.15 }}
+            >
+              <h2
+                className="font-display font-bold text-xl mb-6"
+                style={{ color: "oklch(0.68 0.16 25)" }}
+              >
+                ❌ KongoKash n'est PAS :
+              </h2>
+              <div className="space-y-4">
+                {WHAT_IT_IS_NOT.map((item, i) => (
+                  <div
+                    key={item.label}
+                    className="flex items-start gap-4 p-4 rounded-2xl"
+                    style={{
+                      background: "oklch(0.16 0.05 195 / 0.6)",
+                      border: "1.5px solid oklch(0.60 0.18 30 / 0.2)",
+                    }}
+                    data-ocid={`about.values.item.${i + 1}`}
+                  >
+                    <div
+                      className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5"
+                      style={{ background: "oklch(0.60 0.18 30 / 0.15)" }}
+                    >
+                      <X size={14} style={{ color: "oklch(0.68 0.16 25)" }} />
+                    </div>
+                    <div>
+                      <h3
+                        className="font-bold text-sm mb-1"
+                        style={{ color: "oklch(0.80 0.10 30)" }}
+                      >
+                        {item.label}
+                      </h3>
+                      <p
+                        className="text-sm leading-relaxed"
+                        style={{ color: "oklch(0.65 0.06 195)" }}
+                      >
+                        {item.reason}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
           </div>
         </div>
       </section>
 
-      {/* ── Security ── */}
+      {/* ── Sécurité expliquée simplement ── */}
       <section
         className="py-20 px-6 relative overflow-hidden"
         style={{
@@ -295,14 +298,14 @@ export default function AboutPage({
             "linear-gradient(160deg, oklch(0.14 0.07 200) 0%, oklch(0.16 0.06 190) 100%)",
         }}
       >
-        <div className="absolute inset-0 geo-pattern opacity-20" />
+        <div className="absolute inset-0 geo-pattern opacity-15" />
         <div className="relative max-w-7xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
-            className="text-center mb-14"
+            className="text-center mb-12"
           >
             <span
               className="inline-block px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest mb-4"
@@ -312,55 +315,50 @@ export default function AboutPage({
                 border: "1px solid oklch(0.52 0.12 160 / 0.35)",
               }}
             >
-              Sécurité & Confiance
+              Sécurité expliquée simplement
             </span>
             <h2
               className="font-display font-bold mb-3"
               style={{ fontSize: "clamp(1.6rem, 3vw, 2.4rem)" }}
             >
-              🔐 Votre sécurité,{" "}
-              <span style={{ color: "oklch(0.75 0.14 160)" }}>
-                notre priorité absolue
-              </span>
+              Comment vos fonds sont-ils{" "}
+              <span style={{ color: "oklch(0.75 0.14 160)" }}>protégés ?</span>
             </h2>
             <p className="text-white/60 max-w-xl mx-auto">
-              KongoKash a été conçu dès le départ avec la sécurité comme
-              principe fondamental — pas comme une fonctionnalité ajoutée.
+              Pas de jargon technique. Juste ce que vous devez savoir avant de
+              déposer de l'argent.
             </p>
           </motion.div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {securityItems.map((item, i) => (
+          <div className="grid md:grid-cols-2 gap-6">
+            {SECURITY_SIMPLE.map((item, i) => (
               <motion.div
                 key={item.title}
                 initial={{ opacity: 0, y: 30 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.5, delay: i * 0.1 }}
-                className="rounded-2xl p-6 flex flex-col gap-4"
+                className="rounded-2xl p-7 flex flex-col gap-4"
                 style={{
                   background: "oklch(0.16 0.07 195 / 0.8)",
-                  border: "1.5px solid oklch(0.52 0.12 160 / 0.25)",
+                  border: `1.5px solid ${item.badgeColor}28`,
                   backdropFilter: "blur(12px)",
                 }}
                 data-ocid={`about.security.item.${i + 1}`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div
-                    className="w-12 h-12 rounded-xl flex items-center justify-center text-xl shrink-0"
-                    style={{
-                      background: "oklch(0.52 0.12 160 / 0.15)",
-                      border: "1px solid oklch(0.52 0.12 160 / 0.3)",
-                    }}
+                    className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0"
+                    style={{ background: `${item.badgeColor}18` }}
                   >
                     {item.icon}
                   </div>
                   <span
-                    className="text-xs font-semibold px-2.5 py-1 rounded-full shrink-0"
+                    className="text-xs font-semibold px-3 py-1.5 rounded-full shrink-0"
                     style={{
-                      background: `${item.badgeColor} / 0.15`,
+                      background: `${item.badgeColor}18`,
                       color: item.badgeColor,
-                      border: `1px solid ${item.badgeColor} / 0.3`,
+                      border: `1px solid ${item.badgeColor}30`,
                     }}
                   >
                     {item.badge}
@@ -370,21 +368,21 @@ export default function AboutPage({
                   {item.title}
                 </h3>
                 <p
-                  className="text-sm leading-relaxed"
-                  style={{ color: "oklch(0.70 0.05 195)" }}
+                  className="text-sm leading-relaxed italic"
+                  style={{ color: "oklch(0.72 0.06 195)" }}
                 >
-                  {item.description}
+                  {item.analogy}
                 </p>
               </motion.div>
             ))}
           </div>
 
-          {/* Security assurance bar */}
+          {/* Audit banner */}
           <motion.div
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.5 }}
+            transition={{ duration: 0.5, delay: 0.4 }}
             className="mt-10 rounded-2xl p-6 flex flex-col sm:flex-row items-center gap-5"
             style={{
               background: "oklch(0.52 0.12 160 / 0.08)",
@@ -402,10 +400,9 @@ export default function AboutPage({
                 Audit de sécurité indépendant prévu pour 2026
               </p>
               <p className="text-sm" style={{ color: "oklch(0.68 0.06 195)" }}>
-                Avant le lancement public, KongoKash fera l'objet d'un audit
-                complet par un cabinet de sécurité indépendant. Toutes les
-                vulnérabilités identifiées seront corrigées avant la mise en
-                production. La sécurité de vos fonds ne sera jamais compromise.
+                Avant le lancement public, tous les smart contracts seront
+                audités par un cabinet indépendant. Toutes les vulnérabilités
+                seront corrigées avant la mise en production.
               </p>
             </div>
           </motion.div>
@@ -522,69 +519,6 @@ export default function AboutPage({
         </div>
       </section>
 
-      {/* ── Values ── */}
-      <section
-        className="py-20 px-6"
-        style={{ background: "oklch(0.14 0.06 195)" }}
-      >
-        <div className="max-w-7xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="text-center mb-12"
-          >
-            <h2
-              className="font-display font-bold mb-3"
-              style={{ fontSize: "clamp(1.6rem, 3vw, 2.4rem)" }}
-            >
-              Nos <span style={{ color: "oklch(0.77 0.13 85)" }}>Valeurs</span>
-            </h2>
-          </motion.div>
-
-          <div className="grid md:grid-cols-3 gap-6">
-            {values.map((val, i) => (
-              <motion.div
-                key={val.title}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: i * 0.12 }}
-                className="rounded-2xl p-7 text-center flex flex-col items-center gap-4"
-                style={{
-                  background: "oklch(0.18 0.07 195 / 0.6)",
-                  border: "1.5px solid oklch(1 0 0 / 0.08)",
-                }}
-                data-ocid={`about.values.item.${i + 1}`}
-              >
-                <div
-                  className="w-16 h-16 rounded-full flex items-center justify-center text-3xl"
-                  style={{
-                    background: "oklch(0.77 0.13 85 / 0.1)",
-                    border: "1px solid oklch(0.77 0.13 85 / 0.25)",
-                  }}
-                >
-                  {val.icon}
-                </div>
-                <h3
-                  className="font-display font-bold text-lg"
-                  style={{ color: "oklch(0.77 0.13 85)" }}
-                >
-                  {val.title}
-                </h3>
-                <p
-                  className="text-sm leading-relaxed"
-                  style={{ color: "oklch(0.68 0.05 195)" }}
-                >
-                  {val.description}
-                </p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* ── CTA ── */}
       <section
         className="py-20 px-6 relative overflow-hidden"
@@ -621,9 +555,8 @@ export default function AboutPage({
             <span style={{ color: "oklch(0.77 0.13 85)" }}>KongoKash</span>
           </h2>
           <p className="text-white/60 leading-relaxed">
-            Plus de 10 000 Congolais font déjà confiance à KongoKash pour leurs
-            transactions crypto. Créez votre wallet non-custodial en moins de 2
-            minutes.
+            Créez votre wallet non-custodial en moins de 2 minutes. Vos fonds
+            restent sous votre contrôle — toujours.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center pt-2">

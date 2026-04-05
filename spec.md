@@ -1,31 +1,31 @@
-# KongoKash
+# KongoKash — Positionnement produit & confiance
 
 ## Current State
-- HeroSection.tsx: main landing hero with tagline and stats
-- P2PSection.tsx: P2P exchange section with offers listing
-- VisionSection.tsx: vision/mission section
-- EchangeHub.tsx: hub for P2P / KongoKash Direct / Conversion modes
-- ConversionModule.tsx: African currency conversion module
-- P2PPage.tsx: full P2P page with trades, escrow, dispute logic
+L'app est techniquement complète (P2P escrow, wallets non-custodials, réservations, Mobile Money, etc.) mais souffre d'un problème de perception :
+- Le Hero est dense, mélange trop d'infos
+- Le positionnement est flou : wallet ? exchange ? app ?
+- La page About existe mais le message de sécurité/escrow n'est pas assez fort et immédiat
+- Un visiteur ne comprend pas en 10 secondes ce que fait KongoKash
 
 ## Requested Changes (Diff)
 
 ### Add
-1. **Homepage headline**: "Envoyez et échangez de l'argent entre pays africains sans banque" in the HeroSection
-2. **Concrete P2P Africa use cases** on homepage: RDC → Côte d'Ivoire, RDC → Cameroun with live currency examples (CDF, FCFA, XAF)
-3. **African currencies highlight**: visual callout on homepage showcasing CDF, FCFA, XAF, Naira, etc.
-4. **"Comment ça marche" section**: new P2PHowItWorks component explaining the full escrow flow in 5 clear steps (vendeur dépose crypto → fonds bloqués → paiement fiat → libération automatique → terminé)
-5. **Dispute management, arbitrage & score de confiance** visible in the "Comment ça marche" section (tabs or sub-section)
+- Nouvelle section dans le Hero : bloc "Ce que KongoKash est" avec 1 phrase simple + 3 piliers (P2P, Escrow, Mobile Money)
+- Encart "En 10 secondes" dans le Hero (3 étapes ultra-simples : Crée → Envoie → Reçois)
+- Page About améliorée : section "Sécurité expliquée simplement" avec analogie escrow (coffre-fort neutre), explication wallet non-custodial en langage non-technique
+- Section "Ce que KongoKash N'EST PAS" pour lever les confusions (pas une banque, pas un exchange centralisé, pas un wallet custodial)
+- Banner de positionnement sticky sur la homepage ("Réseau de paiement P2P pour l'Afrique")
 
 ### Modify
-- HeroSection: update main tagline to P2P Africa value proposition, add use case cards (RDC→CIV, RDC→CMR)
-- P2PSection or EchangeHub: add "Comment ça marche" section before the offer listing
+- HeroSection : H1 raccourci et plus direct, sous-titre repositionné sur le P2P africain, stats réorganisées
+- AboutPage : hiérarchiser les infos, mettre l'explication escrow + wallet non-custodial en premier (avant la comparaison et les valeurs)
+- Navbar (non-connecté) : mettre "À propos" plus en évidence
 
 ### Remove
-- Nothing removed
+- Rien de fonctionnel supprimé
 
 ## Implementation Plan
-1. Update HeroSection tagline + add African P2P use case cards with flags and currency pairs
-2. Create P2PHowItWorks component with 5-step escrow flow + dispute/arbitrage + trust score sub-section
-3. Integrate P2PHowItWorks in P2PSection or EchangeHub
-4. Ensure African currencies (CDF, FCFA, XAF, NGN) are visually highlighted on homepage
+1. Réécrire HeroSection : H1 fort et court, section "En 3 étapes" visible au-dessus du fold, reformuler les stats
+2. Améliorer AboutPage : section top "Ce que c'est / Ce que ce n'est pas", explication escrow avec métaphore simple (coffre neutre), wallet non-custodial en termes accessibles
+3. Ajouter dans la section "Comment ça marche" une version ultra-simplifiée pour les non-techniques
+4. Navbar non-connectée : rendre le lien "À propos" plus visible (bouton vs lien texte)

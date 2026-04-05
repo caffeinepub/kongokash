@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import {
-  BarChart3,
   Home,
+  Info,
   List,
   Menu,
   Repeat2,
@@ -32,6 +32,14 @@ const MAIN_TABS: Array<{ id: TabId; label: string; icon: React.ElementType }> =
     { id: "profil", label: "Profil", icon: User },
   ];
 
+const GUEST_LINKS: Array<{ label: string; id: TabId; highlight?: boolean }> = [
+  { label: "Accueil", id: "accueil" },
+  { label: "Okapi", id: "okapi" },
+  { label: "Réservations", id: "reservations" },
+  { label: "Banques", id: "banques" },
+  { label: "À propos", id: "about", highlight: true },
+];
+
 export default function Navbar({
   activeTab,
   onTabChange,
@@ -59,6 +67,28 @@ export default function Navbar({
 
   return (
     <>
+      {/* Positioning strip — non-authenticated only */}
+      {!identity && (
+        <div
+          className="w-full text-center py-2 px-4 text-xs font-semibold"
+          style={{
+            background: "oklch(0.52 0.12 160 / 0.15)",
+            color: "oklch(0.78 0.14 160)",
+            borderBottom: "1px solid oklch(0.52 0.12 160 / 0.25)",
+          }}
+        >
+          🌍 Réseau de paiement P2P africain — Échangez CDF, FCFA, Naira et
+          plus, sans banque &nbsp;&middot;&nbsp;
+          <button
+            type="button"
+            onClick={() => handleTabClick("about")}
+            className="underline underline-offset-2 hover:opacity-70 transition-opacity"
+          >
+            En savoir plus
+          </button>
+        </div>
+      )}
+
       <header
         className="sticky top-0 z-50 w-full border-b border-white/10"
         style={{ background: "oklch(0.27 0.07 195)" }}
@@ -126,25 +156,37 @@ export default function Navbar({
               )}
             </nav>
           ) : (
-            // Non-authenticated: show minimal nav
+            // Non-authenticated: show minimal nav with About highlighted
             <nav className="hidden md:flex items-center gap-1">
-              {[
-                { label: "Accueil", id: "accueil" as TabId },
-                { label: "Okapi", id: "okapi" as TabId },
-                { label: "Réservations", id: "reservations" as TabId },
-                { label: "Banques", id: "banques" as TabId },
-                { label: "À propos", id: "about" as TabId },
-              ].map((link) => (
-                <button
-                  key={link.id}
-                  type="button"
-                  onClick={() => handleTabClick(link.id)}
-                  className="px-3 py-2 text-sm font-medium text-white/80 hover:text-white hover:bg-white/10 rounded-md transition-colors"
-                  data-ocid="nav.link"
-                >
-                  {link.label}
-                </button>
-              ))}
+              {GUEST_LINKS.map((link) =>
+                link.highlight ? (
+                  <button
+                    key={link.id}
+                    type="button"
+                    onClick={() => handleTabClick(link.id)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all"
+                    style={{
+                      background: "oklch(0.52 0.12 160 / 0.18)",
+                      color: "oklch(0.78 0.14 160)",
+                      border: "1px solid oklch(0.52 0.12 160 / 0.35)",
+                    }}
+                    data-ocid="nav.link"
+                  >
+                    <Info size={13} />
+                    {link.label}
+                  </button>
+                ) : (
+                  <button
+                    key={link.id}
+                    type="button"
+                    onClick={() => handleTabClick(link.id)}
+                    className="px-3 py-2 text-sm font-medium text-white/80 hover:text-white hover:bg-white/10 rounded-md transition-colors"
+                    data-ocid="nav.link"
+                  >
+                    {link.label}
+                  </button>
+                ),
+              )}
             </nav>
           )}
 
@@ -236,20 +278,27 @@ export default function Navbar({
               </>
             ) : (
               <>
-                {[
-                  { label: "Accueil", id: "accueil" as TabId },
-                  { label: "Okapi", id: "okapi" as TabId },
-                  { label: "Réservations", id: "reservations" as TabId },
-                  { label: "Banques", id: "banques" as TabId },
-                  { label: "À propos", id: "about" as TabId },
-                ].map((link) => (
+                {GUEST_LINKS.map((link) => (
                   <button
                     key={link.id}
                     type="button"
                     onClick={() => handleTabClick(link.id)}
-                    className="block w-full text-left px-3 py-2 text-white/80 hover:text-white text-sm"
+                    className={`flex items-center gap-2 w-full text-left px-3 py-2.5 rounded-lg text-sm mt-1 transition-colors ${
+                      link.highlight
+                        ? "font-semibold"
+                        : "text-white/80 hover:text-white"
+                    }`}
+                    style={
+                      link.highlight
+                        ? {
+                            background: "oklch(0.52 0.12 160 / 0.15)",
+                            color: "oklch(0.78 0.14 160)",
+                          }
+                        : {}
+                    }
                     data-ocid="nav.link"
                   >
+                    {link.highlight && <Info size={14} />}
                     {link.label}
                   </button>
                 ))}

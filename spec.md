@@ -1,28 +1,31 @@
 # KongoKash
 
 ## Current State
-L'app dispose déjà d'un OnboardingFlow basique (3 étapes texte), une navigation 5 onglets, un DashboardHome avec actions rapides, et un WalletPage avec sous-onglets. L'interface est fonctionnelle mais reste technique (vocabulaire crypto, peu d'icônes visuelles, onboarding succinct).
+- HeroSection.tsx: main landing hero with tagline and stats
+- P2PSection.tsx: P2P exchange section with offers listing
+- VisionSection.tsx: vision/mission section
+- EchangeHub.tsx: hub for P2P / KongoKash Direct / Conversion modes
+- ConversionModule.tsx: African currency conversion module
+- P2PPage.tsx: full P2P page with trades, escrow, dispute logic
 
 ## Requested Changes (Diff)
 
 ### Add
-- Composant `OnboardingSimplified.tsx` : onboarding débutant en 3 étapes visuelles avec grandes icônes illustrées, texte simplifié, barre de progression animée, et un CTA clair par étape
-- Étape 1 : "Créer mon porte-monnaie" (icône coffre-fort, explication simple non-custodial)
-- Étape 2 : "Acheter ma première crypto" (icône pièce d'or, explication achat via Mobile Money)
-- Étape 3 : "Échanger avec quelqu'un" (icône flèches échange, explication P2P en langage simple)
-- Vocabulaire débutant : remplacer "wallet" → "porte-monnaie", "seed phrase" → "phrase secrète de récupération", "P2P" → "Échange entre personnes", "escrow" → "paiement sécurisé"
-- Badges étapes avec numéro + icône + titre court en français simple
+1. **Homepage headline**: "Envoyez et échangez de l'argent entre pays africains sans banque" in the HeroSection
+2. **Concrete P2P Africa use cases** on homepage: RDC → Côte d'Ivoire, RDC → Cameroun with live currency examples (CDF, FCFA, XAF)
+3. **African currencies highlight**: visual callout on homepage showcasing CDF, FCFA, XAF, Naira, etc.
+4. **"Comment ça marche" section**: new P2PHowItWorks component explaining the full escrow flow in 5 clear steps (vendeur dépose crypto → fonds bloqués → paiement fiat → libération automatique → terminé)
+5. **Dispute management, arbitrage & score de confiance** visible in the "Comment ça marche" section (tabs or sub-section)
 
 ### Modify
-- `OnboardingFlow.tsx` : refonte complète avec étapes visuelles grandes, icônes colorées, descriptions simplifiées, indicateurs de progression visuels
-- `DashboardHome.tsx` : améliorer l'onboarding intégré avec numéros d'étape, icônes illustratives plus grandes, et barre de progression visuelle
-- `WalletPage.tsx` : libellés des actions en langage simple ("Recevoir de l'argent", "Envoyer de l'argent", "Déposer", "Retirer")
+- HeroSection: update main tagline to P2P Africa value proposition, add use case cards (RDC→CIV, RDC→CMR)
+- P2PSection or EchangeHub: add "Comment ça marche" section before the offer listing
 
 ### Remove
-- Jargon technique superflu dans les descriptions d'onboarding
+- Nothing removed
 
 ## Implementation Plan
-1. Refondre `OnboardingFlow.tsx` : grandes cartes visuelles, icônes SVG/Lucide colorées, texte débutant, progression animée
-2. Améliorer `DashboardHome.tsx` : onboarding en pleine carte avec numéros d'étapes en cercles colorés, descriptions simplifiées
-3. Simplifier les libellés dans `WalletPage.tsx` actions
-4. S'assurer que le vocabulaire est cohérent partout (porte-monnaie, phrase secrète, échange sécurisé)
+1. Update HeroSection tagline + add African P2P use case cards with flags and currency pairs
+2. Create P2PHowItWorks component with 5-step escrow flow + dispute/arbitrage + trust score sub-section
+3. Integrate P2PHowItWorks in P2PSection or EchangeHub
+4. Ensure African currencies (CDF, FCFA, XAF, NGN) are visually highlighted on homepage

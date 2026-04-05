@@ -20,6 +20,7 @@ import {
 } from "../utils/priceEngine";
 import ConversionModule from "./ConversionModule";
 import KongoKashDirect from "./KongoKashDirect";
+import P2PHowItWorks from "./P2PHowItWorks";
 import P2PPage from "./P2PPage";
 
 type HubMode = "direct" | "p2p" | "conversion";
@@ -418,6 +419,21 @@ export default function EchangeHub({ defaultView }: EchangeHubProps) {
           </Card>
         </div>
       )}
+
+      {/* ── P2P How It Works — shown only in P2P mode ── */}
+      <AnimatePresence>
+        {activeMode === "p2p" && (
+          <motion.div
+            key="p2p-how-it-works"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.25 }}
+          >
+            <P2PHowItWorks />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Active mode content */}
       <div className="mt-2">

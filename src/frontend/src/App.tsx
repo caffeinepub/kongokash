@@ -6,6 +6,7 @@ import AdminDashboard from "./components/AdminDashboard";
 import BanquesSection from "./components/BanquesSection";
 import DashboardHome from "./components/DashboardHome";
 import EchangeHub from "./components/EchangeHub";
+import EscrowExplainer from "./components/EscrowExplainer";
 import FirstAdminSetup from "./components/FirstAdminSetup";
 import Footer from "./components/Footer";
 import HeroSection from "./components/HeroSection";
@@ -13,10 +14,11 @@ import MarketOverview from "./components/MarketOverview";
 import MobileMoneySection from "./components/MobileMoneySection";
 import Navbar from "./components/Navbar";
 import OkapiSection from "./components/OkapiSection";
-import P2PPage from "./components/P2PPage";
+import P2PFlowDiagram from "./components/P2PFlowDiagram";
 import ProfilPage from "./components/ProfilPage";
 import ReservationsSection from "./components/ReservationsSection";
 import TransactionsPage from "./components/TransactionsPage";
+import TrustSection from "./components/TrustSection";
 import VisionSection from "./components/VisionSection";
 import WalletPage from "./components/WalletPage";
 import { useActor } from "./hooks/useActor";
@@ -72,7 +74,6 @@ export default function App() {
     setActiveSubTab(sub ?? null);
   };
 
-  // Reset subTab after a short delay so it doesn't persist on re-renders
   useEffect(() => {
     if (activeSubTab) {
       const t = setTimeout(() => setActiveSubTab(null), 500);
@@ -98,15 +99,15 @@ export default function App() {
 
   if (sanction.blocked) {
     const typeLabels: Record<string, string> = {
-      BLOCAGE_IMMEDIAT: "Blocage immédiat",
+      BLOCAGE_IMMEDIAT: "Blocage immediat",
       GEL_TEMPORAIRE: "Gel temporaire",
       BLACKLIST_GLOBALE: "Blacklist globale",
     };
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6">
         <div className="max-w-md w-full rounded-2xl border border-red-500/30 bg-slate-900 p-8 text-center space-y-5">
-          <div className="text-5xl">🚫</div>
-          <h1 className="text-2xl font-bold text-red-400">Accès suspendu</h1>
+          <div className="text-5xl">&#x1F6AB;</div>
+          <h1 className="text-2xl font-bold text-red-400">Acces suspendu</h1>
           <p className="text-slate-400">{sanction.message}</p>
           {sanction.type && (
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-900/30 border border-red-500/30 text-red-300 text-sm font-medium">
@@ -115,7 +116,7 @@ export default function App() {
           )}
           {sanction.expiry && (
             <p className="text-amber-400 text-sm">
-              ❄️ Levée prévue le{" "}
+              Levee prevue le{" "}
               {sanction.expiry.toLocaleString("fr-CD", {
                 day: "2-digit",
                 month: "long",
@@ -158,13 +159,13 @@ export default function App() {
                 onClick={() => {
                   setAppealMsg("");
                   setAppealOpen(false);
-                  alert("Votre appel a été envoyé à l'équipe de support.");
+                  alert("Votre appel a ete envoye a l'equipe de support.");
                 }}
                 disabled={appealMsg.trim().length < 10}
                 className="w-full py-2 rounded-lg bg-teal-700 hover:bg-teal-600 disabled:opacity-40 text-white text-sm font-medium transition-colors"
                 data-ocid="fraud.submit_button"
               >
-                Envoyer l'appel
+                Envoyer l&apos;appel
               </button>
             </div>
           )}
@@ -178,6 +179,9 @@ export default function App() {
       return (
         <>
           <HeroSection onGetStarted={() => {}} onViewMarkets={() => {}} />
+          <TrustSection onLearnMore={() => setActiveTab("about")} />
+          <EscrowExplainer />
+          <P2PFlowDiagram />
           <VisionSection />
           <MarketOverview />
           <OkapiSection />
@@ -243,10 +247,10 @@ export default function App() {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
               <div className="mb-6">
                 <h1 className="font-display font-bold text-2xl text-white">
-                  Réservations
+                  Reservations
                 </h1>
                 <p className="text-slate-400 text-sm mt-1">
-                  Hôtels, parcs nationaux, vols et structures partenaires.
+                  Hotels, parcs nationaux, vols et structures partenaires.
                 </p>
               </div>
             </div>

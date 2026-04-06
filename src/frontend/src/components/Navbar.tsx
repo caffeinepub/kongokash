@@ -5,6 +5,7 @@ import {
   List,
   Menu,
   Repeat2,
+  Rocket,
   Shield,
   User,
   Wallet,
@@ -77,8 +78,8 @@ export default function Navbar({
             borderBottom: "1px solid oklch(0.52 0.12 160 / 0.25)",
           }}
         >
-          🌍 Réseau de paiement P2P africain — Échangez CDF, FCFA, Naira et
-          plus, sans banque &nbsp;&middot;&nbsp;
+          🌍 KongoKash — Réseau de paiement P2P africain &nbsp;&middot;&nbsp;
+          Échangez CDF, FCFA, Naira sans banque &nbsp;&middot;&nbsp;
           <button
             type="button"
             onClick={() => handleTabClick("about")}
@@ -205,26 +206,32 @@ export default function Navbar({
                 </button>
               </div>
             ) : (
-              <>
+              <div className="flex items-center gap-2">
+                {/* Primary CTA — most prominent for guests */}
                 <Button
-                  variant="outline"
+                  size="sm"
+                  onClick={openRegister}
+                  className="rounded-full px-5 font-bold text-sm shadow-gold hover:brightness-110 transition-all"
+                  style={{
+                    background: "oklch(0.77 0.13 85)",
+                    color: "oklch(0.15 0.03 250)",
+                    boxShadow: "0 3px 14px oklch(0.77 0.13 85 / 0.40)",
+                  }}
+                  data-ocid="nav.primary_button"
+                >
+                  <Rocket size={13} className="mr-1.5" />
+                  Commencer gratuitement
+                </Button>
+                <Button
+                  variant="ghost"
                   size="sm"
                   onClick={openLogin}
-                  className="border-gold text-gold hover:bg-gold/10 bg-transparent"
+                  className="text-white/70 hover:text-white hover:bg-white/10"
                   data-ocid="nav.button"
                 >
                   Connexion
                 </Button>
-                <Button
-                  size="sm"
-                  onClick={openRegister}
-                  style={{ background: "oklch(0.52 0.12 160)" }}
-                  className="text-white hover:opacity-90"
-                  data-ocid="nav.button"
-                >
-                  S'inscrire
-                </Button>
-              </>
+              </div>
             )}
           </div>
 
@@ -278,6 +285,25 @@ export default function Navbar({
               </>
             ) : (
               <>
+                {/* Mobile primary CTA */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    openRegister();
+                    setMenuOpen(false);
+                  }}
+                  className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl text-sm font-bold mt-3 transition-all hover:brightness-110"
+                  style={{
+                    background: "oklch(0.77 0.13 85)",
+                    color: "oklch(0.15 0.03 250)",
+                    boxShadow: "0 3px 14px oklch(0.77 0.13 85 / 0.35)",
+                  }}
+                  data-ocid="nav.primary_button"
+                >
+                  <Rocket size={15} />
+                  Commencer gratuitement
+                </button>
+
                 {GUEST_LINKS.map((link) => (
                   <button
                     key={link.id}
@@ -307,19 +333,10 @@ export default function Navbar({
                     variant="outline"
                     size="sm"
                     onClick={openLogin}
-                    className="border-gold text-gold bg-transparent"
+                    className="border-white/30 text-white bg-transparent flex-1"
                     data-ocid="nav.button"
                   >
                     Connexion
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={openRegister}
-                    style={{ background: "oklch(0.52 0.12 160)" }}
-                    className="text-white"
-                    data-ocid="nav.button"
-                  >
-                    S'inscrire
                   </Button>
                 </div>
               </>

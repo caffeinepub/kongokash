@@ -1,31 +1,34 @@
-# KongoKash — Positionnement produit & confiance
+# KongoKash
 
 ## Current State
-L'app est techniquement complète (P2P escrow, wallets non-custodials, réservations, Mobile Money, etc.) mais souffre d'un problème de perception :
-- Le Hero est dense, mélange trop d'infos
-- Le positionnement est flou : wallet ? exchange ? app ?
-- La page About existe mais le message de sécurité/escrow n'est pas assez fort et immédiat
-- Un visiteur ne comprend pas en 10 secondes ce que fait KongoKash
+La page d'accueil (non-connecté) affiche :
+- HeroSection : headline P2P africain, 3 étapes, CTA "Commencer maintenant" + "Comment ça marche"
+- TrustSection : 3 cartes (non-custodial, escrow coffre-fort, ICP), barre de garantie
+- EscrowExplainer : 4 étapes compactes (Payer → Bloqués → Confirmé → Libérés) avec callout litige
+- VisionSection : 3 piliers de philosophie KongoKash
 
 ## Requested Changes (Diff)
 
 ### Add
-- Nouvelle section dans le Hero : bloc "Ce que KongoKash est" avec 1 phrase simple + 3 piliers (P2P, Escrow, Mobile Money)
-- Encart "En 10 secondes" dans le Hero (3 étapes ultra-simples : Crée → Envoie → Reçois)
-- Page About améliorée : section "Sécurité expliquée simplement" avec analogie escrow (coffre-fort neutre), explication wallet non-custodial en langage non-technique
-- Section "Ce que KongoKash N'EST PAS" pour lever les confusions (pas une banque, pas un exchange centralisé, pas un wallet custodial)
-- Banner de positionnement sticky sur la homepage ("Réseau de paiement P2P pour l'Afrique")
+- Nouveau composant `P2PFlowDiagram` : schéma visuel animé du flux P2P complet (vendeur dépose → escrow verrouille → acheteur paie → preuve → libération ou arbitrage) - l'effet "wow"
+- Dans TrustSection : bloc visuel proéminent "Vos fonds sont 100% sous votre contrôle" + "KongoKash ne peut pas accéder à votre argent" + mention claire arbitrage en cas de litige
+- Dans EscrowExplainer : icônes plus grandes et distinctes par étape (dépôt → blocage → paiement → libération), titre renforcé "Comment vos transactions sont protégées"
+- Dans HeroSection : bouton primaire "Créer mon wallet" + bouton secondaire "Commencer gratuitement"
+- Tooltips/badges d'explication simplifiée (ex : "crypto = intermédiaire de sécurité neutre")
 
 ### Modify
-- HeroSection : H1 raccourci et plus direct, sous-titre repositionné sur le P2P africain, stats réorganisées
-- AboutPage : hiérarchiser les infos, mettre l'explication escrow + wallet non-custodial en premier (avant la comparaison et les valeurs)
-- Navbar (non-connecté) : mettre "À propos" plus en évidence
+- HeroSection CTA : remplacer "Commencer maintenant" par "Créer mon wallet" et "Comment ça marche" par "Commencer gratuitement"
+- TrustSection : rendre les messages de confiance plus forts et plus visibles (plus grande police, couleur proéminente)
+- EscrowExplainer : nouveau titre "Comment vos transactions sont protégées", icônes plus grandes, étapes plus larges
+- Ajouter petites explications pour débutants dans les sections clés
 
 ### Remove
-- Rien de fonctionnel supprimé
+- Rien supprimé
 
 ## Implementation Plan
-1. Réécrire HeroSection : H1 fort et court, section "En 3 étapes" visible au-dessus du fold, reformuler les stats
-2. Améliorer AboutPage : section top "Ce que c'est / Ce que ce n'est pas", explication escrow avec métaphore simple (coffre neutre), wallet non-custodial en termes accessibles
-3. Ajouter dans la section "Comment ça marche" une version ultra-simplifiée pour les non-techniques
-4. Navbar non-connectée : rendre le lien "À propos" plus visible (bouton vs lien texte)
+1. Modifier HeroSection.tsx : CTA "Créer mon wallet" (primaire) + "Commencer gratuitement" (secondaire), ajouter une ligne explicative simplifiée
+2. Modifier TrustSection.tsx : ajouter un bloc hero en haut avec les messages forts (100% contrôle, KongoKash ne peut pas accéder, arbitrage), renforcer visuellement
+3. Modifier EscrowExplainer.tsx : nouveau titre, icônes plus grandes, étapes redessinées avec meilleur impact visuel
+4. Créer P2PFlowDiagram.tsx : diagramme animé SVG/CSS du flux P2P complet (effet wow)
+5. Intégrer P2PFlowDiagram dans App.tsx après EscrowExplainer
+6. Ajouter des explications simplifiées pour débutants dans TrustSection et EscrowExplainer

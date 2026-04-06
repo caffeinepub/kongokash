@@ -63,13 +63,14 @@ export default function VisionSection() {
             className="font-display font-bold text-white"
             style={{ fontSize: "clamp(1.8rem, 3.5vw, 2.8rem)" }}
           >
-            Notre <span style={{ color: "oklch(0.77 0.13 85)" }}>Vision</span>
+            Pourquoi KongoKash est{" "}
+            <span style={{ color: "oklch(0.77 0.13 85)" }}>différent</span>
           </h2>
           <p
             className="mt-3 text-lg max-w-xl mx-auto"
             style={{ color: "oklch(0.70 0.05 195)" }}
           >
-            Une plateforme de confiance pour le Congo
+            Ni une banque, ni un exchange centralisé. Un réseau P2P africain.
           </p>
         </motion.div>
 
@@ -121,7 +122,7 @@ export default function VisionSection() {
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5, delay: 0.4 }}
-          className="flex flex-wrap justify-center gap-4"
+          className="flex flex-wrap justify-center gap-4 mb-8"
           data-ocid="vision.trust.panel"
         >
           {trustBadges.map((badge) => (
@@ -137,6 +138,30 @@ export default function VisionSection() {
               {badge}
             </span>
           ))}
+        </motion.div>
+
+        {/* Guarantee callout */}
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.5, delay: 0.55 }}
+          className="max-w-3xl mx-auto rounded-2xl px-8 py-5 text-center"
+          style={{
+            background: "oklch(0.52 0.12 160 / 0.08)",
+            border: "1.5px solid oklch(0.52 0.12 160 / 0.35)",
+          }}
+          data-ocid="vision.panel"
+        >
+          <p
+            className="text-base font-semibold leading-relaxed"
+            style={{ color: "oklch(0.85 0.08 160)" }}
+          >
+            💬 Aucune personne, aucune entreprise ne peut bloquer vos fonds.{" "}
+            <span style={{ color: "oklch(0.78 0.14 160)" }}>
+              C'est garanti par le code.
+            </span>
+          </p>
         </motion.div>
       </div>
     </section>

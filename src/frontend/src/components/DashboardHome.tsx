@@ -11,6 +11,7 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ArrowDownLeft,
+  ArrowRight,
   ArrowUpRight,
   Check,
   Copy,
@@ -20,8 +21,9 @@ import {
   Repeat2,
   Send,
   TrendingUp,
+  X,
 } from "lucide-react";
-import { motion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useNonCustodialWallet } from "../hooks/useNonCustodialWallet";
@@ -40,11 +42,11 @@ function formatUSD(n: number) {
 const TX_TYPE_LABELS: Record<string, string> = {
   buy: "Achat",
   sell: "Vente",
-  deposit: "Dépôt",
+  deposit: "Depot",
   withdrawal: "Retrait",
   transfer: "Transfert",
   staking: "Staking",
-  reward: "Récompense",
+  reward: "Recompense",
 };
 
 const TX_STATUS_MAP: Record<
@@ -58,7 +60,6 @@ const TX_STATUS_MAP: Record<
   cancelled: "cancelled",
 };
 
-// Simple deterministic QR-like visual from address string
 function AddressQRVisual({ address }: { address: string }) {
   const size = 7;
   const cells: Array<{ id: string; filled: boolean }> = [];
@@ -97,14 +98,23 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
   const [onboardingDismissed, setOnboardingDismissed] = useState(
     () => localStorage.getItem("kk_onboarding_dismissed") === "1",
   );
+  const [welcomeBannerDismissed, setWelcomeBannerDismissed] = useState(
+    () => localStorage.getItem("kk_welcome_banner_dismissed") === "1",
+  );
   const [receiveOpen, setReceiveOpen] = useState(false);
   const [addressCopied, setAddressCopied] = useState(false);
 
+  const hasWallet = !!walletAddress;
   const recentTx = (transactions ?? []).slice(0, 5);
 
   const handleDismissOnboarding = () => {
     localStorage.setItem("kk_onboarding_dismissed", "1");
     setOnboardingDismissed(true);
+  };
+
+  const handleDismissWelcomeBanner = () => {
+    localStorage.setItem("kk_welcome_banner_dismissed", "1");
+    setWelcomeBannerDismissed(true);
   };
 
   const handleCopyAddress = () => {
@@ -119,19 +129,27 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
     ? `${identity.getPrincipal().toString().slice(0, 8)}...`
     : "";
 
+  const contextualSubtitle =
+    !onboardingDismissed && totalCDF === 0
+      ? "Commencez par creer votre porte-monnaie"
+      : "KongoKash - Tableau de bord";
+
+  const showWelcomeBanner =
+    !welcomeBannerDismissed && totalCDF === 0 && !hasWallet;
+
   const quickActions = [
     {
       icon: ArrowDownLeft,
-      label: "Recevoir de l'argent",
-      sublabel: "Mobile Money / Banque",
+      label: "Recevoir",
+      sublabel: "Mobile Money",
       gradient: "from-emerald-600 to-emerald-700",
       shadow: "shadow-emerald-900/40",
       onClick: () => onNavigate("wallet:deposit"),
     },
     {
       icon: Send,
-      label: "Envoyer de l'argent",
-      sublabel: "Transfert externe",
+      label: "Envoyer",
+      sublabel: "Transfert",
       gradient: "from-blue-600 to-blue-700",
       shadow: "shadow-blue-900/40",
       onClick: () => onNavigate("wallet:external"),
@@ -139,15 +157,15 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
     {
       icon: ArrowUpRight,
       label: "Mon adresse",
-      sublabel: "Partager mon QR",
+      sublabel: "Partager QR",
       gradient: "from-teal-600 to-teal-700",
       shadow: "shadow-teal-900/40",
       onClick: () => setReceiveOpen(true),
     },
     {
       icon: Repeat2,
-      label: "Acheter crypto",
-      sublabel: "Instantané",
+      label: "Acheter",
+      sublabel: "Instantane",
       gradient: "from-amber-500 to-orange-600",
       shadow: "shadow-amber-900/40",
       onClick: () => onNavigate("p2p:direct"),
@@ -163,35 +181,35 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
   const marketRates = [
     {
       symbol: "BTC",
-      icon: "₿",
+      icon: "\u20bf",
       price: rateMap.btc ? Math.round(rateMap.btc) : 162_000_000,
       change: "+1.8%",
       up: true,
     },
     {
       symbol: "USDT",
-      icon: "₮",
+      icon: "\u20ae",
       price: rateMap.usdt ? Math.round(rateMap.usdt) : 2850,
       change: "+0.2%",
       up: true,
     },
     {
       symbol: "ETH",
-      icon: "⟠",
+      icon: "\u27a0",
       price: rateMap.eth ? Math.round(rateMap.eth) : 8_400_000,
       change: "-0.5%",
       up: false,
     },
     {
       symbol: "OKP",
-      icon: "🦌",
+      icon: "\ud83e\udead",
       price: rateMap.okp ? Math.round(rateMap.okp) : 85,
       change: "+5.2%",
       up: true,
     },
     {
       symbol: "ICP",
-      icon: "∞",
+      icon: "\u221e",
       price: rateMap.icp ? Math.round(rateMap.icp) : 42_000,
       change: "+3.1%",
       up: true,
@@ -201,14 +219,9 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
   const displayAddress =
     walletAddress ?? identity?.getPrincipal().toString() ?? null;
 
-  const contextualSubtitle =
-    !onboardingDismissed && totalCDF === 0
-      ? "Commencez par créer votre porte-monnaie 👇"
-      : "KongoKash · Tableau de bord";
-
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-5">
-      {/* Welcome bar */}
+      {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
@@ -216,7 +229,8 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
       >
         <div>
           <h1 className="font-display font-bold text-2xl text-white">
-            Bonjour, {profile?.displayName || principalShort || "Bienvenue"} 👋
+            Bonjour, {profile?.displayName || principalShort || "Bienvenue"}{" "}
+            &#x1F44B;
           </h1>
           <p className="text-slate-400 text-sm mt-0.5">{contextualSubtitle}</p>
         </div>
@@ -231,7 +245,79 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
         </Button>
       </motion.div>
 
-      {/* Onboarding flow */}
+      {/* Welcome Banner */}
+      <AnimatePresence>
+        {showWelcomeBanner && (
+          <motion.div
+            initial={{ opacity: 0, y: -12, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -12, scale: 0.98 }}
+            transition={{ duration: 0.4 }}
+            className="relative rounded-2xl overflow-hidden p-7"
+            style={{
+              background:
+                "linear-gradient(135deg, oklch(0.68 0.14 75) 0%, oklch(0.77 0.13 85) 50%, oklch(0.72 0.16 65) 100%)",
+              boxShadow: "0 8px 32px oklch(0.77 0.13 85 / 0.35)",
+            }}
+            data-ocid="dashboard.panel"
+          >
+            <button
+              type="button"
+              onClick={handleDismissWelcomeBanner}
+              className="absolute top-3 right-3 p-1.5 rounded-full transition-colors hover:bg-black/15"
+              style={{ color: "oklch(0.25 0.05 80)" }}
+              data-ocid="dashboard.close_button"
+            >
+              <X size={16} />
+            </button>
+            <div className="max-w-lg">
+              <h2
+                className="font-display font-bold text-2xl mb-2 leading-tight"
+                style={{ color: "oklch(0.18 0.04 80)" }}
+              >
+                Bienvenue sur KongoKash &#x1F30D;
+              </h2>
+              <p
+                className="text-sm leading-relaxed mb-5"
+                style={{ color: "oklch(0.28 0.06 80)" }}
+              >
+                Reseau de paiement P2P africain - envoyez de l&apos;argent entre
+                pays africains sans banque, protege par smart contract.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  type="button"
+                  onClick={() => onNavigate("wallet")}
+                  className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold text-sm transition-all hover:brightness-110 shadow-lg"
+                  style={{ background: "oklch(0.18 0.04 210)", color: "white" }}
+                  data-ocid="dashboard.primary_button"
+                >
+                  Creer mon porte-monnaie
+                  <ArrowRight size={15} />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDismissWelcomeBanner}
+                  className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-medium text-sm transition-all hover:bg-black/10"
+                  style={{ color: "oklch(0.28 0.06 80)" }}
+                  data-ocid="dashboard.secondary_button"
+                >
+                  Explorer d&apos;abord
+                </button>
+              </div>
+              <p
+                className="mt-4 text-xs font-medium"
+                style={{ color: "oklch(0.32 0.06 80)" }}
+              >
+                &#x1F512; Vos fonds sous votre controle - KongoKash n&apos;y a
+                jamais acces
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Onboarding */}
       {!onboardingDismissed && (
         <OnboardingFlow
           onNavigateWallet={() => onNavigate("wallet")}
@@ -267,7 +353,7 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
                   <p className="text-teal-200/70 text-sm font-medium">
-                    Solde Total Estimé
+                    Solde Total Estime
                   </p>
                   <button
                     type="button"
@@ -282,7 +368,7 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
                   <Skeleton className="h-10 w-52 bg-white/10" />
                 ) : (
                   <p className="font-display font-bold text-4xl text-white tracking-tight">
-                    {balanceVisible ? formatCDF(totalCDF) : "••••••• FC"}
+                    {balanceVisible ? formatCDF(totalCDF) : "******* FC"}
                   </p>
                 )}
                 {isLoading ? (
@@ -294,14 +380,14 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
                     </p>
                     <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-400/20 text-emerald-300">
                       <TrendingUp size={10} />
-                      +2.4% aujourd'hui
+                      +2.4% aujourd&apos;hui
                     </span>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* 4 Quick Action buttons */}
+            {/* Quick actions */}
             <div className="grid grid-cols-4 gap-3 mt-6">
               {quickActions.map((action, i) => (
                 <motion.button
@@ -309,9 +395,7 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
                   type="button"
                   whileTap={{ scale: 0.95 }}
                   onClick={action.onClick}
-                  className={`flex flex-col items-center gap-1.5 p-3 rounded-2xl bg-gradient-to-b ${
-                    action.gradient
-                  } shadow-lg ${action.shadow} hover:brightness-110 transition-all`}
+                  className={`flex flex-col items-center gap-1.5 p-3 rounded-2xl bg-gradient-to-b ${action.gradient} shadow-lg ${action.shadow} hover:brightness-110 transition-all`}
                   data-ocid={`dashboard.primary_button.${i + 1}`}
                 >
                   <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
@@ -328,7 +412,6 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
                 </motion.button>
               ))}
             </div>
-            {/* P2P secondary link */}
             <div className="flex justify-center mt-3">
               <button
                 type="button"
@@ -336,14 +419,14 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
                 className="text-xs text-teal-400/70 hover:text-teal-300 transition-colors flex items-center gap-1"
                 data-ocid="dashboard.link"
               >
-                Échanger entre personnes →
+                Echanger entre personnes &rarr;
               </button>
             </div>
           </CardContent>
         </Card>
       </motion.div>
 
-      {/* Market mini-widget */}
+      {/* Market widget */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
@@ -351,7 +434,7 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
       >
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-            Marché en direct
+            Marche en direct
           </h2>
           <button
             type="button"
@@ -359,7 +442,7 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
             className="text-xs text-teal-400 hover:text-teal-300 transition-colors"
             data-ocid="dashboard.link"
           >
-            Trader →
+            Trader &rarr;
           </button>
         </div>
         <ScrollArea>
@@ -375,9 +458,7 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
                 <div className="flex items-center justify-between">
                   <span className="text-lg">{r.icon}</span>
                   <span
-                    className={`text-xs font-semibold ${
-                      r.up ? "text-emerald-400" : "text-rose-400"
-                    }`}
+                    className={`text-xs font-semibold ${r.up ? "text-emerald-400" : "text-rose-400"}`}
                   >
                     {r.change}
                   </span>
@@ -401,7 +482,7 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
       >
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-            Activité Récente
+            Activite Recente
           </h2>
           <button
             type="button"
@@ -409,7 +490,7 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
             className="text-xs text-teal-400 hover:text-teal-300 transition-colors"
             data-ocid="dashboard.link"
           >
-            Voir tout →
+            Voir tout &rarr;
           </button>
         </div>
         <Card className="border-slate-700/60 bg-slate-900">
@@ -433,15 +514,11 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
                   >
                     <div className="flex items-center gap-3">
                       <div
-                        className={`w-9 h-9 rounded-full flex items-center justify-center text-base ${
-                          tx.txType === "buy" || tx.txType === "deposit"
-                            ? "bg-emerald-900/40 text-emerald-400"
-                            : "bg-rose-900/40 text-rose-400"
-                        }`}
+                        className={`w-9 h-9 rounded-full flex items-center justify-center text-base ${tx.txType === "buy" || tx.txType === "deposit" ? "bg-emerald-900/40 text-emerald-400" : "bg-rose-900/40 text-rose-400"}`}
                       >
                         {tx.txType === "buy" || tx.txType === "deposit"
-                          ? "↓"
-                          : "↑"}
+                          ? "\u2193"
+                          : "\u2191"}
                       </div>
                       <div>
                         <p className="text-sm font-medium text-white">
@@ -456,11 +533,7 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
                     </div>
                     <div className="text-right">
                       <p
-                        className={`text-sm font-bold ${
-                          tx.txType === "buy" || tx.txType === "deposit"
-                            ? "text-emerald-400"
-                            : "text-rose-400"
-                        }`}
+                        className={`text-sm font-bold ${tx.txType === "buy" || tx.txType === "deposit" ? "text-emerald-400" : "text-rose-400"}`}
                       >
                         {tx.txType === "buy" || tx.txType === "deposit"
                           ? "+"
@@ -472,7 +545,7 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
                         status={TX_STATUS_MAP[tx.status] ?? "info"}
                         label={
                           tx.status === "completed"
-                            ? "Confirmé"
+                            ? "Confirme"
                             : tx.status === "pending"
                               ? "En attente"
                               : tx.status
@@ -487,15 +560,17 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
                 className="flex flex-col items-center py-10 text-slate-500 gap-2"
                 data-ocid="dashboard.empty_state"
               >
-                <span className="text-3xl">📭</span>
-                <p className="text-sm">Aucune transaction pour l'instant</p>
+                <span className="text-3xl">&#x1F4ED;</span>
+                <p className="text-sm">
+                  Aucune transaction pour l&apos;instant
+                </p>
                 <button
                   type="button"
                   onClick={() => onNavigate("wallet:deposit")}
                   className="text-teal-400 text-xs hover:underline"
                   data-ocid="dashboard.link"
                 >
-                  Faire un premier dépôt →
+                  Faire un premier depot &rarr;
                 </button>
               </div>
             )}
@@ -507,7 +582,7 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
                   className="text-xs text-teal-400 hover:text-teal-300 transition-colors"
                   data-ocid="dashboard.link"
                 >
-                  Voir toutes les transactions →
+                  Voir toutes les transactions &rarr;
                 </button>
               </div>
             )}
@@ -534,7 +609,7 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
                   <AddressQRVisual address={displayAddress} />
                 </div>
                 <p className="text-center text-xs text-slate-400">
-                  📱 Partagez cette adresse pour recevoir des fonds
+                  Partagez cette adresse pour recevoir des fonds
                 </p>
                 <div className="rounded-xl bg-slate-800 border border-slate-700 p-3 space-y-2">
                   <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">
@@ -557,11 +632,11 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
                 >
                   {addressCopied ? (
                     <>
-                      <Check size={16} /> Adresse copiée !
+                      <Check size={16} /> Adresse copiee !
                     </>
                   ) : (
                     <>
-                      <Copy size={16} /> Copier l'adresse
+                      <Copy size={16} /> Copier l&apos;adresse
                     </>
                   )}
                 </button>
@@ -569,7 +644,8 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
             ) : (
               <div className="text-center py-6 space-y-3">
                 <p className="text-slate-400 text-sm">
-                  Créez d'abord votre porte-monnaie pour obtenir une adresse.
+                  Creez d&apos;abord votre porte-monnaie pour obtenir une
+                  adresse.
                 </p>
                 <button
                   type="button"
@@ -581,7 +657,7 @@ export default function DashboardHome({ onNavigate }: DashboardHomeProps) {
                   style={{ background: "oklch(0.42 0.13 195)" }}
                   data-ocid="dashboard.secondary_button"
                 >
-                  Créer mon porte-monnaie →
+                  Creer mon porte-monnaie &rarr;
                 </button>
               </div>
             )}
